@@ -1,0 +1,17 @@
+diff --git a/node_modules/react-native-razorpay/android/build.gradle b/node_modules/react-native-razorpay/android/build.gradle
+index b6c5f25..7564dcb 100644
+--- a/node_modules/react-native-razorpay/android/build.gradle
++++ b/node_modules/react-native-razorpay/android/build.gradle
+@@ -56,8 +56,11 @@ android {
+ }
+ 
+ dependencies {
+-    implementation 'com.facebook.react:react-native:+'
++    // RN 0.71+ stopped publishing `com.facebook.react:react-native` on Maven
++    // Central (only `react-android` is published). Pinned to the app's RN
++    // version so the old artifact can never be resolved.
++    implementation 'com.facebook.react:react-android:0.81.5'
+     implementation 'com.razorpay:checkout:1.6.41'
+ }
+ 
+ // Add codegen configuration for new architecture

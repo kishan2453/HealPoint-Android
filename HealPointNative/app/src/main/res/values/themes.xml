@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Light theme. Compose draws the whole UI; this XML theme only controls
+         the launch window while the first frame renders. -->
+    <style name="Theme.HealPoint" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

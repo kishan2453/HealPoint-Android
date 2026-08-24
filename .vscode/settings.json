@@ -1,7 +1,15 @@
 {
+  // Use the workspace TypeScript (same version the CLI runs with) so the
+  // editor language server never drifts from `npx tsc --noEmit`.
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
   "editor.codeActionsOnSave": {
-    "source.fixAll": "explicit",
-    "source.organizeImports": "explicit",
-    "source.sortMembers": "explicit"
-  }
+    "source.fixAll": "explicit"
+  },
+  // NOTE: `source.organizeImports` / `source.sortMembers` are intentionally NOT
+  // enabled. In some editor/TypeScript states they rewrite `@/` aliased imports
+  // into bare paths (`components/X`), which produces "Cannot find module"
+  // problems. Keep imports stable; run `npx eslint . --fix` explicitly instead.
+  "typescript.preferences.importModuleSpecifier": "non-relative",
+  "typescript.preferences.autoImportFileExcludePatterns": []
 }
