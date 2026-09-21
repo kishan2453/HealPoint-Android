@@ -1,0 +1,13 @@
+{
+  "name": "healpoint-server-slots",
+  "version": "1.0.0",
+  "private": true,
+  "description": "HealPoint Smart Slot Generation Engine (drop-in module for the Express/MongoDB backend)",
+  "scripts": {
+    "test": "node --test tests/slots.test.js",
+    "db:verify": "node scripts/verify-db.js"
+  },
+  "dependencies": {
+    "mongoose": "^8.9.5"
+  }
+}

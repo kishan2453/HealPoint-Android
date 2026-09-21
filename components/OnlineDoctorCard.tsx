@@ -5,17 +5,23 @@
  * data. Two primary CTAs: [Consult Now] and [Schedule] — both route into the
  * existing verified booking + Razorpay flow.
  */
-import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { useRouter } from "expo-router";
+import React from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { Badge } from '@/components/ui/Badge';
-import { Palette, Radius, Shadows, Spacing, Typography } from '@/constants/theme';
-import { formatINR } from '@/lib/format';
-import { getDoctorImage } from '@/lib/image';
-import type { OnlineDoctor } from '@/types';
+import { Badge } from "@/components/ui/Badge";
+import {
+  Palette,
+  Radius,
+  Shadows,
+  Spacing,
+  Typography,
+} from "@/constants/theme";
+import { formatDoctorName, formatINR } from "@/lib/format";
+import { getDoctorImage } from "@/lib/image";
+import type { OnlineDoctor } from "@/types";
 
 interface OnlineDoctorCardProps {
   doctor: OnlineDoctor;
@@ -23,12 +29,17 @@ interface OnlineDoctorCardProps {
 }
 
 function specialtyName(doctor: OnlineDoctor): string {
-  return doctor.speciality || doctor.specialization || doctor.department || 'General physician';
+  return (
+    doctor.speciality ||
+    doctor.specialization ||
+    doctor.department ||
+    "General physician"
+  );
 }
 
 function hospitalName(doctor: OnlineDoctor): string {
   const hospital = doctor.hospital;
-  return hospital?.name || doctor.hospitalName || 'Hospital details pending';
+  return hospital?.name || doctor.hospitalName || "Hospital details pending";
 }
 
 function OnlineDoctorCardRaw({ doctor, index = 0 }: OnlineDoctorCardProps) {
@@ -37,12 +48,12 @@ function OnlineDoctorCardRaw({ doctor, index = 0 }: OnlineDoctorCardProps) {
   const online = doctor.onlineConsultationEnabled === true;
   const instant = doctor.instantConsultationEnabled === true;
   const slot = doctor.nextAvailableSlot;
-  const verified = doctor.verificationStatus === 'Verified';
+  const verified = doctor.verificationStatus === "Verified";
 
-  const goBooking = (mode: 'instant' | 'scheduled') => {
+  const goBooking = (mode: "instant" | "scheduled") => {
     router.push({
-      pathname: '/booking/[doctorId]',
-      params: { doctorId: id, type: 'video', mode },
+      pathname: "/booking/[doctorId]",
+      params: { doctorId: id, type: "video", mode },
     });
   };
 
@@ -57,20 +68,25 @@ function OnlineDoctorCardRaw({ doctor, index = 0 }: OnlineDoctorCardProps) {
         />
         <View style={styles.heading}>
           <Text style={styles.name} numberOfLines={1}>
-            {doctor.name}
+            {formatDoctorName(doctor.name)}
           </Text>
           <Text style={styles.specialty} numberOfLines={1}>
             {specialtyName(doctor)}
           </Text>
           <Text style={styles.hospital} numberOfLines={1}>
-            <Ionicons name="business" size={13} color={Palette.textMuted} /> {hospitalName(doctor)}
+            <Ionicons name="business" size={13} color={Palette.textMuted} />{" "}
+            {hospitalName(doctor)}
           </Text>
         </View>
       </View>
 
       <View style={styles.metaRow}>
         <View style={styles.metaItem}>
-          <Ionicons name="briefcase-outline" size={15} color={Palette.primary} />
+          <Ionicons
+            name="briefcase-outline"
+            size={15}
+            color={Palette.primary}
+          />
           <Text style={styles.metaText}>{doctor.experience || 0}+ yrs</Text>
         </View>
         <View style={styles.metaItem}>
@@ -90,7 +106,9 @@ function OnlineDoctorCardRaw({ doctor, index = 0 }: OnlineDoctorCardProps) {
         ) : (
           <Badge label="Offline" variant="neutral" />
         )}
-        {instant ? <Badge label="Consult now available" variant="primary" /> : null}
+        {instant ? (
+          <Badge label="Consult now available" variant="primary" />
+        ) : null}
         {verified ? <Badge label="Verified" variant="primary" /> : null}
       </View>
 
@@ -104,25 +122,33 @@ function OnlineDoctorCardRaw({ doctor, index = 0 }: OnlineDoctorCardProps) {
       ) : (
         <View style={styles.nextSlot}>
           <Ionicons name="time-outline" size={15} color={Palette.warning} />
-          <Text style={styles.nextSlotText}>No upcoming slots found right now</Text>
+          <Text style={styles.nextSlotText}>
+            No upcoming slots found right now
+          </Text>
         </View>
       )}
 
       <View style={styles.actions}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Consult now with ${doctor.name}`}
-          onPress={() => goBooking('instant')}
-          style={({ pressed }) => [styles.ctaPrimary, pressed && styles.pressed]}
+          accessibilityLabel={`Consult now with ${formatDoctorName(doctor.name)}`}
+          onPress={() => goBooking("instant")}
+          style={({ pressed }) => [
+            styles.ctaPrimary,
+            pressed && styles.pressed,
+          ]}
         >
           <Ionicons name="videocam" size={18} color={Palette.white} />
           <Text style={styles.ctaPrimaryText}>Consult Now</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Schedule consultation with ${doctor.name}`}
-          onPress={() => goBooking('scheduled')}
-          style={({ pressed }) => [styles.ctaSecondary, pressed && styles.pressed]}
+          accessibilityLabel={`Schedule consultation with ${formatDoctorName(doctor.name)}`}
+          onPress={() => goBooking("scheduled")}
+          style={({ pressed }) => [
+            styles.ctaSecondary,
+            pressed && styles.pressed,
+          ]}
         >
           <Ionicons name="calendar-outline" size={18} color={Palette.primary} />
           <Text style={styles.ctaSecondaryText}>Schedule</Text>
@@ -147,8 +173,8 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
   },
   avatar: {
@@ -168,20 +194,20 @@ const styles = StyleSheet.create({
   specialty: {
     ...Typography.bodySmall,
     color: Palette.primaryDark,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   hospital: {
     ...Typography.caption,
     color: Palette.textMuted,
   },
   metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.lg,
   },
   metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.xs,
   },
   metaText: {
@@ -191,16 +217,16 @@ const styles = StyleSheet.create({
   fee: {
     ...Typography.bodySmall,
     color: Palette.text,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   badgeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.sm,
   },
   nextSlot: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.xs,
     backgroundColor: Palette.primaryLight,
     borderRadius: Radius.sm,
@@ -210,10 +236,10 @@ const styles = StyleSheet.create({
   nextSlotText: {
     ...Typography.caption,
     color: Palette.primaryDark,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   actions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.md,
   },
   ctaPrimary: {
@@ -221,9 +247,9 @@ const styles = StyleSheet.create({
     minHeight: 48,
     borderRadius: Radius.md,
     backgroundColor: Palette.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
     gap: Spacing.xs,
     elevation: 3,
   },
@@ -238,9 +264,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Palette.primary,
     backgroundColor: Palette.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
     gap: Spacing.xs,
   },
   ctaSecondaryText: {

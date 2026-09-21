@@ -1,21 +1,36 @@
 /**
  * HealPoint - search bar with clear action.
  */
-import React from 'react';
-import { Pressable, StyleSheet, TextInput, TextInputProps, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React from "react";
+import {
+  Pressable,
+  StyleSheet,
+  TextInput,
+  TextInputProps,
+  View,
+  ViewStyle,
+  StyleProp,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
-import { Palette, Radius, Spacing } from '@/constants/theme';
+import { Palette, Radius, Spacing } from "@/constants/theme";
 
 interface SearchBarProps extends TextInputProps {
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string;
+  containerStyle?: StyleProp<ViewStyle>;
 }
 
-export function SearchBar({ value, onChangeText, placeholder = 'Search...', ...props }: SearchBarProps) {
+export function SearchBar({
+  value,
+  onChangeText,
+  placeholder = "Search...",
+  containerStyle,
+  ...props
+}: SearchBarProps) {
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, containerStyle]}>
       <Ionicons name="search" size={20} color={Palette.textMuted} />
       <TextInput
         style={styles.input}
@@ -33,7 +48,7 @@ export function SearchBar({ value, onChangeText, placeholder = 'Search...', ...p
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Clear search"
-          onPress={() => onChangeText('')}
+          onPress={() => onChangeText("")}
           hitSlop={8}
           style={({ pressed }) => [styles.clear, pressed && styles.pressed]}
         >
@@ -46,8 +61,8 @@ export function SearchBar({ value, onChangeText, placeholder = 'Search...', ...p
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
     minHeight: 48,
     borderRadius: Radius.md,

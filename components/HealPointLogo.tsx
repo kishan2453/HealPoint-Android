@@ -1,18 +1,17 @@
 /**
- * HealPoint - premium brand lockup.
+ * HealPoint - Premium Brand Lockup & Healthcare Identity.
  *
- * A refined healthcare identity: a rounded-square mark with a soft two-tone
- * (gradient-like) depth, a white medical cross and a subtle heartbeat accent,
- * paired with the HealPoint wordmark. Used on the splash, welcome, login and
- * sign-up screens so the whole authentication flow shares one consistent,
- * professional identity.
+ * A modern, authoritative healthcare emblem: a rounded squircle in HealPoint teal
+ * housing a surgical white medical cross, unified with a central precision focal
+ * "Point" aperture and vitality accents, paired with the geometric HealPoint wordmark.
  *
- * The mark is built purely from layered Views — no native gradient dependency.
+ * Used across the patient mobile app, splash screen, welcome, auth headers, and drawer.
+ * Built purely from lightweight, performant React Native Views.
  */
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React from "react";
+import { StyleSheet, Text, View } from "react-native";
 
-import { Palette, Shadows, Typography } from '@/constants/theme';
+import { Palette, Shadows, Typography } from "@/constants/theme";
 
 interface HealPointLogoProps {
   /** Size of the square mark in px. Default 72. */
@@ -20,7 +19,8 @@ interface HealPointLogoProps {
   /** Render the wordmark next to / below the mark. Default true. */
   showWordmark?: boolean;
   /** Wordmark placement relative to the mark. */
-  layout?: 'horizontal' | 'vertical';
+  layout?: "horizontal" | "vertical";
+  /** Light mode for rendering on dark backgrounds. */
   light?: boolean;
   /**
    * Wrap the mark in a soft circular host (used on auth screens for a premium
@@ -32,16 +32,20 @@ interface HealPointLogoProps {
 export function HealPointLogo({
   size = 72,
   showWordmark = true,
-  layout = 'vertical',
+  layout = "vertical",
   light = false,
   badge = false,
 }: HealPointLogoProps) {
-  const cross = Math.round(size * 0.15); // bar thickness
-  const long = Math.round(size * 0.52); // long bar length
-  const short = Math.round(size * 0.3); // short bar length
-  const radius = Math.round(size * (size >= 72 ? 0.24 : 0.22));
+  // Proportions scaled to `size`
+  const radius = Math.round(size * 0.25);
+  const crossW = Math.round(size * 0.22); // arm thickness
+  const crossL = Math.round(size * 0.62); // arm length
+  const barRadius = Math.max(2, Math.round(crossW * 0.28));
 
-  const brandPrimary = light ? '#3FD4C0' : Palette.primaryDark;
+  const aperture = Math.round(crossW * 1.36);
+  const beacon = Math.round(aperture * 0.45);
+
+  const brandPrimary = light ? "#3FD4C0" : Palette.primary;
   const brandBase = light ? Palette.white : Palette.text;
 
   const mark = (
@@ -58,63 +62,171 @@ export function HealPointLogo({
       ]}
       accessibilityLabel="HealPoint logo"
     >
-      {/* Soft top-left highlight + deep bottom accent (gradient feel). */}
+      {/* Specular top-left illumination & depth accent */}
       <View
         pointerEvents="none"
-        style={[styles.highlight, { top: -size * 0.28, left: -size * 0.2, width: size * 0.9, height: size * 0.9 }]}
+        style={[
+          styles.specular,
+          {
+            top: -size * 0.25,
+            left: -size * 0.2,
+            width: size * 0.85,
+            height: size * 0.85,
+          },
+        ]}
       />
       <View
         pointerEvents="none"
         style={[
           styles.shade,
-          { bottom: -size * 0.32, right: -size * 0.22, width: size * 0.78, height: size * 0.78, backgroundColor: Palette.primaryDark },
+          {
+            bottom: -size * 0.3,
+            right: -size * 0.2,
+            width: size * 0.8,
+            height: size * 0.8,
+            backgroundColor: Palette.primaryDark,
+          },
         ]}
       />
-      <View pointerEvents="none" style={styles.ring} />
+      <View pointerEvents="none" style={styles.borderRing} />
 
-      {/* Medical cross (long vertical bar + shorter horizontal bar). */}
-      <View style={[styles.crossVertical, { width: cross, height: long, borderRadius: Math.round(cross / 3) }]} />
-      <View style={[styles.crossHorizontal, { width: short, height: cross, borderRadius: Math.round(cross / 3) }]} />
+      {/* Balanced Medical Cross (Vertical & Horizontal Arms) */}
+      <View
+        style={[
+          styles.crossArm,
+          {
+            width: crossW,
+            height: crossL,
+            borderRadius: barRadius,
+          },
+        ]}
+      />
+      <View
+        style={[
+          styles.crossArm,
+          {
+            width: crossL,
+            height: crossW,
+            borderRadius: barRadius,
+          },
+        ]}
+      />
 
-      {/* Heartbeat pulse accent crossing the mark. */}
-      <View pointerEvents="none" style={styles.pulse}>
-        <View style={[styles.pulseSegment, { height: Math.max(2, cross * 0.3), top: size * 0.27 }]} />
-        <View style={[styles.pulseSlopeUp, { width: cross * 0.5, height: cross * 0.5, top: size * 0.27 }]} />
-        <View style={[styles.pulsePeak, { width: cross * 0.36, height: cross * 0.36, top: size * 0.36 }]} />
-        <View style={[styles.pulseSlopeDown, { width: cross * 0.5, height: cross * 0.5, top: size * 0.27 }]} />
-        <View style={[styles.pulseSegment, { height: Math.max(2, cross * 0.3), top: size * 0.27 }]} />
+      {/* Inbound & Outbound Vitality Groove Channels */}
+      <View
+        pointerEvents="none"
+        style={[
+          styles.vitalityLine,
+          {
+            width: Math.round(crossL * 0.76),
+            height: Math.max(2, Math.round(crossW * 0.16)),
+            backgroundColor: Palette.primary,
+          },
+        ]}
+      />
+
+      {/* Central Precision Focal "Point" Aperture */}
+      <View
+        style={[
+          styles.aperture,
+          {
+            width: aperture,
+            height: aperture,
+            borderRadius: aperture / 2,
+            backgroundColor: Palette.primary,
+          },
+        ]}
+      >
+        {/* Core Beacon Point */}
+        <View
+          style={[
+            styles.beacon,
+            {
+              width: beacon,
+              height: beacon,
+              borderRadius: beacon / 2,
+              backgroundColor: Palette.white,
+            },
+          ]}
+        />
       </View>
     </View>
   );
 
-  // Horizontal lockup (drawer / small headers) scales the wordmark to the mark.
-  const brandFont = layout === 'horizontal' ? Math.max(18, Math.min(30, Math.round(size * 0.55))) : undefined;
+  // Horizontal lockup (drawer / small headers) scales the wordmark
+  const brandFont =
+    layout === "horizontal"
+      ? Math.max(18, Math.min(28, Math.round(size * 0.52)))
+      : undefined;
 
   const wordmark = (
-    <View style={styles.wordmark}>
-      <Text style={[styles.brand, layout === 'horizontal' && { fontSize: brandFont }, { color: brandBase }]}>
+    <View
+      style={[
+        styles.wordmark,
+        layout === "horizontal" && styles.wordmarkHorizontal,
+      ]}
+    >
+      <Text
+        style={[
+          styles.brand,
+          layout === "horizontal" && {
+            fontSize: brandFont,
+            lineHeight: brandFont ? brandFont + 4 : undefined,
+          },
+          { color: brandBase },
+        ]}
+      >
         Heal<Text style={{ color: brandPrimary }}>Point</Text>
       </Text>
-      {layout === 'vertical' ? (
-        <Text style={[styles.tagline, { color: light ? 'rgba(255,255,255,0.75)' : Palette.textMuted }]}>
-          Your health, simplified
+      {layout === "vertical" ? (
+        <Text
+          style={[
+            styles.tagline,
+            { color: light ? "rgba(255,255,255,0.78)" : Palette.textMuted },
+          ]}
+        >
+          HEALTHCARE SERVICES
         </Text>
-      ) : null}
+      ) : (
+        <Text
+          style={[
+            styles.taglineHorizontal,
+            { color: light ? "rgba(255,255,255,0.72)" : Palette.textMuted },
+          ]}
+        >
+          Care & Appointments
+        </Text>
+      )}
     </View>
   );
 
-  const badgeSize = size + Math.round(size * 0.52);
+  const badgeSize = size + Math.round(size * 0.48);
 
   return (
     <View
       style={[
         styles.container,
-        layout === 'horizontal' ? styles.row : styles.column,
-        { gap: layout === 'horizontal' ? Math.round(size * 0.24) : Math.round(size * 0.2) },
+        layout === "horizontal" ? styles.row : styles.column,
+        {
+          gap:
+            layout === "horizontal"
+              ? Math.round(size * 0.22)
+              : Math.round(size * 0.18),
+        },
       ]}
     >
-      {badge && layout !== 'horizontal' ? (
-        <View style={[styles.badge, { width: badgeSize, height: badgeSize, borderRadius: badgeSize / 2 }, Shadows.card]}>
+      {badge && layout !== "horizontal" ? (
+        <View
+          style={[
+            styles.badge,
+            {
+              width: badgeSize,
+              height: badgeSize,
+              borderRadius: badgeSize / 2,
+            },
+            Shadows.card,
+          ]}
+        >
           {mark}
         </View>
       ) : (
@@ -125,89 +237,89 @@ export function HealPointLogo({
   );
 }
 
-
 const styles = StyleSheet.create({
   container: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   column: {
-    flexDirection: 'column',
+    flexDirection: "column",
   },
   mark: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    position: "relative",
   },
-  highlight: {
-    position: 'absolute',
+  specular: {
+    position: "absolute",
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    backgroundColor: "rgba(255,255,255,0.16)",
   },
   shade: {
-    position: 'absolute',
+    position: "absolute",
     borderRadius: 999,
+    opacity: 0.5,
   },
-  ring: {
+  borderRing: {
     ...StyleSheet.absoluteFillObject,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.22)',
+    borderColor: "rgba(255,255,255,0.22)",
   },
-  crossVertical: {
-    position: 'absolute',
+  crossArm: {
+    position: "absolute",
     backgroundColor: Palette.white,
   },
-  crossHorizontal: {
-    position: 'absolute',
-    backgroundColor: Palette.white,
+  vitalityLine: {
+    position: "absolute",
+    borderRadius: 2,
+    opacity: 0.85,
   },
-  pulse: {
-    ...StyleSheet.absoluteFillObject,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-    transform: [{ rotate: '90deg' }],
+  aperture: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  pulseSegment: {
-    width: 2,
-    backgroundColor: Palette.white,
-    opacity: 0.95,
-  },
-  pulseSlopeUp: {
-    backgroundColor: Palette.white,
-    transform: [{ rotate: '-28deg' }],
-    opacity: 0.95,
-  },
-  pulsePeak: {
-    backgroundColor: Palette.white,
-    transform: [{ rotate: '28deg' }],
-    opacity: 0.95,
-  },
-  pulseSlopeDown: {
-    backgroundColor: Palette.white,
-    transform: [{ rotate: '45deg' }],
-    opacity: 0.95,
+  beacon: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 1,
+    elevation: 1,
   },
   badge: {
     backgroundColor: Palette.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(14, 159, 142, 0.15)",
   },
   wordmark: {
-    alignItems: 'center',
+    alignItems: "center",
+  },
+  wordmarkHorizontal: {
+    alignItems: "flex-start",
   },
   brand: {
     ...Typography.h1,
-    fontWeight: '800',
-    letterSpacing: -0.6,
+    fontWeight: "800",
+    letterSpacing: -0.5,
   },
   tagline: {
-    ...Typography.bodySmall,
-    marginTop: 2,
-    textAlign: 'center',
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.8,
+    marginTop: 3,
+    textAlign: "center",
+    textTransform: "uppercase",
+  },
+  taglineHorizontal: {
+    fontSize: 11,
+    fontWeight: "600",
     letterSpacing: 0.2,
+    marginTop: -2,
   },
 });

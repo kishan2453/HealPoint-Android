@@ -1,236 +1,609 @@
 /**
- * HealPoint - My Consultations.
+ * HealPoint - Consultation History.
  *
- * The patient's own online (video) consultations — upcoming, waiting,
- * completed and cancelled. Powered entirely by real backend data
- * (GET /consultation/patient/:userId); meeting URLs are never shown here and
- * are only fetched when opening a specific consultation.
+ * Professional consultation timeline presenting all patient medical visits and
+ * video consultations. Shows attending doctor, hospital, department, diagnosis,
+ * clinical notes, prescription availability, reports, and follow-up advice.
  */
-import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { useRouter } from "expo-router";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { DrawerToggleButton } from '@/components/DrawerToggleButton';
-import { Badge, type BadgeVariant } from '@/components/ui/Badge';
-import { EmptyState } from '@/components/ui/EmptyState';
-import { ErrorState } from '@/components/ui/ErrorState';
-import { Loading } from '@/components/ui/Loading';
-import { Palette, Radius, Spacing, Typography } from '@/constants/theme';
-import { useAuth } from '@/hooks/use-auth';
-import { useScreenFocus } from '@/hooks/use-screen-focus';
-import { consultationStatusLabel, meetingStatusLabel } from '@/lib/meet';
-import { toErrorMessage } from '@/services/api';
-import * as consultationService from '@/services/consultations';
-import type { PatientConsultation } from '@/types';
+import { DrawerToggleButton } from "@/components/DrawerToggleButton";
+import { Badge, type BadgeVariant } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { Loading } from "@/components/ui/Loading";
+import {
+  Palette,
+  Radius,
+  Shadows,
+  Spacing,
+  Typography,
+} from "@/constants/theme";
+import { useAuth } from "@/hooks/use-auth";
+import { useScreenFocus } from "@/hooks/use-screen-focus";
+import { formatDDMMYYYY, formatDoctorName } from "@/lib/format";
+import { toErrorMessage } from "@/services/api";
+import * as appointmentService from "@/services/appointments";
+import type { Appointment } from "@/types";
 
-const ACTIVE_STATUSES: string[] = ['pending', 'confirmed', 'rescheduled'];
-const CLOSED_STATUSES: string[] = ['cancel', 'missed'];
+type ConsultationFilter = "all" | "completed" | "upcoming" | "cancelled";
 
-function rowBadge(c: PatientConsultation): { label: string; variant: BadgeVariant } {
-  if (c.status === 'completed') return { label: 'Completed', variant: 'primary' };
-  if (CLOSED_STATUSES.includes(c.status)) return { label: 'Cancelled', variant: 'neutral' };
-  if (ACTIVE_STATUSES.includes(c.status)) return { label: 'Upcoming', variant: 'success' };
-  return { label: 'Waiting', variant: 'warning' };
-}
-
-function sortKey(c: PatientConsultation): number {
-  if (c.status === 'completed') return 2;
-  if (CLOSED_STATUSES.includes(c.status)) return 3;
-  return 1;
-}
-
-function ConsultationCard({ item }: { item: PatientConsultation }) {
-  const router = useRouter();
-  const doctor = item.doctor;
-  const badge = rowBadge(item);
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Open consultation with ${doctor?.name || 'doctor'}`}
-      onPress={() => router.push({ pathname: '/consultation/[id]', params: { id: item._id } })}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
-    >
-      <View style={styles.cardRow}>
-        <Image
-          source={{ uri: doctor?.image || undefined }}
-          style={styles.avatar}
-          contentFit="cover"
-        />
-        <View style={styles.cardBody}>
-          <Text style={styles.doctorName} numberOfLines={1}>
-            {doctor?.name || 'Doctor'}
-          </Text>
-          <Text style={styles.specialty} numberOfLines={1}>
-            {doctor?.speciality || 'Video consultation'}
-          </Text>
-          <Text style={styles.time} numberOfLines={1}>
-            {item.slotDate || '—'} · {item.slotTime || '—'}
-          </Text>
-        </View>
-        <View style={styles.cardStatus}>
-          <Badge label={badge.label} variant={badge.variant} />
-          <Text style={styles.miniText}>{meetingStatusLabel(item.meetingStatus)}</Text>
-          <Text style={styles.miniText}>{consultationStatusLabel(item.consultationStatus)}</Text>
-        </View>
-      </View>
-    </Pressable>
-  );
-}
 export default function ConsultationsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const userId = user?._id;
 
-  const [items, setItems] = useState<PatientConsultation[]>([]);
+  const [consultations, setConsultations] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+  const [filter, setFilter] = useState<ConsultationFilter>("all");
 
-  const load = async () => {
-    if (!userId) return;
-    setLoading(true);
-    setError('');
+  const loadConsultations = async () => {
+    setError("");
     try {
-      const res = await consultationService.getUserConsultations(userId);
-      setItems([...res.consultations].sort((a, b) => sortKey(a) - sortKey(b)));
+      const history = await appointmentService.getPatientMedicalHistory();
+      setConsultations(history.consultations || []);
     } catch (err) {
-      setError(toErrorMessage(err, 'Unable to load your consultations.'));
+      setError(toErrorMessage(err, "Unable to load consultation history."));
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  useScreenFocus(load);
+  useScreenFocus(loadConsultations);
+
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadConsultations();
   }, [userId]);
 
-  const counts = {
-    upcoming: items.filter((c) => ACTIVE_STATUSES.includes(c.status)).length,
-    completed: items.filter((c) => c.status === 'completed').length,
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadConsultations();
+  };
+
+  const filteredItems = useMemo(() => {
+    if (filter === "all") return consultations;
+    if (filter === "completed") {
+      return consultations.filter((c) => c.status === "completed");
+    }
+    if (filter === "upcoming") {
+      return consultations.filter((c) =>
+        ["pending", "confirmed", "rescheduled"].includes(c.status),
+      );
+    }
+    if (filter === "cancelled") {
+      return consultations.filter((c) =>
+        ["cancel", "missed"].includes(c.status),
+      );
+    }
+    return consultations;
+  }, [consultations, filter]);
+
+  const getStatusBadge = (
+    status: string,
+  ): { label: string; variant: BadgeVariant } => {
+    switch (status) {
+      case "completed":
+        return { label: "Completed", variant: "primary" };
+      case "confirmed":
+        return { label: "Confirmed", variant: "success" };
+      case "pending":
+        return { label: "Pending", variant: "warning" };
+      case "cancel":
+        return { label: "Cancelled", variant: "error" };
+      case "rescheduled":
+        return { label: "Rescheduled", variant: "neutral" };
+      default:
+        return { label: status, variant: "neutral" };
+    }
+  };
+
+  const handleOpenDetail = (item: Appointment) => {
+    if (item.consultationType === "video") {
+      router.push({
+        pathname: "/consultation/[id]",
+        params: { id: item._id },
+      });
+    } else {
+      router.push({
+        pathname: "/appointment/[id]",
+        params: { id: item._id },
+      });
+    }
+  };
+
+  const renderConsultationCard = ({ item }: { item: Appointment }) => {
+    const doctor =
+      typeof item.doctorId === "object" && item.doctorId ? item.doctorId : null;
+    const doctorName = formatDoctorName(
+      doctor?.name || item.doctorName,
+      "Doctor",
+    );
+    const doctorSpecialty =
+      doctor?.speciality ||
+      doctor?.department ||
+      item.doctorSpecialty ||
+      "Specialist";
+    const hospitalName =
+      typeof item.hospitalId === "object" && item.hospitalId?.name
+        ? item.hospitalId.name
+        : item.hospitalName || "HealPoint Clinic";
+
+    const badge = getStatusBadge(item.status);
+    const hasPrescription = Boolean(
+      (item.medicines && item.medicines.length > 0) || item.prescription,
+    );
+    const reportsCount = Array.isArray(item.medicalReports)
+      ? item.medicalReports.length
+      : 0;
+
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Consultation with ${doctorName}`}
+        onPress={() => handleOpenDetail(item)}
+        style={({ pressed }) => [
+          styles.cardWrapper,
+          pressed && styles.cardPressed,
+        ]}
+      >
+        <Card style={styles.card}>
+          {/* Header Row */}
+          <View style={styles.cardHeader}>
+            <Image
+              source={{ uri: doctor?.image || undefined }}
+              style={styles.avatar}
+              contentFit="cover"
+            />
+            <View style={styles.headerInfo}>
+              <Text style={styles.doctorName} numberOfLines={1}>
+                {doctorName}
+              </Text>
+              <Text style={styles.specialty} numberOfLines={1}>
+                {doctorSpecialty}
+              </Text>
+              <Text style={styles.hospital} numberOfLines={1}>
+                <Ionicons name="business" size={12} color={Palette.textMuted} />{" "}
+                {hospitalName}
+              </Text>
+            </View>
+            <Badge label={badge.label} variant={badge.variant} />
+          </View>
+
+          <View style={styles.divider} />
+
+          {/* Date and Type Row */}
+          <View style={styles.metaRow}>
+            <View style={styles.metaItem}>
+              <Ionicons
+                name="calendar-outline"
+                size={14}
+                color={Palette.primary}
+              />
+              <Text style={styles.metaText}>
+                {formatDDMMYYYY(item.slotDate || item.date || "")}
+              </Text>
+            </View>
+            {item.slotTime ? (
+              <View style={styles.metaItem}>
+                <Ionicons
+                  name="time-outline"
+                  size={14}
+                  color={Palette.primary}
+                />
+                <Text style={styles.metaText}>{item.slotTime}</Text>
+              </View>
+            ) : null}
+            <View style={styles.metaItem}>
+              <Ionicons
+                name={
+                  item.consultationType === "video" ? "videocam" : "business"
+                }
+                size={14}
+                color={Palette.primaryDark}
+              />
+              <Text style={styles.typeBadgeText}>
+                {item.consultationType === "video"
+                  ? "Video Consultation"
+                  : "In-Clinic Visit"}
+              </Text>
+            </View>
+          </View>
+
+          {/* Clinical Diagnosis if present */}
+          {item.diagnosis ? (
+            <View style={styles.diagnosisBox}>
+              <Text style={styles.sectionHeading}>DIAGNOSIS</Text>
+              <Text style={styles.diagnosisText}>{item.diagnosis}</Text>
+            </View>
+          ) : null}
+
+          {/* Physician Notes if present */}
+          {item.medicalNotes ? (
+            <View style={styles.notesBox}>
+              <Text style={styles.sectionHeading}>CLINICAL SUMMARY</Text>
+              <Text style={styles.notesText} numberOfLines={2}>
+                {item.medicalNotes}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Clinical Attachment Indicators */}
+          <View style={styles.chipsRow}>
+            {item.consultationType === "video" &&
+            ["pending", "confirmed", "rescheduled"].includes(item.status) ? (
+              <View
+                style={[
+                  styles.indicatorChip,
+                  { backgroundColor: "rgba(14, 159, 142, 0.12)" },
+                ]}
+              >
+                <Ionicons name="videocam" size={13} color={Palette.primary} />
+                <Text
+                  style={[
+                    styles.indicatorChipText,
+                    { color: Palette.primaryDark, fontWeight: "700" },
+                  ]}
+                >
+                  {item.meetingUrl
+                    ? "Meeting Ready • Tap to Join"
+                    : "Waiting Room Ready"}
+                </Text>
+              </View>
+            ) : null}
+
+            {hasPrescription ? (
+              <View style={styles.indicatorChip}>
+                <Ionicons name="medkit" size={13} color={Palette.primary} />
+                <Text style={styles.indicatorChipText}>Prescription Ready</Text>
+              </View>
+            ) : null}
+
+            {reportsCount > 0 ? (
+              <View style={styles.indicatorChip}>
+                <Ionicons name="document-attach" size={13} color="#4F46E5" />
+                <Text style={styles.indicatorChipText}>
+                  {reportsCount} Report{reportsCount === 1 ? "" : "s"}
+                </Text>
+              </View>
+            ) : null}
+
+            {item.followUpAdvice ? (
+              <View style={styles.indicatorChip}>
+                <Ionicons name="alarm-outline" size={13} color="#059669" />
+                <Text style={styles.indicatorChipText}>Follow-up Advised</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {/* Chevron footer */}
+          <View style={styles.cardFooter}>
+            <Text style={styles.viewDetailsLabel}>
+              {item.consultationType === "video" &&
+              ["pending", "confirmed", "rescheduled"].includes(item.status)
+                ? "Enter Video Consultation Room"
+                : "View Consultation File"}
+            </Text>
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={Palette.primary}
+            />
+          </View>
+        </Card>
+      </Pressable>
+    );
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+      {/* Header */}
       <View style={styles.header}>
-        <DrawerToggleButton />
-        <View style={styles.headerTitles}>
-          <Text style={styles.headerTitle}>My Consultations</Text>
-          <Text style={styles.headerSubtitle}>
-            {loading || error
-              ? 'Online consultations'
-              : `${counts.upcoming} upcoming · ${counts.completed} completed`}
-          </Text>
+        <View style={styles.headerRow}>
+          <DrawerToggleButton color={Palette.text} />
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.title}>Consultation History</Text>
+            <Text style={styles.subtitle}>
+              Past & Upcoming Medical Appointments
+            </Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Refresh consultations"
+            onPress={onRefresh}
+            style={styles.headerActionBtn}
+          >
+            <Ionicons name="refresh" size={18} color={Palette.primary} />
+          </Pressable>
         </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Consult online"
-          onPress={() => router.push('/consult-online')}
-          style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}
-          hitSlop={8}
-        >
-          <Ionicons name="add" size={24} color={Palette.white} />
-        </Pressable>
+
+        {/* Filter Pills */}
+        <View style={styles.filterRow}>
+          {[
+            { key: "all", label: "All Visits" },
+            { key: "completed", label: "Completed" },
+            { key: "upcoming", label: "Upcoming" },
+            { key: "cancelled", label: "Cancelled" },
+          ].map((tab) => (
+            <Pressable
+              key={tab.key}
+              onPress={() => setFilter(tab.key as ConsultationFilter)}
+              style={[
+                styles.filterChip,
+                filter === tab.key && styles.filterChipActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.filterText,
+                  filter === tab.key && styles.filterTextActive,
+                ]}
+              >
+                {tab.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
 
-      <View style={styles.tip}>
-        <Ionicons name="videocam" size={16} color={Palette.primaryDark} />
-        <Text style={styles.tipText}>
-          Open a consultation to see your Care Journey, prescription and, when ready, your Google Meet join link.
-        </Text>
-      </View>
-
-      <FlatList
-        data={items}
-        keyExtractor={(item) => String(item._id)}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          loading ? (
-            <Loading label="Loading your consultations…" />
-          ) : error ? (
-            <ErrorState message={error} onRetry={load} />
-          ) : (
+      {loading && !refreshing ? (
+        <Loading fullScreen label="Loading consultation records..." />
+      ) : error ? (
+        <ErrorState
+          title="Could Not Load Consultations"
+          message={error}
+          onRetry={loadConsultations}
+        />
+      ) : (
+        <FlatList
+          data={filteredItems}
+          keyExtractor={(item) => item._id}
+          renderItem={renderConsultationCard}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[Palette.primary]}
+              tintColor={Palette.primary}
+            />
+          }
+          ListEmptyComponent={
             <EmptyState
-              title="No consultations yet"
-              message="Start an online consultation with a verified doctor and it will appear here."
+              title="No Consultations Found"
+              message={
+                filter !== "all"
+                  ? `You have no ${filter} consultations.`
+                  : "You have not booked or completed any doctor consultations yet."
+              }
               action={
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => router.push('/consult-online')}
-                  style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
-                >
-                  <Text style={styles.ctaText}>Consult online</Text>
-                </Pressable>
+                <Button
+                  title="Book a Doctor"
+                  onPress={() => router.push("/doctors")}
+                />
               }
             />
-          )
-        }
-        renderItem={({ item }) => <ConsultationCard item={item} />}
-      />
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Palette.background },
+  safe: {
+    flex: 1,
+    backgroundColor: Palette.background,
+  },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
-  headerTitles: { flex: 1 },
-  headerTitle: { ...Typography.h3, color: Palette.text },
-  headerSubtitle: { ...Typography.caption, color: Palette.textMuted },
-  addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.pill,
-    backgroundColor: Palette.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pressed: { opacity: 0.65 },
-  tip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.lg,
-    backgroundColor: Palette.primaryLight,
-    borderRadius: Radius.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  tipText: { flex: 1, ...Typography.caption, color: Palette.primaryDark, fontWeight: '600' },
-  list: { padding: Spacing.lg, gap: Spacing.lg },
-  card: {
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
     backgroundColor: Palette.surface,
-    borderRadius: Radius.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Palette.border,
+    gap: Spacing.md,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  headerTitleWrap: {
+    flex: 1,
+  },
+  title: {
+    ...Typography.h2,
+    color: Palette.text,
+    fontWeight: "800",
+  },
+  subtitle: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    marginTop: 2,
+  },
+  headerActionBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: Radius.pill,
+    backgroundColor: "rgba(14, 159, 142, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterRow: {
+    flexDirection: "row",
+    gap: Spacing.xs,
+  },
+  filterChip: {
+    flex: 1,
+    paddingVertical: 7,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.background,
     borderWidth: 1,
     borderColor: Palette.border,
-    padding: Spacing.lg,
   },
-  cardRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  avatar: { width: 56, height: 56, borderRadius: Radius.md, backgroundColor: Palette.primaryLight },
-  cardBody: { flex: 1, gap: 2 },
-  doctorName: { ...Typography.h4, color: Palette.text },
-  specialty: { ...Typography.bodySmall, color: Palette.primaryDark, fontWeight: '600' },
-  time: { ...Typography.caption, color: Palette.textMuted },
-  cardStatus: { flexDirection: 'column', alignItems: 'flex-end', gap: 2 },
-  miniText: { ...Typography.caption, color: Palette.textMuted, fontWeight: '600' },
-  cta: {
+  filterChipActive: {
     backgroundColor: Palette.primary,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
+    borderColor: Palette.primary,
   },
-  ctaText: { ...Typography.label, color: Palette.white },
+  filterText: {
+    ...Typography.caption,
+    fontWeight: "600",
+    color: Palette.textMuted,
+  },
+  filterTextActive: {
+    color: Palette.white,
+    fontWeight: "700",
+  },
+  listContent: {
+    padding: Spacing.lg,
+    paddingBottom: Spacing.huge,
+    gap: Spacing.md,
+  },
+  cardWrapper: {
+    borderRadius: Radius.lg,
+  },
+  cardPressed: {
+    opacity: 0.92,
+  },
+  card: {
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Palette.border,
+  },
+  headerInfo: {
+    flex: 1,
+  },
+  doctorName: {
+    ...Typography.body,
+    fontWeight: "700",
+    color: Palette.text,
+  },
+  specialty: {
+    ...Typography.caption,
+    color: Palette.primaryDark,
+    fontWeight: "600",
+  },
+  hospital: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    marginTop: 2,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Palette.border,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: Spacing.md,
+  },
+  metaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  metaText: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+  },
+  typeBadgeText: {
+    ...Typography.caption,
+    color: Palette.primaryDark,
+    fontWeight: "700",
+  },
+  diagnosisBox: {
+    backgroundColor: "rgba(5, 150, 105, 0.08)",
+    padding: Spacing.sm,
+    borderRadius: Radius.sm,
+  },
+  notesBox: {
+    backgroundColor: "rgba(14, 159, 142, 0.04)",
+    padding: Spacing.sm,
+    borderRadius: Radius.sm,
+  },
+  sectionHeading: {
+    ...Typography.caption,
+    fontSize: 10,
+    fontWeight: "800",
+    color: Palette.primaryDark,
+    letterSpacing: 0.6,
+    marginBottom: 2,
+  },
+  diagnosisText: {
+    ...Typography.bodySmall,
+    fontWeight: "600",
+    color: Palette.text,
+  },
+  notesText: {
+    ...Typography.bodySmall,
+    color: Palette.text,
+  },
+  chipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.xs,
+    marginTop: 2,
+  },
+  indicatorChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Palette.background,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.pill,
+  },
+  indicatorChipText: {
+    ...Typography.caption,
+    fontSize: 11,
+    fontWeight: "600",
+    color: Palette.text,
+  },
+  cardFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: Spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: Palette.border,
+    marginTop: Spacing.xs,
+  },
+  viewDetailsLabel: {
+    ...Typography.caption,
+    color: Palette.primary,
+    fontWeight: "700",
+  },
 });

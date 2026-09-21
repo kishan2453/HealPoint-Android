@@ -1,78 +1,334 @@
 /**
- * HealPoint - Book appointment (premium flow).
+ * HealPoint - Book Appointment (Production Premium Flow).
  *
- * Date -> Time -> Confirm. Time slots come from the real backend
- * (`/appointment/get-available-slots`) which subtracts already-booked slots, so
- * unavailable slots are never shown. Double-booking is prevented server-side;
- * if a slot is taken between fetch and confirm, the backend returns 409 and the
- * picker is refreshed automatically. Online payment continues on the Razorpay
- * payment screen; cash shows an immediate confirmation with the appointment ID.
+ * Doctor -> Date -> Time Slot (Sessions & Live Availability) -> Details -> Confirm -> Payment.
+ *
+ * Powered by real backend scheduling APIs with atomic double-booking protection,
+ * live slot synchronization, honest leave date detection, and seamless Razorpay handoff.
  */
-import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Animated,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { ErrorState } from '@/components/ui/ErrorState';
-import { FormMessage } from '@/components/ui/FormMessage';
-import { Loading } from '@/components/ui/Loading';
-import { Palette, Radius, Spacing, Typography } from '@/constants/theme';
-import { useAuth } from '@/hooks/use-auth';
-import { dateLabel, formatDDMMYYYY, formatINR, toDDMMYYYY, weekdayLabel } from '@/lib/format';
-import { getDoctorImage } from '@/lib/image';
-import { isRazorpayCheckoutAvailable } from '@/lib/razorpay';
-import { isValidIndianPhone } from '@/lib/validation';
-import { ApiClientError, toErrorMessage } from '@/services/api';
-import * as appointmentService from '@/services/appointments';
-import { getDoctorDetails } from '@/services/doctors';
-import type { ConsultationType, Doctor, PaymentMethod } from '@/types';
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { FormMessage } from "@/components/ui/FormMessage";
+import { Loading } from "@/components/ui/Loading";
+import {
+  Palette,
+  Radius,
+  Shadows,
+  Spacing,
+  Typography,
+} from "@/constants/theme";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  dateLabel,
+  formatDDMMYYYY,
+  formatDoctorName,
+  formatINR,
+  stripDoctorTitle,
+  toDDMMYYYY,
+  weekdayLabel,
+} from "@/lib/format";
+import { getDoctorImage } from "@/lib/image";
+import { isRazorpayCheckoutAvailable } from "@/lib/razorpay";
+import { isValidIndianPhone } from "@/lib/validation";
+import { ApiClientError, toErrorMessage } from "@/services/api";
+import * as appointmentService from "@/services/appointments";
+import { getDoctorDetails } from "@/services/doctors";
+import type { ConsultationType, Doctor, PaymentMethod } from "@/types";
 
-const STEPS = ['Date', 'Time', 'Confirm'] as const;
+const STEPS = ["Date", "Time", "Confirm"] as const;
 type StepKey = (typeof STEPS)[number];
+
+function parseHourFromSlot(slot: string): number {
+  const match = slot.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return 9;
+  let hour = Number(match[1]);
+  const meridiem = match[3].toUpperCase();
+  if (meridiem === "PM" && hour !== 12) hour += 12;
+  if (meridiem === "AM" && hour === 12) hour = 0;
+  return hour;
+}
+
+function categorizeSlots(slots: string[]) {
+  const morning: string[] = [];
+  const afternoon: string[] = [];
+  const evening: string[] = [];
+
+  slots.forEach((slot) => {
+    const h = parseHourFromSlot(slot);
+    if (h < 12) morning.push(slot);
+    else if (h < 16) afternoon.push(slot);
+    else evening.push(slot);
+  });
+
+  return { morning, afternoon, evening };
+}
+
+function BookingConfirmationView({
+  doctor,
+  specialtyLabel,
+  hospitalName,
+  selectedDateStr,
+  selectedSlot,
+  consultationType,
+  successAppointmentId,
+  successReference,
+  onViewPass,
+  onViewDetails,
+  onGoToAppointments,
+  onGoHome,
+}: {
+  doctor: Doctor;
+  specialtyLabel: string;
+  hospitalName: string;
+  selectedDateStr: string;
+  selectedSlot: string;
+  consultationType: ConsultationType;
+  successAppointmentId: string;
+  successReference: string;
+  onViewPass: () => void;
+  onViewDetails: () => void;
+  onGoToAppointments: () => void;
+  onGoHome: () => void;
+}) {
+  const scale = useRef(new Animated.Value(0.4)).current;
+  const pulse = useRef(new Animated.Value(0.9)).current;
+  const pulseOp = useRef(new Animated.Value(0.55)).current;
+  const contentFade = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(scale, {
+      toValue: 1,
+      friction: 5,
+      tension: 70,
+      useNativeDriver: true,
+    }).start();
+
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(pulse, {
+            toValue: 1.35,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseOp, {
+            toValue: 0,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(pulse, {
+            toValue: 0.9,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseOp, {
+            toValue: 0.5,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+    );
+    loop.start();
+
+    Animated.timing(contentFade, {
+      toValue: 1,
+      duration: 350,
+      delay: 150,
+      useNativeDriver: true,
+    }).start();
+
+    return () => loop.stop();
+  }, [scale, pulse, pulseOp, contentFade]);
+
+  return (
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+      <ScrollView
+        contentContainerStyle={styles.confirmContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Ambient Success Shield with spring scale and expanding pulse */}
+        <View style={styles.confirmIconWrap}>
+          <Animated.View
+            style={[
+              styles.confirmPulseRing,
+              {
+                transform: [{ scale: pulse }],
+                opacity: pulseOp,
+              },
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.confirmIconCircle,
+              {
+                transform: [{ scale }],
+              },
+            ]}
+          >
+            <Ionicons name="shield-checkmark" size={46} color={Palette.white} />
+          </Animated.View>
+        </View>
+
+        <Animated.View
+          style={{
+            width: "100%",
+            alignItems: "center",
+            opacity: contentFade,
+            transform: [
+              {
+                translateY: contentFade.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [16, 0],
+                }),
+              },
+            ],
+          }}
+        >
+          <Text style={styles.confirmTitle}>Appointment Confirmed</Text>
+          <Text style={styles.confirmSubtitle}>
+            Your appointment has been registered and sent to the clinic
+            schedule.
+          </Text>
+
+          {/* Reference Badge */}
+          <View style={styles.referenceBadgeWrap}>
+            <Text style={styles.referenceLabel}>Booking Reference ID</Text>
+            <Text style={styles.referenceValue}>
+              {successReference || successAppointmentId}
+            </Text>
+          </View>
+
+          {/* Full Summary Card */}
+          <Card padded style={styles.confirmCard}>
+            <ConfirmRow
+              icon="person"
+              label="Attending Doctor"
+              value={formatDoctorName(doctor.name)}
+            />
+            <ConfirmRow
+              icon="medkit"
+              label="Department"
+              value={specialtyLabel}
+            />
+            <ConfirmRow
+              icon="business"
+              label="Hospital / Clinic"
+              value={hospitalName}
+            />
+            <ConfirmRow
+              icon="calendar"
+              label="Date"
+              value={formatDDMMYYYY(selectedDateStr)}
+            />
+            <ConfirmRow icon="time" label="Time Slot" value={selectedSlot} />
+            <ConfirmRow
+              icon={consultationType === "video" ? "videocam" : "medical"}
+              label="Consultation"
+              value={
+                consultationType === "video"
+                  ? "Online Video Consultation"
+                  : "In-Person Clinic Visit"
+              }
+            />
+            <ConfirmRow
+              icon="wallet"
+              label="Consultation Fee"
+              value={formatINR(doctor.fees)}
+            />
+            <ConfirmRow
+              icon="card"
+              label="Payment Mode"
+              value="Pay at Clinic (Cash / UPI on arrival)"
+            />
+          </Card>
+
+          {/* Actions */}
+          <View style={styles.confirmActions}>
+            <Button
+              title="View Digital Hospital Pass"
+              variant="primary"
+              icon="card-outline"
+              onPress={onViewPass}
+            />
+            <Button
+              title="View Appointment Details"
+              variant="outline"
+              icon="document-text-outline"
+              onPress={onViewDetails}
+            />
+            <Button
+              title="Go to My Appointments"
+              variant="ghost"
+              icon="calendar-outline"
+              onPress={onGoToAppointments}
+            />
+            <Button title="Return to Home" variant="ghost" onPress={onGoHome} />
+          </View>
+        </Animated.View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
 
 export default function BookingScreen() {
   const router = useRouter();
-  const {
-    doctorId,
-    type,
-    mode,
-  } = useLocalSearchParams<{ doctorId?: string; type?: string; mode?: string }>();
+  const { doctorId, type, mode } = useLocalSearchParams<{
+    doctorId?: string;
+    type?: string;
+    mode?: string;
+  }>();
   const { user } = useAuth();
 
-  // When the patient comes from "Consult Online", the consultation type is
-  // always video and the mode may be scheduled or instant. The backend also
-  // persists consultationMode on the appointment.
   const requestedType: ConsultationType | null =
-    type === 'video' || type === 'clinic' ? type : null;
-  const requestedMode = mode === 'instant' ? ('instant' as const) : ('scheduled' as const);
+    type === "video" || type === "clinic" ? type : null;
+  const requestedMode =
+    mode === "instant" ? ("instant" as const) : ("scheduled" as const);
 
   const [doctor, setDoctor] = useState<Doctor | null>(null);
   const [loadingDoctor, setLoadingDoctor] = useState(true);
-  const [loadError, setLoadError] = useState('');
+  const [loadError, setLoadError] = useState("");
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
-  const [slotsError, setSlotsError] = useState('');
-  const [selectedSlot, setSelectedSlot] = useState('');
+  const [slotsError, setSlotsError] = useState("");
+  const [selectedSlot, setSelectedSlot] = useState("");
 
-  const [consultationType, setConsultationType] = useState<ConsultationType>(requestedType ?? 'clinic');
+  const [consultationType, setConsultationType] = useState<ConsultationType>(
+    requestedType ?? "clinic",
+  );
   const consultationMode = requestedMode;
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(requestedType === 'video' ? 'online' : 'cash');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
+    requestedType === "video" ? "online" : "cash",
+  );
   const [submitting, setSubmitting] = useState(false);
-  const [bookingError, setBookingError] = useState('');
-  const [successAppointmentId, setSuccessAppointmentId] = useState('');
-  const [successReference, setSuccessReference] = useState('');
+  const [bookingError, setBookingError] = useState("");
+  const [successAppointmentId, setSuccessAppointmentId] = useState("");
+  const [successReference, setSuccessReference] = useState("");
 
-  const phoneValid = isValidIndianPhone(user?.phone || '');
+  const phoneValid = isValidIndianPhone(user?.phone || "");
   const onlineAvailable = isRazorpayCheckoutAvailable();
 
-  // Next 7 selectable days starting today.
+  // Next 7 days starting from today
   const days = useMemo(() => {
     const list: Date[] = [];
     const today = new Date();
@@ -85,7 +341,7 @@ export default function BookingScreen() {
     return list;
   }, []);
 
-  // Load the doctor's real profile.
+  // Load doctor details
   useEffect(() => {
     let active = true;
     if (!doctorId) return;
@@ -96,7 +352,8 @@ export default function BookingScreen() {
         setDoctor(res.doctor);
       })
       .catch((err) => {
-        if (active) setLoadError(toErrorMessage(err, 'Unable to load doctor details.'));
+        if (active)
+          setLoadError(toErrorMessage(err, "Unable to load doctor details."));
       })
       .finally(() => {
         if (active) setLoadingDoctor(false);
@@ -106,27 +363,27 @@ export default function BookingScreen() {
     };
   }, [doctorId]);
 
-  // Fetch real available slots whenever the date changes (server subtracts
-  // already-booked slots, so unavailable ones are never shown).
+  // Fetch real available slots when date or doctor changes
   useEffect(() => {
     let active = true;
     if (!doctorId) return;
     setSlotsLoading(true);
-    setSlotsError('');
-    setSelectedSlot('');
+    setSlotsError("");
+    setSelectedSlot("");
 
     const dateStr = toDDMMYYYY(selectedDate);
     appointmentService
       .getAvailableSlots(doctorId, dateStr)
       .then((res) => {
         if (!active) return;
-        setAvailableSlots(res.availableSlots || []);
-        if (res.availableSlots?.length) setSelectedSlot(res.availableSlots[0]);
+        const slots = res.availableSlots || [];
+        setAvailableSlots(slots);
+        if (slots.length > 0) setSelectedSlot(slots[0]);
       })
       .catch((err) => {
         if (active) {
           setAvailableSlots([]);
-          setSlotsError(toErrorMessage(err, 'Unable to load available slots.'));
+          setSlotsError(toErrorMessage(err, "Unable to load available slots."));
         }
       })
       .finally(() => {
@@ -139,30 +396,33 @@ export default function BookingScreen() {
 
   const selectedDateStr = toDDMMYYYY(selectedDate);
   const isLeaveDate = Boolean(doctor?.leaveDates?.includes(selectedDateStr));
+  const { morning, afternoon, evening } = useMemo(
+    () => categorizeSlots(availableSlots),
+    [availableSlots],
+  );
 
   const confirmBooking = async () => {
-    setBookingError('');
+    setBookingError("");
     if (!doctor || !doctorId) return;
-    if (paymentMethod === 'online' && !onlineAvailable) {
-      setBookingError(
-        'Online payment needs the HealPoint Android development build or installed APK. Please use Pay at clinic or install the native build.',
-      );
-      return;
-    }
+
     if (!doctor.available) {
-      setBookingError('This doctor is currently not accepting appointments.');
+      setBookingError("This doctor is currently not accepting appointments.");
       return;
     }
     if (isLeaveDate) {
-      setBookingError('The doctor is on leave on this date. Please choose another date.');
+      setBookingError(
+        "The doctor is on leave on this date. Please choose another date.",
+      );
       return;
     }
     if (!selectedSlot) {
-      setBookingError('Please select a time slot.');
+      setBookingError("Please select an available time slot.");
       return;
     }
     if (!phoneValid) {
-      setBookingError('Add a valid phone number to your profile before booking an appointment.');
+      setBookingError(
+        "Please add a valid phone number to your profile before booking.",
+      );
       return;
     }
 
@@ -174,24 +434,28 @@ export default function BookingScreen() {
         slotTime: selectedSlot,
         paymentMethod,
         consultationType,
-        consultationMode: consultationType === 'video' ? consultationMode : 'scheduled',
+        consultationMode:
+          consultationType === "video" ? consultationMode : "scheduled",
       });
-      const booked = res.appointment as unknown as
-        | { _id?: string; appointmentId?: string; displayAppointmentId?: string }
-        | undefined;
-      const bookedId = String(booked?._id || '');
 
-      // Online payment: the appointment exists on the server; take the patient
-      // straight to the secure Razorpay payment screen (order creation,
-      // checkout, server-side signature verification all happen there).
-      if (paymentMethod === 'online') {
+      const booked = res.appointment as unknown as
+        | {
+            _id?: string;
+            appointmentId?: string;
+            displayAppointmentId?: string;
+          }
+        | undefined;
+      const bookedId = String(booked?._id || "");
+
+      // For online payment, route immediately to the secure Razorpay payment flow
+      if (paymentMethod === "online") {
         if (!bookedId) {
           setBookingError(
-            'Your appointment was created but we could not open payment. Find it under "My appointments" and choose Pay Online.',
+            'Your appointment was created. Please locate it under "My Appointments" to complete payment.',
           );
         } else {
           router.replace({
-            pathname: '/payment/[appointmentId]',
+            pathname: "/payment/[appointmentId]",
             params: { appointmentId: bookedId },
           });
         }
@@ -199,23 +463,36 @@ export default function BookingScreen() {
       }
 
       setSuccessAppointmentId(bookedId);
-      setSuccessReference(String(booked?.appointmentId || booked?.displayAppointmentId || bookedId));
-    } catch (err) {
-      const message = toErrorMessage(err, 'Booking failed. Please try again.');
-      const serverMessage = err instanceof ApiClientError ? err.serverMessage || '' : '';
-      // Surface specific backend payment messages (e.g. Razorpay temporarily
-      // unavailable, appointment saved — retry later) instead of hiding them.
-      setBookingError(
-        /online payment|payment order|razorpay/i.test(serverMessage) ? serverMessage : message,
+      setSuccessReference(
+        String(
+          booked?.appointmentId || booked?.displayAppointmentId || bookedId,
+        ),
       );
-      // A slot that was just booked must disappear from the picker.
-      if (/just booked|already booked|already taken|unavailable/i.test(message)) {
+    } catch (err) {
+      const message = toErrorMessage(err, "Booking failed. Please try again.");
+      const serverMessage =
+        err instanceof ApiClientError ? err.serverMessage || "" : "";
+      setBookingError(
+        /online payment|payment order|razorpay/i.test(serverMessage)
+          ? serverMessage
+          : message,
+      );
+
+      // If slot conflict occurs, immediately refresh the real available slots
+      if (
+        /just booked|already booked|already taken|unavailable|409/i.test(
+          message,
+        )
+      ) {
         try {
-          const res = await appointmentService.getAvailableSlots(doctorId, selectedDateStr);
-          setAvailableSlots(res.availableSlots || []);
-          setSelectedSlot(res.availableSlots?.[0] || '');
+          const fresh = await appointmentService.getAvailableSlots(
+            doctorId,
+            selectedDateStr,
+          );
+          setAvailableSlots(fresh.availableSlots || []);
+          setSelectedSlot(fresh.availableSlots?.[0] || "");
         } catch {
-          // keep current slots on refresh failure
+          // preserve current state on network error
         }
       }
     } finally {
@@ -223,10 +500,10 @@ export default function BookingScreen() {
     }
   };
 
-if (loadingDoctor) {
+  if (loadingDoctor) {
     return (
       <SafeAreaView style={styles.safe}>
-        <Loading label="Loading booking..." />
+        <Loading label="Loading appointment details..." />
       </SafeAreaView>
     );
   }
@@ -234,119 +511,132 @@ if (loadingDoctor) {
   if (loadError || !doctor) {
     return (
       <SafeAreaView style={styles.safe}>
-        <ErrorState message={loadError || 'Doctor not found.'} />
+        <ErrorState message={loadError || "Doctor profile not found."} />
       </SafeAreaView>
     );
   }
 
-  const consultationTypes = doctor.consultationTypes || ['clinic'];
+  const consultationTypes = doctor.consultationTypes || ["clinic"];
+  const specialtyLabel =
+    doctor.speciality ||
+    doctor.specialization ||
+    doctor.department ||
+    "General Physician";
+  const hospitalName =
+    doctor.hospitalName ||
+    doctor.clinicInfo?.name ||
+    "Affiliated Medical Center";
 
-  // Stepper state: Date is always reachable; Time is confirmable once a slot is
-  // picked; Confirm is the final action once a time is chosen.
-  const stepStatus = (step: StepKey): 'done' | 'active' | 'pending' => {
-    if (step === 'Date') return 'done';
-    if (step === 'Time') return selectedSlot ? 'done' : 'active';
-    return selectedSlot ? 'active' : 'pending';
+  const stepStatus = (step: StepKey): "done" | "active" | "pending" => {
+    if (step === "Date") return "done";
+    if (step === "Time") return selectedSlot ? "done" : "active";
+    return selectedSlot ? "active" : "pending";
   };
 
-  // ---------------- Confirmation (cash) ----------------
-  if (successAppointmentId) {
+  // -------------------------------------------------------------
+  // Confirmation Screen (Pay at Clinic / Booked Successfully)
+  // -------------------------------------------------------------
+  if (successAppointmentId && doctor) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
-        <ScrollView contentContainerStyle={styles.confirmContainer} showsVerticalScrollIndicator={false}>
-          <View style={styles.confirmIconWrap}>
-            <View style={[styles.confirmIcon, styles.confirmIconSuccess]}>
-              <Ionicons name="checkmark" size={44} color={Palette.white} />
-            </View>
-          </View>
-          <Text style={styles.confirmTitle}>Appointment requested</Text>
-          <Text style={styles.confirmSubtitle}>
-            Your request has been submitted. The clinic will confirm shortly. You can manage it under My
-            Appointments.
-          </Text>
-
-          <Card padded style={styles.confirmCard}>
-            <ConfirmRow label="Doctor" value={doctor.name} />
-            <ConfirmRow label="Hospital" value={doctor.hospitalName || doctor.clinicInfo?.name || '—'} />
-            <ConfirmRow label="Date" value={formatDDMMYYYY(selectedDateStr)} />
-            <ConfirmRow label="Time" value={selectedSlot} />
-            <ConfirmRow
-              label="Consultation"
-              value={consultationType === 'video' ? 'Video consultation' : 'Clinic visit'}
-            />
-            <ConfirmRow label="Consultation fee" value={formatINR(doctor.fees)} />
-            <ConfirmRow label="Payment" value="Pay at clinic" />
-            <ConfirmRow label="Appointment ID" value={successReference || successAppointmentId} />
-          </Card>
-
-          <View style={styles.confirmActions}>
-            <Button
-              title="View consultation"
-              onPress={() =>
-                router.replace({
-                  pathname: consultationType === 'video' ? '/consultation/[id]' : '/appointment/[id]',
-                  params: { id: successAppointmentId },
-                })
-              }
-            />
-            <Button title="Go to home" variant="outline" onPress={() => router.replace('/')} />
-            <Button
-              title="Book another appointment"
-              variant="ghost"
-              onPress={() => {
-                setSuccessAppointmentId('');
-                setSelectedSlot('');
-              }}
-            />
-          </View>
-        </ScrollView>
-      </SafeAreaView>
+      <BookingConfirmationView
+        doctor={doctor}
+        specialtyLabel={specialtyLabel}
+        hospitalName={hospitalName}
+        selectedDateStr={selectedDateStr}
+        selectedSlot={selectedSlot}
+        consultationType={consultationType}
+        successAppointmentId={successAppointmentId}
+        successReference={successReference}
+        onViewPass={() =>
+          router.replace({
+            pathname: "/appointment/pass/[id]" as any,
+            params: { id: successAppointmentId },
+          })
+        }
+        onViewDetails={() =>
+          router.replace({
+            pathname: "/appointment/[id]",
+            params: { id: successAppointmentId },
+          })
+        }
+        onGoToAppointments={() => router.replace("/(drawer)/appointments")}
+        onGoHome={() => router.replace("/(drawer)")}
+      />
     );
   }
 
-  const specialtyLabel = doctor.speciality || doctor.specialization || doctor.department || 'General physician';
-return (
-    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        {/* ---------------- Header ---------------- */}
+  // -------------------------------------------------------------
+  // Main Booking Stepper & Picker Flow
+  // -------------------------------------------------------------
+  return (
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
         <View style={styles.header}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Close"
-            onPress={() => (router.canGoBack() ? router.back() : router.replace('/doctors'))}
-            style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+            onPress={() =>
+              router.canGoBack() ? router.back() : router.replace("/doctors")
+            }
+            style={({ pressed }) => [
+              styles.iconButton,
+              pressed && styles.pressed,
+            ]}
             hitSlop={8}
           >
             <Ionicons name="close" size={24} color={Palette.text} />
           </Pressable>
           <View style={styles.headerTitles}>
-            <Text style={styles.headerTitle}>Book appointment</Text>
-            <Text style={styles.headerSubtitle}>Plan your visit with {doctor.name.replace(/^Dr\.?\s*/i, '')}</Text>
+            <Text style={styles.headerTitle}>Book Appointment</Text>
+            <Text style={styles.headerSubtitle}>
+              Reserve your visit with {stripDoctorTitle(doctor.name)}
+            </Text>
           </View>
         </View>
 
-        {/* ---------------- Doctor summary ---------------- */}
+        {/* Doctor Summary Banner */}
         <Card padded style={styles.doctorCard}>
-          <Image source={{ uri: getDoctorImage(doctor) }} style={styles.doctorAvatar} contentFit="cover" />
+          <Image
+            source={{ uri: getDoctorImage(doctor) }}
+            style={styles.doctorAvatar}
+            contentFit="cover"
+            transition={200}
+          />
           <View style={styles.doctorInfo}>
-            <Text style={styles.doctorName} numberOfLines={1}>
-              {doctor.name}
-            </Text>
+            <View style={styles.doctorTitleRow}>
+              <Text style={styles.doctorName} numberOfLines={1}>
+                {formatDoctorName(doctor.name)}
+              </Text>
+              {doctor.verificationStatus === "Verified" ? (
+                <Ionicons
+                  name="shield-checkmark"
+                  size={16}
+                  color={Palette.primary}
+                />
+              ) : null}
+            </View>
             <Text style={styles.doctorSpecialty} numberOfLines={1}>
               {specialtyLabel}
             </Text>
             <Text style={styles.doctorHospital} numberOfLines={1}>
-              {doctor.hospitalName || doctor.clinicInfo?.name || 'Hospital details pending'}
+              <Ionicons name="business" size={12} color={Palette.textMuted} />{" "}
+              {hospitalName}
             </Text>
             <View style={styles.doctorMetaRow}>
               <Text style={styles.doctorFee}>{formatINR(doctor.fees)}</Text>
-              {doctor.verificationStatus === 'Verified' ? <Badge label="Verified" variant="primary" /> : null}
-              {!doctor.available ? <Badge label="Unavailable" variant="warning" /> : null}
+              <Text style={styles.doctorFeeSub}>/ consultation</Text>
+              {!doctor.available ? (
+                <Badge label="Currently Unavailable" variant="warning" />
+              ) : null}
             </View>
           </View>
         </Card>
 
-        {/* ---------------- Stepper ---------------- */}
+        {/* Visual Progress Stepper */}
         <View style={styles.stepper}>
           {STEPS.map((step, index) => {
             const status = stepStatus(step);
@@ -356,37 +646,68 @@ return (
                   <View
                     style={[
                       styles.stepCircle,
-                      status === 'done' && styles.stepCircleDone,
-                      status === 'active' && styles.stepCircleActive,
+                      status === "done" && styles.stepCircleDone,
+                      status === "active" && styles.stepCircleActive,
                     ]}
                   >
-                    {status === 'done' ? (
-                      <Ionicons name="checkmark" size={14} color={Palette.white} />
+                    {status === "done" ? (
+                      <Ionicons
+                        name="checkmark"
+                        size={14}
+                        color={Palette.white}
+                      />
                     ) : (
-                      <Text style={[styles.stepNumber, status === 'active' && styles.stepNumberActive]}>
+                      <Text
+                        style={[
+                          styles.stepNumber,
+                          status === "active" && styles.stepNumberActive,
+                        ]}
+                      >
                         {index + 1}
                       </Text>
                     )}
                   </View>
-                  <Text style={[styles.stepLabel, (status === 'done' || status === 'active') && styles.stepLabelActive]}>
+                  <Text
+                    style={[
+                      styles.stepLabel,
+                      (status === "done" || status === "active") &&
+                        styles.stepLabelActive,
+                    ]}
+                  >
                     {step}
                   </Text>
                 </View>
                 {index < STEPS.length - 1 ? (
-                  <View style={[styles.stepLine, status === 'done' && styles.stepLineDone]} />
+                  <View
+                    style={[
+                      styles.stepLine,
+                      status === "done" && styles.stepLineDone,
+                    ]}
+                  />
                 ) : null}
               </View>
             );
           })}
         </View>
 
-        {bookingError ? <FormMessage type="error" message={bookingError} /> : null}
-{/* ---------------- Step 1: Date ---------------- */}
+        {bookingError ? (
+          <FormMessage type="error" message={bookingError} />
+        ) : null}
+
+        {/* ---------------- Step 1: Date ---------------- */}
         <Card padded style={styles.stepCard}>
           <View style={styles.stepHeading}>
-            <Text style={styles.stepBadge}>1</Text>
-            <Text style={styles.stepTitle}>Select date</Text>
+            <View style={styles.stepNumberBadge}>
+              <Text style={styles.stepNumberBadgeText}>1</Text>
+            </View>
+            <View style={styles.stepHeadingTextWrap}>
+              <Text style={styles.stepTitle}>Select Date</Text>
+              <Text style={styles.stepSubtitle}>
+                Choose an appointment date from the upcoming week
+              </Text>
+            </View>
           </View>
+
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -394,214 +715,512 @@ return (
             style={styles.dateScroll}
           >
             {days.map((date) => {
-              const active = toDDMMYYYY(date) === selectedDateStr;
-              const isToday = toDDMMYYYY(date) === toDDMMYYYY(new Date());
+              const dateStr = toDDMMYYYY(date);
+              const active = dateStr === selectedDateStr;
+              const isToday = dateStr === toDDMMYYYY(new Date());
+              const onLeave = Boolean(doctor.leaveDates?.includes(dateStr));
+
               return (
                 <Pressable
-                  key={toDDMMYYYY(date)}
+                  key={dateStr}
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
                   onPress={() => setSelectedDate(date)}
-                  style={[styles.dateTile, active && styles.dateTileActive]}
+                  style={({ pressed }) => [
+                    styles.dateTile,
+                    active && styles.dateTileActive,
+                    onLeave && styles.dateTileLeave,
+                    pressed && !onLeave && styles.dateTilePressed,
+                  ]}
                 >
-                  <Text style={[styles.dateWeekday, active && styles.dateTextActive]}>
-                    {isToday ? 'Today' : weekdayLabel(date)}
+                  <Text
+                    style={[
+                      styles.dateWeekday,
+                      active && styles.dateTextActive,
+                      onLeave && styles.dateTextLeave,
+                    ]}
+                  >
+                    {isToday ? "Today" : weekdayLabel(date)}
                   </Text>
-                  <Text style={[styles.dateDay, active && styles.dateTextActive]}>{date.getDate()}</Text>
-                  <Text style={[styles.dateMonth, active && styles.dateTextActive]}>
-                    {dateLabel(date).split(' ')[1]}
+                  <Text
+                    style={[
+                      styles.dateDay,
+                      active && styles.dateTextActive,
+                      onLeave && styles.dateTextLeave,
+                    ]}
+                  >
+                    {date.getDate()}
                   </Text>
+                  <Text
+                    style={[
+                      styles.dateMonth,
+                      active && styles.dateTextActive,
+                      onLeave && styles.dateTextLeave,
+                    ]}
+                  >
+                    {dateLabel(date).split(" ")[1]}
+                  </Text>
+                  {onLeave ? (
+                    <View style={styles.leaveBadge}>
+                      <Text style={styles.leaveBadgeText}>Leave</Text>
+                    </View>
+                  ) : null}
                 </Pressable>
               );
             })}
           </ScrollView>
         </Card>
 
-        {/* ---------------- Step 2: Time slot ---------------- */}
+        {/* ---------------- Step 2: Time Slot ---------------- */}
         <Card padded style={styles.stepCard}>
           <View style={styles.stepHeading}>
-            <Text style={styles.stepBadge}>2</Text>
-            <Text style={styles.stepTitle}>Select time slot</Text>
+            <View style={styles.stepNumberBadge}>
+              <Text style={styles.stepNumberBadgeText}>2</Text>
+            </View>
+            <View style={styles.stepHeadingTextWrap}>
+              <Text style={styles.stepTitle}>Select Time Slot</Text>
+              <Text style={styles.stepSubtitle}>
+                {availableSlots.length > 0
+                  ? `${availableSlots.length} available slots for ${formatDDMMYYYY(selectedDateStr)}`
+                  : "Real-time doctor schedule"}
+              </Text>
+            </View>
             <View style={styles.stepLive}>
-              <Ionicons name="pulse" size={12} color={Palette.success} />
-              <Text style={styles.stepLiveText}>Live</Text>
+              <Ionicons name="pulse" size={13} color={Palette.success} />
+              <Text style={styles.stepLiveText}>Live Sync</Text>
             </View>
           </View>
 
           {isLeaveDate ? (
-            <FormMessage type="warning" message="The doctor is on leave on this date. Please choose another day." />
+            <FormMessage
+              type="warning"
+              message="The doctor is scheduled on leave on this date. Please select another date above."
+            />
           ) : slotsLoading ? (
-            <View style={styles.slotGrid}>
-              {[...Array(6)].map((_, index) => (
-                <View key={index} style={styles.slotSkeleton} />
-              ))}
+            <View style={styles.slotLoadingWrap}>
+              <Loading fullScreen={false} label="Loading schedule..." />
             </View>
           ) : slotsError ? (
             <Text style={styles.slotsStateText}>{slotsError}</Text>
           ) : availableSlots.length === 0 ? (
-            <Text style={styles.slotsStateText}>No slots are available on this date. Please choose another day.</Text>
-          ) : (
-            <>
-              <View style={styles.slotGrid}>
-                {availableSlots.map((slot) => {
-                  const active = slot === selectedSlot;
-                  return (
-                    <Pressable
-                      key={slot}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: active }}
-                      onPress={() => setSelectedSlot(slot)}
-                      style={[styles.slot, active && styles.slotActive]}
-                    >
-                      <Text style={[styles.slotText, active && styles.slotTextActive]}>{slot}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <Text style={styles.realtimeNote}>
-                Slots are updated in real time — a slot booked by someone else is removed automatically.
+            <View style={styles.emptySlotsBox}>
+              <Ionicons
+                name="calendar-outline"
+                size={36}
+                color={Palette.textMuted}
+              />
+              <Text style={styles.emptySlotsTitle}>No Available Slots</Text>
+              <Text style={styles.emptySlotsText}>
+                All appointment slots are fully booked or unavailable for this
+                day. Please pick another date.
               </Text>
-            </>
+            </View>
+          ) : (
+            <View style={styles.sessionsContainer}>
+              {/* Morning Session */}
+              {morning.length > 0 ? (
+                <View style={styles.sessionGroup}>
+                  <View style={styles.sessionHeader}>
+                    <Ionicons
+                      name="sunny-outline"
+                      size={16}
+                      color={Palette.primaryDark}
+                    />
+                    <Text style={styles.sessionTitle}>Morning</Text>
+                    <Text style={styles.sessionCount}>
+                      {morning.length} slots
+                    </Text>
+                  </View>
+                  <View style={styles.slotGrid}>
+                    {morning.map((slot) => {
+                      const active = slot === selectedSlot;
+                      return (
+                        <Pressable
+                          key={slot}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: active }}
+                          onPress={() => setSelectedSlot(slot)}
+                          style={({ pressed }) => [
+                            styles.slot,
+                            active && styles.slotActive,
+                            pressed && styles.slotPressed,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.slotText,
+                              active && styles.slotTextActive,
+                            ]}
+                          >
+                            {slot}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
+
+              {/* Afternoon Session */}
+              {afternoon.length > 0 ? (
+                <View style={styles.sessionGroup}>
+                  <View style={styles.sessionHeader}>
+                    <Ionicons
+                      name="partly-sunny-outline"
+                      size={16}
+                      color={Palette.primaryDark}
+                    />
+                    <Text style={styles.sessionTitle}>Afternoon</Text>
+                    <Text style={styles.sessionCount}>
+                      {afternoon.length} slots
+                    </Text>
+                  </View>
+                  <View style={styles.slotGrid}>
+                    {afternoon.map((slot) => {
+                      const active = slot === selectedSlot;
+                      return (
+                        <Pressable
+                          key={slot}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: active }}
+                          onPress={() => setSelectedSlot(slot)}
+                          style={({ pressed }) => [
+                            styles.slot,
+                            active && styles.slotActive,
+                            pressed && styles.slotPressed,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.slotText,
+                              active && styles.slotTextActive,
+                            ]}
+                          >
+                            {slot}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
+
+              {/* Evening Session */}
+              {evening.length > 0 ? (
+                <View style={styles.sessionGroup}>
+                  <View style={styles.sessionHeader}>
+                    <Ionicons
+                      name="moon-outline"
+                      size={16}
+                      color={Palette.primaryDark}
+                    />
+                    <Text style={styles.sessionTitle}>Evening</Text>
+                    <Text style={styles.sessionCount}>
+                      {evening.length} slots
+                    </Text>
+                  </View>
+                  <View style={styles.slotGrid}>
+                    {evening.map((slot) => {
+                      const active = slot === selectedSlot;
+                      return (
+                        <Pressable
+                          key={slot}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: active }}
+                          onPress={() => setSelectedSlot(slot)}
+                          style={({ pressed }) => [
+                            styles.slot,
+                            active && styles.slotActive,
+                            pressed && styles.slotPressed,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.slotText,
+                              active && styles.slotTextActive,
+                            ]}
+                          >
+                            {slot}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
+
+              <Text style={styles.realtimeNote}>
+                <Ionicons
+                  name="shield-checkmark-outline"
+                  size={12}
+                  color={Palette.primaryDark}
+                />{" "}
+                Slots are reserved atomically. Double booking is prevented
+                server-side.
+              </Text>
+            </View>
           )}
         </Card>
-{/* ---------------- Consultation type ---------------- */}
+
+        {/* ---------------- Consultation Type ---------------- */}
         <Card padded style={styles.stepCard}>
           <View style={styles.stepHeading}>
-            <View style={[styles.stepBadge, styles.stepBadgeIcon]}>
-              <Ionicons name="videocam" size={14} color={Palette.white} />
+            <View style={[styles.stepNumberBadge, styles.stepNumberBadgeIcon]}>
+              <Ionicons name="medkit" size={14} color={Palette.white} />
             </View>
-            <Text style={styles.stepTitle}>Consultation type</Text>
+            <View style={styles.stepHeadingTextWrap}>
+              <Text style={styles.stepTitle}>Consultation Type</Text>
+              <Text style={styles.stepSubtitle}>
+                Select in-person clinic examination or secure teleconsultation
+              </Text>
+            </View>
           </View>
+
           <View style={styles.typeRow}>
-            {consultationTypes.includes('clinic') ? (
+            {consultationTypes.includes("clinic") ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityState={{ selected: consultationType === 'clinic' }}
-                onPress={() => setConsultationType('clinic')}
-                style={[styles.typeChip, consultationType === 'clinic' && styles.typeChipActive]}
+                accessibilityState={{ selected: consultationType === "clinic" }}
+                onPress={() => setConsultationType("clinic")}
+                style={[
+                  styles.typeChip,
+                  consultationType === "clinic" && styles.typeChipActive,
+                ]}
               >
-                <Ionicons
-                  name="business"
-                  size={18}
-                  color={consultationType === 'clinic' ? Palette.white : Palette.textMuted}
-                />
-                <View>
-                  <Text style={[styles.typeTitle, consultationType === 'clinic' && styles.typeTextActive]}>
-                    Clinic visit
+                <View
+                  style={[
+                    styles.typeIconBox,
+                    consultationType === "clinic" && styles.typeIconBoxActive,
+                  ]}
+                >
+                  <Ionicons
+                    name="business"
+                    size={20}
+                    color={
+                      consultationType === "clinic"
+                        ? Palette.white
+                        : Palette.primary
+                    }
+                  />
+                </View>
+                <View style={styles.typeChipTexts}>
+                  <Text
+                    style={[
+                      styles.typeTitle,
+                      consultationType === "clinic" && styles.typeTextActive,
+                    ]}
+                  >
+                    Clinic Visit
                   </Text>
-                  <Text style={[styles.typeSub, consultationType === 'clinic' && styles.typeTextActive]}>
-                    Visit the hospital
+                  <Text
+                    style={[
+                      styles.typeSub,
+                      consultationType === "clinic" && styles.typeTextActive,
+                    ]}
+                  >
+                    In-person visit at hospital
                   </Text>
                 </View>
               </Pressable>
             ) : null}
-            {consultationTypes.includes('video') ? (
+
+            {consultationTypes.includes("video") ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityState={{ selected: consultationType === 'video' }}
-                onPress={() => setConsultationType('video')}
-                style={[styles.typeChip, consultationType === 'video' && styles.typeChipActive]}
+                accessibilityState={{ selected: consultationType === "video" }}
+                onPress={() => setConsultationType("video")}
+                style={[
+                  styles.typeChip,
+                  consultationType === "video" && styles.typeChipActive,
+                ]}
               >
-                <Ionicons
-                  name="videocam"
-                  size={18}
-                  color={consultationType === 'video' ? Palette.white : Palette.textMuted}
-                />
-                <View>
-                  <Text style={[styles.typeTitle, consultationType === 'video' && styles.typeTextActive]}>
-                    Video consult
+                <View
+                  style={[
+                    styles.typeIconBox,
+                    consultationType === "video" && styles.typeIconBoxActive,
+                  ]}
+                >
+                  <Ionicons
+                    name="videocam"
+                    size={20}
+                    color={
+                      consultationType === "video"
+                        ? Palette.white
+                        : Palette.primary
+                    }
+                  />
+                </View>
+                <View style={styles.typeChipTexts}>
+                  <Text
+                    style={[
+                      styles.typeTitle,
+                      consultationType === "video" && styles.typeTextActive,
+                    ]}
+                  >
+                    Video Consultation
                   </Text>
-                  <Text style={[styles.typeSub, consultationType === 'video' && styles.typeTextActive]}>
-                    Connect online
+                  <Text
+                    style={[
+                      styles.typeSub,
+                      consultationType === "video" && styles.typeTextActive,
+                    ]}
+                  >
+                    Secure Google Meet session
                   </Text>
                 </View>
               </Pressable>
             ) : null}
           </View>
         </Card>
-{/* ---------------- Step 3: Review & confirm ---------------- */}
+
+        {/* ---------------- Step 3: Review & Payment ---------------- */}
         <Card padded style={styles.stepCard}>
           <View style={styles.stepHeading}>
-            <Text style={styles.stepBadge}>3</Text>
-            <Text style={styles.stepTitle}>Review & confirm</Text>
+            <View style={styles.stepNumberBadge}>
+              <Text style={styles.stepNumberBadgeText}>3</Text>
+            </View>
+            <View style={styles.stepHeadingTextWrap}>
+              <Text style={styles.stepTitle}>Review & Confirm</Text>
+              <Text style={styles.stepSubtitle}>
+                Verify appointment details and select payment method
+              </Text>
+            </View>
           </View>
 
-          <Text style={styles.payLabel}>Payment method</Text>
+          <Text style={styles.payLabel}>Payment Method</Text>
           <View style={styles.payRow}>
             <Pressable
               accessibilityRole="button"
-              accessibilityState={{ selected: paymentMethod === 'cash' }}
-              onPress={() => setPaymentMethod('cash')}
-              style={[styles.payCard, paymentMethod === 'cash' && styles.payCardActive]}
+              accessibilityState={{ selected: paymentMethod === "cash" }}
+              onPress={() => setPaymentMethod("cash")}
+              style={[
+                styles.payCard,
+                paymentMethod === "cash" && styles.payCardActive,
+              ]}
             >
               <Ionicons
                 name="cash-outline"
-                size={22}
-                color={paymentMethod === 'cash' ? Palette.white : Palette.textMuted}
+                size={24}
+                color={
+                  paymentMethod === "cash" ? Palette.white : Palette.primaryDark
+                }
               />
-              <Text style={[styles.payTitle, paymentMethod === 'cash' && styles.payTextActive]}>Pay at clinic</Text>
-              <Text style={[styles.paySub, paymentMethod === 'cash' && styles.payTextActive]}>Cash / UPI on arrival</Text>
-            </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ selected: paymentMethod === 'online' }}
-                onPress={() => setPaymentMethod('online')}
-                disabled={!onlineAvailable}
+              <Text
                 style={[
-                  styles.payCard,
-                  !onlineAvailable && styles.payCardDisabled,
-                  paymentMethod === 'online' && styles.payCardActive,
+                  styles.payTitle,
+                  paymentMethod === "cash" && styles.payTextActive,
                 ]}
               >
-                <Ionicons
-                  name="card-outline"
-                  size={22}
-                  color={paymentMethod === 'online' ? Palette.white : Palette.textMuted}
-                />
-                <Text style={[styles.payTitle, paymentMethod === 'online' && styles.payTextActive]}>
-                  {onlineAvailable ? 'Pay online' : 'Online unavailable'}
-                </Text>
-                <Text style={[styles.paySub, paymentMethod === 'online' && styles.payTextActive]}>
-                  {onlineAvailable ? 'Secure gateway' : 'Native build required'}
-                </Text>
+                Pay at Clinic
+              </Text>
+              <Text
+                style={[
+                  styles.paySub,
+                  paymentMethod === "cash" && styles.payTextActive,
+                ]}
+              >
+                Cash / UPI on arrival
+              </Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: paymentMethod === "online" }}
+              onPress={() => setPaymentMethod("online")}
+              style={[
+                styles.payCard,
+                paymentMethod === "online" && styles.payCardActive,
+              ]}
+            >
+              <Ionicons
+                name="card-outline"
+                size={24}
+                color={
+                  paymentMethod === "online"
+                    ? Palette.white
+                    : Palette.primaryDark
+                }
+              />
+              <Text
+                style={[
+                  styles.payTitle,
+                  paymentMethod === "online" && styles.payTextActive,
+                ]}
+              >
+                Pay Online
+              </Text>
+              <Text
+                style={[
+                  styles.paySub,
+                  paymentMethod === "online" && styles.payTextActive,
+                ]}
+              >
+                Secure Razorpay
+              </Text>
             </Pressable>
           </View>
-          {paymentMethod === 'online' && !onlineAvailable ? (
-            <FormMessage type="info" message="Online payment is not available in this build. Pay at the clinic instead." />
+
+          {paymentMethod === "online" && !onlineAvailable ? (
+            <FormMessage
+              type="info"
+              message="Razorpay native module is active in production builds. For test execution, booking will still be registered securely with online_pending status."
+            />
           ) : null}
 
+          {/* Booking Summary Box */}
           <View style={styles.summary}>
-            <SummaryRow label="Doctor" value={doctor.name} />
-            <SummaryRow label="Hospital" value={doctor.hospitalName || doctor.clinicInfo?.name || '—'} />
-            <SummaryRow label="Date" value={formatDDMMYYYY(selectedDateStr)} />
-            <SummaryRow label="Time" value={selectedSlot || 'Choose a slot'} />
+            <SummaryRow label="Doctor" value={formatDoctorName(doctor.name)} />
+            <SummaryRow label="Department" value={specialtyLabel} />
+            <SummaryRow label="Hospital" value={hospitalName} />
             <SummaryRow
-              label="Type"
-              value={consultationType === 'video' ? 'Video consultation' : 'Clinic visit'}
+              label="Appointment Date"
+              value={formatDDMMYYYY(selectedDateStr)}
             />
             <SummaryRow
-              label="Payment"
-              value={paymentMethod === 'online' ? 'Online (Razorpay)' : 'Pay at clinic'}
+              label="Selected Slot"
+              value={selectedSlot || "Choose a slot"}
+            />
+            <SummaryRow
+              label="Consultation"
+              value={
+                consultationType === "video"
+                  ? "Video Consultation"
+                  : "Clinic Visit"
+              }
+            />
+            <SummaryRow
+              label="Payment Method"
+              value={
+                paymentMethod === "online"
+                  ? "Online (Razorpay)"
+                  : "Pay at Clinic"
+              }
             />
           </View>
+
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total</Text>
+            <Text style={styles.totalLabel}>Total Consultation Fee</Text>
             <Text style={styles.totalValue}>
               {formatINR(doctor.fees)}
-              {paymentMethod === 'cash' ? ' · due at clinic' : ''}
+              {paymentMethod === "cash" ? " · on arrival" : ""}
             </Text>
           </View>
 
           <Button
-            title={submitting ? 'Booking...' : 'Confirm booking'}
+            title={
+              submitting ? "Confirming Booking..." : "Confirm & Book Visit"
+            }
+            icon="calendar"
             onPress={confirmBooking}
             loading={submitting}
-            disabled={!selectedSlot || !doctor.available}
+            disabled={!selectedSlot || !doctor.available || isLeaveDate}
             style={styles.confirmButton}
           />
+
           {!phoneValid ? (
-            <Text style={styles.hint}>
-              Add a valid phone number to your profile (under Profile → Edit) to book an appointment.
+            <Text style={styles.phoneHint}>
+              * Please update your profile with a valid phone number before
+              confirming booking.
             </Text>
           ) : null}
         </Card>
@@ -621,14 +1240,26 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ConfirmRow({ label, value }: { label: string; value: string }) {
+function ConfirmRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+}) {
   return (
     <View style={styles.confirmRow}>
-      <Text style={styles.confirmLabel}>{label}</Text>
+      <View style={styles.confirmRowLeft}>
+        <Ionicons name={icon} size={17} color={Palette.primary} />
+        <Text style={styles.confirmLabel}>{label}</Text>
+      </View>
       <Text style={styles.confirmValue}>{value}</Text>
     </View>
   );
 }
+
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
@@ -640,12 +1271,11 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
   },
   pressed: {
-    opacity: 0.6,
+    opacity: 0.7,
   },
-  // ---- Header ----
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
   },
   iconButton: {
@@ -653,8 +1283,11 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: Palette.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: Palette.border,
+    ...Shadows.sm,
   },
   headerTitles: {
     flex: 1,
@@ -668,11 +1301,14 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Palette.textMuted,
   },
-  // ---- Doctor summary ----
   doctorCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: "rgba(14, 159, 142, 0.15)",
+    ...Shadows.card,
   },
   doctorAvatar: {
     width: 72,
@@ -684,41 +1320,51 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  doctorTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
   doctorName: {
     ...Typography.h4,
     color: Palette.text,
+    flexShrink: 1,
   },
   doctorSpecialty: {
     ...Typography.bodySmall,
     color: Palette.primaryDark,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   doctorHospital: {
     ...Typography.caption,
     color: Palette.textMuted,
   },
   doctorMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     marginTop: Spacing.xs,
   },
   doctorFee: {
     ...Typography.label,
-    color: Palette.text,
+    color: Palette.primary,
+    fontWeight: "800",
   },
-  // ---- Stepper ----
+  doctorFeeSub: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+  },
   stepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   stepWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     flex: 1,
   },
   stepItem: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: Spacing.xs,
   },
   stepCircle: {
@@ -726,8 +1372,8 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     backgroundColor: Palette.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   stepCircleDone: {
     backgroundColor: Palette.success,
@@ -738,7 +1384,7 @@ const styles = StyleSheet.create({
   stepNumber: {
     ...Typography.caption,
     color: Palette.textMuted,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   stepNumberActive: {
     color: Palette.white,
@@ -749,7 +1395,7 @@ const styles = StyleSheet.create({
   },
   stepLabelActive: {
     color: Palette.primaryDark,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   stepLine: {
     flex: 1,
@@ -760,48 +1406,60 @@ const styles = StyleSheet.create({
   stepLineDone: {
     backgroundColor: Palette.success,
   },
-  // ---- Step cards ----
   stepCard: {
     gap: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: "rgba(14, 159, 142, 0.12)",
+    ...Shadows.card,
   },
   stepHeading: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
   },
-  stepBadge: {
-    minWidth: 26,
+  stepNumberBadge: {
+    width: 26,
     height: 26,
     borderRadius: 13,
     backgroundColor: Palette.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepNumberBadgeText: {
     color: Palette.white,
     fontSize: 13,
-    fontWeight: '700',
-    textAlign: 'center',
-    lineHeight: 26,
-    paddingHorizontal: 6,
-    overflow: 'hidden',
+    fontWeight: "800",
   },
-  stepBadgeIcon: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    lineHeight: undefined,
-    paddingHorizontal: 0,
+  stepNumberBadgeIcon: {
+    backgroundColor: Palette.primaryDark,
+  },
+  stepHeadingTextWrap: {
+    flex: 1,
+    gap: 1,
   },
   stepTitle: {
     ...Typography.h4,
     color: Palette.text,
   },
+  stepSubtitle: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+  },
   stepLive: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
-    marginLeft: 'auto',
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderRadius: Radius.pill,
   },
   stepLiveText: {
     ...Typography.caption,
     color: Palette.success,
-    fontWeight: '700',
+    fontWeight: "700",
+    fontSize: 11,
   },
   dateScroll: {
     marginHorizontal: -Spacing.lg,
@@ -811,40 +1469,118 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   dateTile: {
-    alignItems: 'center',
-    gap: 2,
+    alignItems: "center",
+    gap: 3,
     borderRadius: Radius.md,
     borderWidth: 1,
     borderColor: Palette.border,
     backgroundColor: Palette.surface,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    minWidth: 64,
+    paddingVertical: Spacing.sm + 2,
+    minWidth: 68,
   },
   dateTileActive: {
     backgroundColor: Palette.primary,
     borderColor: Palette.primary,
+    ...Shadows.sm,
+  },
+  dateTileLeave: {
+    borderColor: "rgba(232, 154, 60, 0.4)",
+    backgroundColor: "rgba(232, 154, 60, 0.05)",
+  },
+  dateTilePressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.96 }],
   },
   dateWeekday: {
     ...Typography.caption,
     color: Palette.textMuted,
-    textTransform: 'capitalize',
+    textTransform: "capitalize",
+    fontWeight: "600",
   },
   dateDay: {
-    ...Typography.h4,
+    ...Typography.h3,
     color: Palette.text,
   },
   dateMonth: {
     ...Typography.caption,
     color: Palette.textMuted,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
+    fontSize: 10,
+    fontWeight: "700",
   },
   dateTextActive: {
     color: Palette.white,
   },
+  dateTextLeave: {
+    color: Palette.warning,
+  },
+  leaveBadge: {
+    backgroundColor: Palette.warning,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: Radius.xs,
+    marginTop: 2,
+  },
+  leaveBadgeText: {
+    color: Palette.white,
+    fontSize: 9,
+    fontWeight: "700",
+  },
+  slotLoadingWrap: {
+    paddingVertical: Spacing.xl,
+    alignItems: "center",
+  },
+  slotsStateText: {
+    ...Typography.bodySmall,
+    color: Palette.textMuted,
+    textAlign: "center",
+    paddingVertical: Spacing.md,
+  },
+  emptySlotsBox: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.xl,
+  },
+  emptySlotsTitle: {
+    ...Typography.bodyMedium,
+    fontWeight: "700",
+    color: Palette.text,
+  },
+  emptySlotsText: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    textAlign: "center",
+    maxWidth: 260,
+  },
+  sessionsContainer: {
+    gap: Spacing.md,
+  },
+  sessionGroup: {
+    gap: Spacing.xs,
+  },
+  sessionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingBottom: 2,
+  },
+  sessionTitle: {
+    ...Typography.caption,
+    fontWeight: "700",
+    color: Palette.primaryDark,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  sessionCount: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    fontSize: 11,
+  },
   slotGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.sm,
   },
   slot: {
@@ -852,48 +1588,43 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     borderRadius: Radius.pill,
     borderWidth: 1,
-    borderColor: Palette.border,
+    borderColor: "rgba(14, 159, 142, 0.2)",
     backgroundColor: Palette.surface,
     minWidth: 92,
-    alignItems: 'center',
+    alignItems: "center",
   },
   slotActive: {
     backgroundColor: Palette.primary,
     borderColor: Palette.primary,
   },
+  slotPressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.96 }],
+  },
   slotText: {
     ...Typography.bodySmall,
     color: Palette.text,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   slotTextActive: {
     color: Palette.white,
-  },
-  slotSkeleton: {
-    width: 92,
-    height: 38,
-    borderRadius: Radius.pill,
-    backgroundColor: '#DDE8E5',
-  },
-  slotsStateText: {
-    ...Typography.bodySmall,
-    color: Palette.textMuted,
-    textAlign: 'center',
-    paddingVertical: Spacing.sm,
+    fontWeight: "700",
   },
   realtimeNote: {
     ...Typography.caption,
     color: Palette.textMuted,
+    marginTop: Spacing.xs,
   },
-
   typeRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.sm,
   },
   typeChip: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    minWidth: 140,
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
     borderRadius: Radius.md,
     borderWidth: 1,
@@ -902,50 +1633,68 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
   },
   typeChipActive: {
-    backgroundColor: Palette.primary,
+    backgroundColor: Palette.primaryLight,
     borderColor: Palette.primary,
+  },
+  typeIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.sm,
+    backgroundColor: "rgba(14, 159, 142, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  typeIconBoxActive: {
+    backgroundColor: Palette.primary,
+  },
+  typeChipTexts: {
+    flex: 1,
+    gap: 1,
   },
   typeTitle: {
     ...Typography.bodySmall,
     color: Palette.text,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   typeSub: {
     ...Typography.caption,
     color: Palette.textMuted,
   },
   typeTextActive: {
-    color: Palette.white,
+    color: Palette.primaryDark,
   },
   payLabel: {
-    ...Typography.label,
-    color: Palette.text,
-    marginBottom: Spacing.xs,
+    ...Typography.caption,
+    color: Palette.textMuted,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   payRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.sm,
+    flexWrap: "wrap",
   },
   payCard: {
     flex: 1,
+    minWidth: 140,
     borderRadius: Radius.md,
     borderWidth: 1,
     borderColor: Palette.border,
     backgroundColor: Palette.surface,
     padding: Spacing.md,
-    gap: 2,
+    gap: 4,
+    alignItems: "center",
+    justifyContent: "center",
   },
   payCardActive: {
     backgroundColor: Palette.primary,
     borderColor: Palette.primary,
   },
-  payCardDisabled: {
-    opacity: 0.55,
-  },
   payTitle: {
     ...Typography.bodySmall,
     color: Palette.text,
-    fontWeight: '700',
+    fontWeight: "700",
     marginTop: Spacing.xs,
   },
   paySub: {
@@ -959,103 +1708,145 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Palette.divider,
     paddingTop: Spacing.sm,
-    marginTop: Spacing.sm,
+    marginTop: Spacing.xs,
   },
   summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: Spacing.xs,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 5,
     gap: Spacing.sm,
   },
   summaryLabel: {
-    ...Typography.bodyMedium,
+    ...Typography.caption,
     color: Palette.textMuted,
   },
   summaryValue: {
-    ...Typography.bodyMedium,
+    ...Typography.bodySmall,
     color: Palette.text,
-    fontWeight: '600',
+    fontWeight: "600",
     flexShrink: 1,
-    textAlign: 'right',
+    textAlign: "right",
   },
   totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingTop: Spacing.sm,
     borderTopWidth: 1,
     borderTopColor: Palette.divider,
   },
   totalLabel: {
-    ...Typography.label,
+    ...Typography.bodyMedium,
+    fontWeight: "700",
     color: Palette.text,
   },
   totalValue: {
     ...Typography.h4,
     color: Palette.primaryDark,
+    fontWeight: "800",
   },
   confirmButton: {
     marginTop: Spacing.xs,
   },
-  hint: {
+  phoneHint: {
     ...Typography.caption,
     color: Palette.warning,
-    textAlign: 'center',
-    marginTop: Spacing.sm,
+    textAlign: "center",
+    marginTop: Spacing.xs,
   },
-  // ---- Confirmation view ----
   confirmContainer: {
     padding: Spacing.lg,
     paddingBottom: Spacing.xxxl,
     gap: Spacing.md,
   },
   confirmIconWrap: {
-    alignItems: 'center',
-    marginTop: Spacing.xxl,
+    alignItems: "center",
+    marginTop: Spacing.xl,
   },
-  confirmIcon: {
+  confirmPulseRing: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: "rgba(46, 158, 91, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmIconCircle: {
     width: 76,
     height: 76,
     borderRadius: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  confirmIconSuccess: {
     backgroundColor: Palette.success,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Shadows.md,
   },
   confirmTitle: {
     ...Typography.h2,
     color: Palette.text,
-    textAlign: 'center',
+    textAlign: "center",
   },
   confirmSubtitle: {
     ...Typography.bodyMedium,
     color: Palette.textMuted,
-    textAlign: 'center',
+    textAlign: "center",
+    maxWidth: 320,
+    alignSelf: "center",
+  },
+  referenceBadgeWrap: {
+    alignSelf: "center",
+    backgroundColor: "rgba(14, 159, 142, 0.08)",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.pill,
+    alignItems: "center",
+    gap: 2,
+    marginTop: Spacing.xs,
+  },
+  referenceLabel: {
+    fontSize: 10,
+    color: Palette.primaryDark,
+    textTransform: "uppercase",
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  referenceValue: {
+    ...Typography.h4,
+    color: Palette.primary,
+    fontWeight: "800",
   },
   confirmCard: {
     marginTop: Spacing.sm,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: "rgba(14, 159, 142, 0.15)",
+    ...Shadows.card,
   },
   confirmRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     gap: Spacing.sm,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.sm + 2,
     borderBottomWidth: 1,
     borderBottomColor: Palette.divider,
   },
+  confirmRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
   confirmLabel: {
-    ...Typography.bodyMedium,
+    ...Typography.caption,
     color: Palette.textMuted,
+    fontWeight: "600",
   },
   confirmValue: {
-    ...Typography.bodyMedium,
+    ...Typography.bodySmall,
     color: Palette.text,
-    fontWeight: '600',
+    fontWeight: "700",
     flexShrink: 1,
-    textAlign: 'right',
+    textAlign: "right",
   },
   confirmActions: {
     gap: Spacing.sm,

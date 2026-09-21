@@ -1,40 +1,70 @@
 /**
  * HealPoint - inline form feedback (error / success / info).
  */
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useRef } from "react";
+import { Animated, StyleSheet, Text } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
-import { Radius, Spacing, Typography } from '@/constants/theme';
+import { Radius, Spacing, Typography } from "@/constants/theme";
 
-type MessageType = 'error' | 'success' | 'info' | 'warning';
+type MessageType = "error" | "success" | "info" | "warning";
 
 interface FormMessageProps {
   type: MessageType;
   message: string;
 }
 
-const theme: Record<MessageType, { bg: string; text: string; icon: keyof typeof Ionicons.glyphMap }> = {
-  error: { bg: '#FDE8E8', text: '#B3264A', icon: 'alert-circle' },
-  success: { bg: '#E2F5E9', text: '#1F7A44', icon: 'checkmark-circle' },
-  info: { bg: '#E7F1FE', text: '#1D5FA8', icon: 'information-circle' },
-  warning: { bg: '#FDF0DC', text: '#9A6410', icon: 'warning' },
+const theme: Record<
+  MessageType,
+  { bg: string; text: string; icon: keyof typeof Ionicons.glyphMap }
+> = {
+  error: { bg: "#FDE8E8", text: "#B3264A", icon: "alert-circle" },
+  success: { bg: "#E2F5E9", text: "#1F7A44", icon: "checkmark-circle" },
+  info: { bg: "#E7F1FE", text: "#1D5FA8", icon: "information-circle" },
+  warning: { bg: "#FDF0DC", text: "#9A6410", icon: "warning" },
 };
 
 export function FormMessage({ type, message }: FormMessageProps) {
   const colors = theme[type];
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    anim.setValue(0);
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [anim, message]);
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.bg }]}>
+    <Animated.View
+      style={[
+        styles.container,
+        { backgroundColor: colors.bg },
+        {
+          opacity: anim,
+          transform: [
+            {
+              translateY: anim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [-6, 0],
+              }),
+            },
+          ],
+        },
+      ]}
+    >
       <Ionicons name={colors.icon} size={20} color={colors.text} />
       <Text style={[styles.text, { color: colors.text }]}>{message}</Text>
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: Spacing.sm,
     padding: Spacing.md,
     borderRadius: Radius.md,

@@ -4,29 +4,37 @@
  * Shows the brand header (logo, avatar, name, email, role) then the role's
  * grouped menu. Every item navigates to a real route and closes the drawer.
  */
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from "@expo/vector-icons";
 import {
   DrawerContentScrollView,
   type DrawerContentComponentProps,
-} from '@react-navigation/drawer';
-import { Image } from 'expo-image';
-import { usePathname, useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+} from "@react-navigation/drawer";
+import { Image } from "expo-image";
+import { usePathname, useRouter } from "expo-router";
+import React, { useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { HealPointLogo } from '@/components/HealPointLogo';
-import { Palette, Radius, Spacing, Typography } from '@/constants/theme';
-import { useAuth } from '@/hooks/use-auth';
-import { drawerMenuForRole } from '@/lib/drawer-menu';
-import { getUserImage } from '@/lib/image';
-import { canonicalRole } from '@/lib/roles';
+import { HealPointLogo } from "@/components/HealPointLogo";
+import { Palette, Radius, Spacing, Typography } from "@/constants/theme";
+import { useAuth } from "@/hooks/use-auth";
+import { drawerMenuForRole } from "@/lib/drawer-menu";
+import { getUserImage } from "@/lib/image";
+import { canonicalRole } from "@/lib/roles";
 
 function menuHrefPath(href: unknown): string {
-  const raw = typeof href === 'string' ? href : String(href ?? '');
-  return raw.split('?')[0];
+  const raw = typeof href === "string" ? href : String(href ?? "");
+  return raw.split("?")[0];
 }
 
 export function AppDrawerContent(props: DrawerContentComponentProps) {
+  const insets = useSafeAreaInsets();
   const { navigation } = props;
   const router = useRouter();
   const pathname = usePathname();
@@ -35,7 +43,7 @@ export function AppDrawerContent(props: DrawerContentComponentProps) {
 
   const role = canonicalRole(user?.role);
   const sections = drawerMenuForRole(role);
-  const roleLabel = role.replace('_', ' ');
+  const roleLabel = role.replace("_", " ");
 
   const navigate = (href: unknown) => {
     navigation.closeDrawer();
@@ -50,13 +58,13 @@ export function AppDrawerContent(props: DrawerContentComponentProps) {
     const target = menuHrefPath(href);
     if (
       !target ||
-      target === '/' ||
-      target === '/(drawer)' ||
-      target === '/(doctor)' ||
-      target === '/(admin)' ||
-      target === '/(super-admin)'
+      target === "/" ||
+      target === "/(drawer)" ||
+      target === "/(doctor)" ||
+      target === "/(admin)" ||
+      target === "/(super-admin)"
     ) {
-      return pathname === '/';
+      return pathname === "/";
     }
     return pathname === target || pathname.startsWith(`${target}/`);
   };
@@ -66,6 +74,8 @@ export function AppDrawerContent(props: DrawerContentComponentProps) {
     setLoggingOut(true);
     try {
       await signOut();
+      navigation.closeDrawer();
+      router.replace("/login" as never);
     } finally {
       setLoggingOut(false);
     }
@@ -95,16 +105,16 @@ export function AppDrawerContent(props: DrawerContentComponentProps) {
               ) : null}
               <View style={styles.avatarFallback}>
                 <Text style={styles.avatarInitials}>
-                  {(user?.name || 'HP').slice(0, 2).toUpperCase()}
+                  {(user?.name || "HP").slice(0, 2).toUpperCase()}
                 </Text>
               </View>
             </View>
             <View style={styles.profileTexts}>
               <Text style={styles.name} numberOfLines={1}>
-                {user?.name || 'HealPoint User'}
+                {user?.name || "HealPoint User"}
               </Text>
               <Text style={styles.email} numberOfLines={1}>
-                {user?.email || ''}
+                {user?.email || ""}
               </Text>
               <View style={styles.rolePill}>
                 <Text style={styles.roleText}>{roleLabel}</Text>
@@ -117,7 +127,9 @@ export function AppDrawerContent(props: DrawerContentComponentProps) {
         <View style={styles.menu}>
           {sections.map((section) => (
             <View key={section.title} style={styles.section}>
-              <Text style={styles.sectionTitle}>{section.title.toUpperCase()}</Text>
+              <Text style={styles.sectionTitle}>
+                {section.title.toUpperCase()}
+              </Text>
               {section.items.map((item) => {
                 const active = isActive(item.href);
                 return (
@@ -132,7 +144,9 @@ export function AppDrawerContent(props: DrawerContentComponentProps) {
                       pressed && styles.itemPressed,
                     ]}
                   >
-                    <View style={[styles.itemIcon, active && styles.itemIconActive]}>
+                    <View
+                      style={[styles.itemIcon, active && styles.itemIconActive]}
+                    >
                       <Ionicons
                         name={item.icon}
                         size={20}
@@ -140,7 +154,10 @@ export function AppDrawerContent(props: DrawerContentComponentProps) {
                       />
                     </View>
                     <Text
-                      style={[styles.itemLabel, active && styles.itemLabelActive]}
+                      style={[
+                        styles.itemLabel,
+                        active && styles.itemLabelActive,
+                      ]}
                       numberOfLines={1}
                     >
                       {item.label}
@@ -155,13 +172,21 @@ export function AppDrawerContent(props: DrawerContentComponentProps) {
       </DrawerContentScrollView>
 
       {/* ---- Footer / logout ---- */}
-      <View style={styles.footer}>
+      <View
+        style={[
+          styles.footer,
+          { paddingBottom: Math.max(insets.bottom, Spacing.lg) },
+        ]}
+      >
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Logout"
           onPress={logout}
           disabled={loggingOut}
-          style={({ pressed }) => [styles.logout, pressed && styles.itemPressed]}
+          style={({ pressed }) => [
+            styles.logout,
+            pressed && styles.itemPressed,
+          ]}
         >
           {loggingOut ? (
             <ActivityIndicator size="small" color={Palette.error} />
@@ -191,11 +216,11 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
   },
   brandRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   profileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
   },
   avatarWrap: {
@@ -203,19 +228,19 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 28,
     backgroundColor: Palette.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
   avatar: {
     ...StyleSheet.absoluteFillObject,
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   avatarFallback: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   avatarInitials: {
     ...Typography.h3,
@@ -234,7 +259,7 @@ const styles = StyleSheet.create({
     color: Palette.textMuted,
   },
   rolePill: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     backgroundColor: Palette.primary,
     borderRadius: Radius.pill,
     paddingHorizontal: Spacing.sm,
@@ -244,8 +269,8 @@ const styles = StyleSheet.create({
   roleText: {
     ...Typography.caption,
     color: Palette.white,
-    fontWeight: '600',
-    textTransform: 'uppercase',
+    fontWeight: "600",
+    textTransform: "uppercase",
     letterSpacing: 0.4,
   },
   menu: {
@@ -259,14 +284,14 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...Typography.caption,
     color: Palette.textMuted,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 1,
     paddingHorizontal: Spacing.sm,
     paddingBottom: Spacing.xs,
   },
   item: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
     paddingVertical: Spacing.sm + 2,
     paddingHorizontal: Spacing.sm,
@@ -283,8 +308,8 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 17,
     backgroundColor: Palette.background,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   itemIconActive: {
     backgroundColor: Palette.surface,
@@ -296,7 +321,7 @@ const styles = StyleSheet.create({
   },
   itemLabelActive: {
     color: Palette.primaryDark,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   activeDot: {
     width: 8,
@@ -311,9 +336,9 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.surface,
   },
   logout: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: Spacing.sm,
     borderRadius: Radius.md,
     borderWidth: 1,

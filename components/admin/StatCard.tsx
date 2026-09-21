@@ -1,12 +1,12 @@
 /**
  * HealPoint - compact stat card for admin dashboards.
  */
-import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import React from "react";
+import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 
-import { Card } from '@/components/ui/Card';
-import { Palette, Radius, Spacing, Typography } from '@/constants/theme';
+import { Card } from "@/components/ui/Card";
+import { Palette, Radius, Spacing, Typography } from "@/constants/theme";
 
 interface StatCardProps {
   label: string;
@@ -16,56 +16,85 @@ interface StatCardProps {
   hint?: string;
 }
 
-export function StatCard({ label, value, icon, accent = Palette.primary, hint }: StatCardProps) {
+export function StatCard({
+  label,
+  value,
+  icon,
+  accent = Palette.primary,
+  hint,
+}: StatCardProps) {
+  const { width } = useWindowDimensions();
+  // Responsive: if screen is very small, use 48% width to force 2-column wrapping
+  const cardWidth = width < 500 ? "48%" : 180;
+
   return (
-    <Card style={styles.card}>
-      <View style={[styles.iconCircle, { backgroundColor: `${accent}1F` }]}>
-        <Ionicons name={icon} size={20} color={accent} />
+    <Card
+      style={[
+        styles.card,
+        { minWidth: cardWidth as any, flex: width < 500 ? 0 : 1 },
+      ]}
+    >
+      <View style={[styles.iconCircle, { backgroundColor: `${accent}14` }]}>
+        <Ionicons name={icon} size={24} color={accent} />
       </View>
-      <Text style={styles.value} numberOfLines={1}>
-        {value}
-      </Text>
-      <Text style={styles.label} numberOfLines={1}>
-        {label}
-      </Text>
-      {hint ? (
-        <Text style={styles.hint} numberOfLines={1}>
-          {hint}
+      <View style={styles.content}>
+        <Text style={styles.value} numberOfLines={1}>
+          {value}
         </Text>
-      ) : null}
+        <Text style={styles.label} numberOfLines={1}>
+          {label}
+        </Text>
+        {hint ? (
+          <Text style={styles.hint} numberOfLines={1}>
+            {hint}
+          </Text>
+        ) : null}
+      </View>
     </Card>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    padding: Spacing.lg,
-    gap: Spacing.xs,
-    minWidth: 150,
+    padding: Spacing.md,
+    gap: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: Palette.text,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: Palette.border + "60",
+  },
+  content: {
     flex: 1,
+    gap: 0,
   },
   iconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: Radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.xs,
+    width: 48,
+    height: 48,
+    borderRadius: Radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
   },
   value: {
     ...Typography.h3,
+    fontSize: 22,
     color: Palette.text,
   },
   label: {
     ...Typography.caption,
     color: Palette.textMuted,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
+    fontWeight: "500",
+    marginTop: 2,
   },
   hint: {
     ...Typography.caption,
-    color: Palette.textMuted,
-    opacity: 0.8,
+    fontSize: 11,
+    color: Palette.success,
+    fontWeight: "600",
+    marginTop: 2,
   },
 });

@@ -2,17 +2,23 @@
  * HealPoint - compact doctor card for the Home "Top rated doctors" carousel.
  * Whole card opens the profile; the fee/CTA area jumps straight to booking.
  */
-import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { useRouter } from "expo-router";
+import React from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { Palette, Radius, Shadows, Spacing, Typography } from '@/constants/theme';
-import { formatINR } from '@/lib/format';
-import { doctorHospitalName, doctorSpecialty } from '@/lib/doctor';
-import { getDoctorImage } from '@/lib/image';
-import type { Doctor } from '@/types';
+import {
+  Palette,
+  Radius,
+  Shadows,
+  Spacing,
+  Typography,
+} from "@/constants/theme";
+import { formatDoctorName, formatINR } from "@/lib/format";
+import { doctorHospitalName, doctorSpecialty } from "@/lib/doctor";
+import { getDoctorImage } from "@/lib/image";
+import type { Doctor } from "@/types";
 
 interface DoctorMiniCardProps {
   doctor: Doctor;
@@ -24,14 +30,16 @@ export const MINI_CARD_WIDTH = 320;
 function DoctorMiniCardRaw({ doctor, index = 0 }: DoctorMiniCardProps) {
   const router = useRouter();
   const id = String(doctor._id);
-  const openProfile = () => router.push({ pathname: '/doctor/[id]', params: { id } });
-  const openBooking = () => router.push({ pathname: '/booking/[doctorId]', params: { doctorId: id } });
+  const openProfile = () =>
+    router.push({ pathname: "/doctor/[id]", params: { id } });
+  const openBooking = () =>
+    router.push({ pathname: "/booking/[doctorId]", params: { doctorId: id } });
   const rating = Number(doctor.rating || 0);
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`View profile of ${doctor.name}`}
+      accessibilityLabel={`View profile of ${formatDoctorName(doctor.name)}`}
       onPress={openProfile}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
@@ -44,7 +52,7 @@ function DoctorMiniCardRaw({ doctor, index = 0 }: DoctorMiniCardProps) {
 
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={1}>
-          {doctor.name}
+          {formatDoctorName(doctor.name)}
         </Text>
         <Text style={styles.specialty} numberOfLines={1}>
           {doctorSpecialty(doctor)}
@@ -63,15 +71,23 @@ function DoctorMiniCardRaw({ doctor, index = 0 }: DoctorMiniCardProps) {
           </View>
         </View>
         <Text style={styles.hospital} numberOfLines={1}>
-          <Ionicons name="business-outline" size={12} color={Palette.textMuted} /> {doctorHospitalName(doctor)}
+          <Ionicons
+            name="business-outline"
+            size={12}
+            color={Palette.textMuted}
+          />{" "}
+          {doctorHospitalName(doctor)}
         </Text>
       </View>
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Book appointment with ${doctor.name}`}
+        accessibilityLabel={`Book appointment with ${formatDoctorName(doctor.name)}`}
         onPress={openBooking}
-        style={({ pressed }) => [styles.bookCta, pressed && styles.bookCtaPressed]}
+        style={({ pressed }) => [
+          styles.bookCta,
+          pressed && styles.bookCtaPressed,
+        ]}
       >
         <Text style={styles.bookFee}>{formatINR(doctor.fees)}</Text>
         <Text style={styles.bookLabel}>Book</Text>
@@ -85,8 +101,8 @@ export const DoctorMiniCard = React.memo(DoctorMiniCardRaw);
 const styles = StyleSheet.create({
   card: {
     width: MINI_CARD_WIDTH,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
     backgroundColor: Palette.surface,
     borderRadius: Radius.lg,
@@ -97,6 +113,7 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.92,
+    transform: [{ scale: 0.985 }],
   },
   avatar: {
     width: 60,
@@ -115,22 +132,22 @@ const styles = StyleSheet.create({
   specialty: {
     ...Typography.caption,
     color: Palette.primaryDark,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
   },
   stat: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   statText: {
     ...Typography.caption,
     color: Palette.textMuted,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   dot: {
     width: 3,
@@ -143,8 +160,8 @@ const styles = StyleSheet.create({
     color: Palette.textMuted,
   },
   bookCta: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: Palette.primary,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
@@ -158,11 +175,11 @@ const styles = StyleSheet.create({
   bookFee: {
     ...Typography.caption,
     color: Palette.white,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   bookLabel: {
     ...Typography.caption,
     color: Palette.white,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

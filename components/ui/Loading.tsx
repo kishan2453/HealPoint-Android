@@ -1,10 +1,10 @@
 /**
  * HealPoint - loading indicator with optional label.
  */
-import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef } from "react";
+import { ActivityIndicator, Animated, StyleSheet, Text } from "react-native";
 
-import { Palette, Spacing, Typography } from '@/constants/theme';
+import { Palette, Spacing, Typography } from "@/constants/theme";
 
 interface LoadingProps {
   label?: string;
@@ -12,19 +12,39 @@ interface LoadingProps {
   color?: string;
 }
 
-export function Loading({ label, fullScreen = true, color = Palette.primary }: LoadingProps) {
+export function Loading({
+  label,
+  fullScreen = true,
+  color = Palette.primary,
+}: LoadingProps) {
+  const fade = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(fade, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [fade]);
+
   return (
-    <View style={[styles.container, fullScreen && styles.fullScreen]}>
+    <Animated.View
+      style={[
+        styles.container,
+        fullScreen && styles.fullScreen,
+        { opacity: fade },
+      ]}
+    >
       <ActivityIndicator size="large" color={color} />
       {label ? <Text style={styles.label}>{label}</Text> : null}
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: Spacing.md,
     padding: Spacing.xl,
   },

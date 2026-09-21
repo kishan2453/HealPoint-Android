@@ -6,26 +6,32 @@
  * and next available slot. Availability is only ever shown when the backend
  * says so (see lib/doctor.ts) — we never fake a status or a slot.
  */
-import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { useRouter } from "expo-router";
+import React from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { FavoriteButton } from '@/components/FavoriteButton';
-import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
-import { Palette, Radius, Shadows, Spacing, Typography } from '@/constants/theme';
-import { formatINR, formatDDMMYYYY } from '@/lib/format';
+import { FavoriteButton } from "@/components/FavoriteButton";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import {
+  Palette,
+  Radius,
+  Shadows,
+  Spacing,
+  Typography,
+} from "@/constants/theme";
+import { formatDoctorName, formatINR, formatDDMMYYYY } from "@/lib/format";
 import {
   doctorHospitalName,
   doctorLocationText,
   doctorSpecialty,
   isDoctorAvailable,
   nextAvailableSlot,
-} from '@/lib/doctor';
-import { getDoctorImage } from '@/lib/image';
-import type { Doctor } from '@/types';
+} from "@/lib/doctor";
+import { getDoctorImage } from "@/lib/image";
+import type { Doctor } from "@/types";
 
 interface DoctorFeatureCardProps {
   doctor: Doctor;
@@ -37,8 +43,10 @@ export const FEATURE_CARD_WIDTH = 276;
 function DoctorFeatureCardRaw({ doctor, index = 0 }: DoctorFeatureCardProps) {
   const router = useRouter();
   const id = String(doctor._id);
-  const openProfile = () => router.push({ pathname: '/doctor/[id]', params: { id } });
-  const openBooking = () => router.push({ pathname: '/booking/[doctorId]', params: { doctorId: id } });
+  const openProfile = () =>
+    router.push({ pathname: "/doctor/[id]", params: { id } });
+  const openBooking = () =>
+    router.push({ pathname: "/booking/[doctorId]", params: { doctorId: id } });
 
   const location = doctorLocationText(doctor);
   const available = isDoctorAvailable(doctor);
@@ -49,7 +57,7 @@ function DoctorFeatureCardRaw({ doctor, index = 0 }: DoctorFeatureCardProps) {
     <View style={styles.card}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`View profile of ${doctor.name}`}
+        accessibilityLabel={`View profile of ${formatDoctorName(doctor.name)}`}
         onPress={openProfile}
         style={({ pressed }) => [styles.body, pressed && styles.pressed]}
       >
@@ -62,7 +70,7 @@ function DoctorFeatureCardRaw({ doctor, index = 0 }: DoctorFeatureCardProps) {
           />
           <View style={styles.heading}>
             <Text style={styles.name} numberOfLines={1}>
-              {doctor.name}
+              {formatDoctorName(doctor.name)}
             </Text>
             <Text style={styles.specialty} numberOfLines={1}>
               {doctorSpecialty(doctor)}
@@ -72,14 +80,22 @@ function DoctorFeatureCardRaw({ doctor, index = 0 }: DoctorFeatureCardProps) {
         </View>
 
         <View style={styles.infoRow}>
-          <Ionicons name="business-outline" size={14} color={Palette.textMuted} />
+          <Ionicons
+            name="business-outline"
+            size={14}
+            color={Palette.textMuted}
+          />
           <Text style={styles.infoText} numberOfLines={1}>
             {doctorHospitalName(doctor)}
           </Text>
         </View>
         {location ? (
           <View style={styles.infoRow}>
-            <Ionicons name="location-outline" size={14} color={Palette.textMuted} />
+            <Ionicons
+              name="location-outline"
+              size={14}
+              color={Palette.textMuted}
+            />
             <Text style={styles.infoText} numberOfLines={1}>
               {location}
             </Text>
@@ -110,22 +126,30 @@ function DoctorFeatureCardRaw({ doctor, index = 0 }: DoctorFeatureCardProps) {
           {available ? (
             <Badge
               label={
-                doctor.available === true || doctor.onlineStatus === 'online'
-                  ? 'Available now'
-                  : 'Available'
+                doctor.available === true || doctor.onlineStatus === "online"
+                  ? "Available now"
+                  : "Available"
               }
               variant="success"
             />
           ) : doctor.timeSlots?.length ? (
             <Badge label="No upcoming slots" variant="neutral" />
           ) : null}
-          {doctor.consultationTypes?.includes('video') ? <Badge label="Video" variant="primary" /> : null}
+          {doctor.consultationTypes?.includes("video") ? (
+            <Badge label="Video" variant="primary" />
+          ) : null}
         </View>
 
         <View style={styles.nextRow}>
-          <Ionicons name="calendar-outline" size={14} color={Palette.primaryDark} />
+          <Ionicons
+            name="calendar-outline"
+            size={14}
+            color={Palette.primaryDark}
+          />
           <Text style={styles.nextText} numberOfLines={1}>
-            {next ? `Next: ${formatDDMMYYYY(next.date)} • ${next.time}` : 'Check live slots at booking'}
+            {next
+              ? `Next: ${formatDDMMYYYY(next.date)} • ${next.time}`
+              : "Check live slots at booking"}
           </Text>
         </View>
       </Pressable>
@@ -150,19 +174,20 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Palette.border,
-    overflow: 'hidden',
+    overflow: "hidden",
     ...Shadows.card,
   },
   pressed: {
     opacity: 0.92,
+    transform: [{ scale: 0.985 }],
   },
   body: {
     padding: Spacing.lg,
     gap: Spacing.sm,
   },
   topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
   },
   avatar: {
@@ -182,11 +207,11 @@ const styles = StyleSheet.create({
   specialty: {
     ...Typography.caption,
     color: Palette.primaryDark,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.xs,
   },
   infoText: {
@@ -200,23 +225,23 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.xs,
   },
   metaRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.lg,
   },
   metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.xs,
   },
   metaText: {
     ...Typography.caption,
     color: Palette.textMuted,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   feeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   feeLabel: {
     ...Typography.caption,
@@ -227,13 +252,13 @@ const styles = StyleSheet.create({
     color: Palette.text,
   },
   availabilityRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.sm,
   },
   nextRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.xs,
     backgroundColor: Palette.primaryLight,
     borderRadius: Radius.sm,
@@ -244,7 +269,7 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Palette.primaryDark,
     flex: 1,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   footer: {
     paddingHorizontal: Spacing.lg,

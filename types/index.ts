@@ -17,40 +17,42 @@ export interface ApiResponse<T = unknown> {
 }
 
 export type ApiErrorCode =
-  | 'NETWORK'
-  | 'TIMEOUT'
-  | 'UNAUTHORIZED'
-  | 'FORBIDDEN'
-  | 'NOT_FOUND'
-  | 'VALIDATION'
-  | 'SERVER'
-  | 'UNKNOWN';
+  | "NETWORK"
+  | "TIMEOUT"
+  | "CANCELLED"
+  | "UNAUTHORIZED"
+  | "FORBIDDEN"
+  | "NOT_FOUND"
+  | "VALIDATION"
+  | "SERVER"
+  | "UNKNOWN";
 
 export type ApiErrorCategory =
-  | 'NETWORK'
-  | 'TIMEOUT'
-  | 'UNAUTHORIZED'
-  | 'FORBIDDEN'
-  | 'NOT_FOUND'
-  | 'SERVER'
-  | 'VALIDATION'
-  | 'UNKNOWN';
+  | "NETWORK"
+  | "TIMEOUT"
+  | "CANCELLED"
+  | "UNAUTHORIZED"
+  | "FORBIDDEN"
+  | "NOT_FOUND"
+  | "SERVER"
+  | "VALIDATION"
+  | "UNKNOWN";
 
 // ---------------------------------------------------------------------------
 // Auth / user
 // ---------------------------------------------------------------------------
 export type UserRole =
   // Legacy display strings from older backend versions (kept for compatibility).
-  | 'Patient'
-  | 'Hospital Admin'
-  | 'Super Admin'
-  | 'Administrator'
-  | 'Staff'
+  | "Patient"
+  | "Hospital Admin"
+  | "Super Admin"
+  | "Administrator"
+  | "Staff"
   // Canonical role values returned by the role-aware backend.
-  | 'patient'
-  | 'doctor'
-  | 'admin'
-  | 'super_admin';
+  | "patient"
+  | "doctor"
+  | "admin"
+  | "super_admin";
 
 export interface User {
   _id: string;
@@ -61,12 +63,24 @@ export interface User {
   address?: string;
   dob?: string;
   gender?: string;
+  bloodGroup?: string;
+  allergies?: string[];
+  chronicConditions?: string[];
+  emergencyContact?: {
+    name?: string;
+    phone?: string;
+    relation?: string;
+  };
   role?: UserRole;
+  // Doctor portal context (populated for doctors via /doctor/login).
+  hospitalId?: string;
+  hospitalName?: string;
   isAdmin?: boolean;
   isActive?: boolean;
-  authProvider?: 'password' | 'google' | 'both';
+  authProvider?: "password" | "google" | "both";
   googleId?: string;
   favorites?: FavoriteDoctor[];
+  favoriteHospitals?: FavoriteHospital[];
   appointmentStats?: {
     totalBookings: number;
     cancelledBookings: number;
@@ -81,6 +95,7 @@ export interface User {
 // Hospital
 // ---------------------------------------------------------------------------
 export interface HospitalContact {
+  phone?: string;
   emergency?: string;
   reception?: string;
   email?: string;
@@ -128,8 +143,12 @@ export interface Hospital {
   doctors?: Doctor[];
   doctorCount?: number;
   availableDoctorCount?: number;
+  // Platform directory counts returned by the Super Admin endpoints.
+  patientCount?: number;
+  appointmentCount?: number;
   consultationFee?: number;
   icu?: boolean;
+  onlineConsultationAvailable?: boolean;
   galleryImages?: {
     src?: string;
     title?: string;
@@ -138,6 +157,37 @@ export interface Hospital {
     height?: number;
   }[];
   specializations?: string[];
+}
+
+export interface HospitalDepartment {
+  _id: string;
+  name: string;
+  description?: string;
+  headOfDepartment?: string;
+  icon?: string;
+  image?: string;
+  isActive?: boolean;
+  doctorCount?: number;
+  appointmentCount?: number;
+  doctors?: {
+    _id: string;
+    name: string;
+    speciality?: string;
+    available?: boolean;
+    status?: string;
+    image?: string;
+  }[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface HospitalDepartmentStats {
+  total: number;
+  active: number;
+  inactive: number;
+  withDoctors: number;
+  withoutDoctors: number;
+  totalDoctors: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -150,11 +200,51 @@ export interface DoctorTimeSlot {
   isAvailable?: boolean;
 }
 
+export interface ScheduleSession {
+  name?: string;
+  startTime: string;
+  endTime: string;
+}
+
+export interface ScheduleBreak {
+  name?: string;
+  startTime: string;
+  endTime: string;
+}
+
 export interface WeeklySchedule {
   day?: string;
   enabled?: boolean;
   startTime?: string;
   endTime?: string;
+  sessions?: ScheduleSession[];
+  breaks?: ScheduleBreak[];
+  shifts?: { start: string; end: string }[];
+}
+
+export interface DoctorLeave {
+  _id?: string;
+  leaveType: "full_day" | "multi_day" | "partial_day";
+  startDate: string;
+  endDate?: string;
+  dates?: string[];
+  startTime?: string;
+  endTime?: string;
+  reason?: string;
+  status?: "approved" | "pending" | "cancelled";
+  createdAt?: string;
+}
+
+export interface DoctorDateOverride {
+  _id?: string;
+  date: string;
+  isClosed?: boolean;
+  reason?: string;
+  startTime?: string;
+  endTime?: string;
+  sessions?: ScheduleSession[];
+  breaks?: ScheduleBreak[];
+  createdAt?: string;
 }
 
 export interface DoctorProfileTimeline {
@@ -172,11 +262,14 @@ export interface Doctor {
   name: string;
   about?: string;
   degree?: string;
+  qualification?: string;
+  registrationNumber?: string;
   speciality?: string;
   department?: string;
   specialization?: string;
   rating?: number;
   reviewCount?: number;
+  appointmentCount?: number;
   experience?: number;
   fees?: number;
   email?: string;
@@ -195,12 +288,14 @@ export interface Doctor {
     roomNo?: string;
   };
   available?: boolean;
-  onlineStatus?: 'online' | 'offline';
+  onlineStatus?: "online" | "offline";
   isActive?: boolean;
   languages?: string[];
   gender?: string;
   availabilitySchedule?: string;
   leaveDates?: string[];
+  leaves?: DoctorLeave[];
+  dateOverrides?: DoctorDateOverride[];
   weeklySchedule?: WeeklySchedule[];
   blockedHolidays?: { date?: string; reason?: string }[];
   timeSlots?: DoctorTimeSlot[];
@@ -278,6 +373,11 @@ export interface Appointment {
   hospitalName?: string;
   slotDate?: string;
   slotTime?: string;
+  date?: string;
+  time?: string;
+  appointmentDate?: string;
+  patientName?: string;
+  patientId?: any;
   patientPhone?: string;
   amount?: number;
   consultationType?: ConsultationType;
@@ -289,13 +389,60 @@ export interface Appointment {
   payment?: boolean;
   paymentMethod?: PaymentMethod;
   paymentStatus?: string;
+  diagnosis?: string;
+  prescription?: string;
+  medicines?: AppointmentMedicineItem[];
+  medicalNotes?: string;
+  followUpAdvice?: string;
+  medicalReports?: AppointmentMedicalReportItem[];
+  doctorName?: string;
+  doctorSpecialty?: string;
+  doctorImage?: string;
+  statusLabel?: string;
+  hasPrescription?: boolean;
+  medicinesCount?: number;
+  reportsCount?: number;
+  doctor?: PopulatedAppointmentDoctor;
+  vitals?: {
+    bloodPressure?: string;
+    heartRate?: number;
+    temperature?: number;
+    respiratoryRate?: number;
+    spO2?: number;
+    weight?: number;
+    height?: number;
+    bmi?: number;
+  };
+  clinicalNotes?: {
+    chiefComplaint?: string;
+    symptoms?: string;
+    historyOfPresentIllness?: string;
+    examination?: string;
+    clinicalFindings?: string;
+    assessment?: string;
+    treatmentPlan?: string;
+    additionalNotes?: string;
+  };
   createdAt?: string;
   updatedAt?: string;
   doctorPhone?: string;
   doctorEmail?: string;
   bookingStatusLabel?: string;
+  isReviewed?: boolean;
+  reviewId?: string;
   statusHistory?: unknown[];
   appointmentHistory?: unknown[];
+  checkedIn?: boolean;
+  checkInAt?: string;
+  queueToken?: string;
+  queueStatus?:
+    | "not_checked_in"
+    | "waiting"
+    | "called"
+    | "in_consultation"
+    | "completed"
+    | "cancelled";
+  calledAt?: string;
 }
 
 /** Shape returned by GET /appointment/get-user-appointments/:id. */
@@ -313,13 +460,275 @@ export interface AppointmentDetailsResponse {
   appointmentDetails: AppointmentDetails;
 }
 
-export interface AppointmentDetails {
+export interface AppointmentStatusHistoryItem {
+  status: string;
+  reason?: string;
+  actor?: string;
+  changedAt?: string;
+}
+
+export interface AppointmentMedicalReportItem {
+  _id?: string;
+  name: string;
+  url: string;
+  type?: string;
+  category?: string;
+  notes?: string;
+  filename?: string;
+  mimeType?: string;
+  size?: number;
+  uploadedAt?: string;
+}
+
+export interface AppointmentMedicineItem {
+  name: string;
+  dosage?: string;
+  frequency?: string;
+  duration?: string;
+  route?: string;
+  timing?: string;
+  instructions?: string;
+}
+
+export interface PatientReportItem {
   _id: string;
   appointmentId: string;
-  mongoAppointmentId: string;
+  displayAppointmentId?: string;
+  name: string;
+  url: string;
+  type?: string;
+  category?: string;
+  notes?: string;
+  filename?: string;
+  mimeType?: string;
+  size?: number;
+  uploadedAt?: string;
+  date?: string;
   doctorName?: string;
+  doctorSpecialty?: string;
+  hospitalName?: string;
+}
+
+export interface PatientDiagnosisItem {
+  diagnosis: string;
+  date: string;
+  doctorName?: string;
+  appointmentId: string;
+}
+
+export interface PatientFollowUpItem {
+  appointmentId: string;
+  date: string;
+  doctorName?: string;
+  advice: string;
+}
+
+export interface PatientMedicalHistoryResponse {
+  success: boolean;
+  message?: string;
+  summary: {
+    totalConsultations: number;
+    totalPrescriptions: number;
+    totalReports: number;
+    totalDiagnoses: number;
+  };
+  consultations: Appointment[];
+  prescriptions: Appointment[];
+  reports: PatientReportItem[];
+  diagnoses: PatientDiagnosisItem[];
+  followUps: PatientFollowUpItem[];
+}
+
+export type TimelineFilterType =
+  | "all"
+  | "appointments"
+  | "consultations"
+  | "prescriptions"
+  | "reports"
+  | "followups";
+
+export type PatientTimelineEventType =
+  | "appointment"
+  | "payment"
+  | "consultation"
+  | "prescription"
+  | "report"
+  | "followup";
+
+export interface PatientTimelineDoctor {
+  _id?: string;
+  name: string;
+  speciality: string;
+  department?: string;
+  qualification?: string;
+  image?: string;
+  rating?: number;
+}
+
+export interface PatientTimelineHospital {
+  _id?: string;
+  name: string;
+  address?: string;
+  city?: string;
+}
+
+export interface PatientTimelineAction {
+  label: string;
+  type: "navigate";
+  route: string;
+  params?: Record<string, string>;
+  icon?: string;
+  variant?: "primary" | "secondary" | "danger";
+}
+
+export interface PatientTimelineEvent {
+  id: string;
+  appointmentId: string;
+  displayAppointmentId?: string;
+  eventType: PatientTimelineEventType;
+  filterCategory: TimelineFilterType;
+  date: string;
+  time: string;
+  timestamp: number;
+  status: "completed" | "current" | "upcoming" | "cancelled";
+  badgeLabel: string;
+  badgeVariant:
+    | "primary"
+    | "secondary"
+    | "success"
+    | "warning"
+    | "error"
+    | "neutral";
+  title: string;
+  description: string;
+  details?: string;
+  icon: string;
+  iconBg: string;
+  iconColor: string;
+  doctor: PatientTimelineDoctor;
+  hospital: PatientTimelineHospital;
+  department?: string;
+  consultationType?: "clinic" | "video";
+  prescriptionDetails?: {
+    medicinesCount: number;
+    medicines?: {
+      name: string;
+      dosage?: string;
+      frequency?: string;
+      duration?: string;
+      instructions?: string;
+    }[];
+    instructions?: {
+      dietInstructions?: string;
+      generalInstructions?: string;
+      followUpInstructions?: string;
+      additionalNotes?: string;
+    };
+  };
+  reportDetails?: {
+    name: string;
+    url: string;
+    type?: string;
+    category?: string;
+    filename?: string;
+    mimeType?: string;
+  };
+  followUpAdvice?: string;
+  actions: PatientTimelineAction[];
+}
+
+export interface PatientTimelineSummary {
+  totalEvents: number;
+  totalAppointments: number;
+  totalConsultations: number;
+  totalPrescriptions: number;
+  totalReports: number;
+  totalFollowUps: number;
+  nextAppointment?: {
+    appointmentId: string;
+    displayAppointmentId?: string;
+    date: string;
+    time: string;
+    doctorName: string;
+    hospitalName: string;
+    consultationType: string;
+  } | null;
+  lastConsultation?: {
+    appointmentId: string;
+    displayAppointmentId?: string;
+    date: string;
+    time: string;
+    doctorName: string;
+    hospitalName: string;
+    diagnosis?: string;
+  } | null;
+}
+
+export interface PatientTimelinePagination {
+  page: number;
+  limit: number;
+  totalEvents: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
+export interface PatientTimelineResponse {
+  success: boolean;
+  message?: string;
+  summary: PatientTimelineSummary;
+  pagination: PatientTimelinePagination;
+  events: PatientTimelineEvent[];
+}
+
+export interface PatientMedicalOverview {
+  totalAppointments: number;
+  completedConsultations: number;
+  upcomingAppointments: number;
+  prescriptionsCount: number;
+  medicalRecordsCount: number;
+  reportsCount: number;
+  reviewsSubmitted: number;
+}
+
+export interface HealthActivityItem {
+  id: string;
+  type: "consultation" | "prescription" | "report" | "status" | "notification";
+  title: string;
+  description: string;
+  date: string;
+  timestamp: number;
+  icon: string;
+  tint: string;
+  badgeLabel?: string;
+  badgeVariant?:
+    | "primary"
+    | "secondary"
+    | "success"
+    | "warning"
+    | "error"
+    | "neutral";
+  route?: string;
+  routeParams?: Record<string, string>;
+}
+
+export interface AppointmentDetails {
+  /** Mongo ObjectId — same as mongoAppointmentId (backend may omit one). */
+  _id?: string;
+  appointmentId: string;
+  mongoAppointmentId: string;
+  doctorId?: string;
+  doctorName?: string;
+  doctorSpecialty?: string;
+  doctorDepartment?: string;
+  doctorDegree?: string;
+  doctorImage?: string;
   hospitalId?: string;
   hospitalName?: string;
+  hospitalAddress?: string;
+  hospitalCity?: string;
+  hospitalPhone?: string;
+  hospitalLogo?: string;
+  hospitalMapsUrl?: string;
   doctorPhone?: string;
   doctorEmail?: string;
   doctorSignatureImage?: string;
@@ -328,16 +737,42 @@ export interface AppointmentDetails {
   amount?: number;
   bookingStatus?: string;
   bookingStatusLabel?: string;
+  patientName?: string;
   patientPhone?: string;
-  statusHistory?: unknown[];
-  medicalReports?: unknown[];
+  statusHistory?: AppointmentStatusHistoryItem[];
+  medicalReports?: AppointmentMedicalReportItem[];
   appointmentHistory?: unknown[];
   reminders?: unknown[];
   patientHistory?: unknown[];
   payment?: boolean;
   paymentMethod?: PaymentMethod;
   paymentStatus?: string;
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  paidAt?: string;
   consultationType?: ConsultationType;
+  consultationMode?: ConsultationMode;
+  meetingUrl?: string;
+  meetingStatus?: MeetingStatus;
+  consultationStatus?: ConsultationStatus;
+  diagnosis?: string;
+  prescription?: string;
+  medicines?: AppointmentMedicineItem[];
+  followUpAdvice?: string;
+  medicalNotes?: string;
+  isReviewed?: boolean;
+  reviewId?: string;
+  checkedIn?: boolean;
+  checkInAt?: string;
+  queueToken?: string;
+  queueStatus?:
+    | "not_checked_in"
+    | "waiting"
+    | "called"
+    | "in_consultation"
+    | "completed"
+    | "cancelled";
+  calledAt?: string;
   createdAt?: string;
 }
 
@@ -381,10 +816,15 @@ export interface Notification {
   title: string;
   message: string;
   isRead: boolean;
-  priority?: 'low' | 'normal' | 'high';
+  priority?: "low" | "normal" | "high";
   link?: string;
   actorName?: string;
   createdAt?: string;
+  updatedAt?: string;
+  /** Owning account fields returned by the backend (used by Super Admin center). */
+  recipientRole?: string;
+  refModel?: string;
+  refId?: string;
 }
 
 export interface NotificationsResponse {
@@ -401,13 +841,43 @@ export interface NotificationsResponse {
 export interface Review {
   _id?: string;
   patientId?: string | { _id: string; name?: string; image?: string };
-  doctorId?: string | { _id: string; name?: string; speciality?: string };
+  doctorId?:
+    | string
+    | {
+        _id: string;
+        name?: string;
+        speciality?: string;
+        image?: string;
+        hospitalName?: string;
+      };
   doctorName?: string;
+  patientName?: string;
+  hospitalId?:
+    | string
+    | {
+        _id: string;
+        name?: string;
+        location?: unknown;
+        coverImage?: string;
+        logo?: string;
+      };
+  hospitalName?: string;
+  appointmentId?:
+    | string
+    | {
+        _id: string;
+        slotDate?: string;
+        slotTime?: string;
+        consultationType?: string;
+        status?: string;
+        appointmentId?: string;
+      };
   name?: string;
   email?: string;
   rating: number;
   title?: string;
   comment: string;
+  tags?: string[];
   avatar?: string;
   isApproved?: boolean;
   isHidden?: boolean;
@@ -416,11 +886,15 @@ export interface Review {
 
 export interface CreateReviewPayload {
   doctorId: string;
+  appointmentId?: string;
+  hospitalId?: string;
+  hospitalName?: string;
   name?: string;
   email?: string;
   rating: number;
   title?: string;
   comment: string;
+  tags?: string[];
   avatar?: string;
 }
 
@@ -433,11 +907,24 @@ export interface UpdateProfilePayload {
   dob?: string;
   gender?: string;
   address?: string;
+  bloodGroup?: string;
+  allergies?: string[];
+  chronicConditions?: string[];
+  emergencyContact?: {
+    name?: string;
+    phone?: string;
+    relation?: string;
+  };
   image?: Blob | { uri: string; name?: string; type?: string } | null;
 }
 
 export interface FavoriteDoctor {
   doctorId: string;
+  addedAt?: string;
+}
+
+export interface FavoriteHospital {
+  hospitalId: string;
   addedAt?: string;
 }
 
@@ -447,6 +934,72 @@ export interface LoginResponse {
   token: string;
   user: User;
   sessionId: string;
+}
+
+/**
+ * Doctor-account subset returned by the doctor portal auth endpoints. Doctors
+ * live in their own `doctors` collection (separate from the patient/admin
+ * `users` collection), so their login uses `/doctor/login` and the session is
+ * revalidated via `/doctor/panel/:id`.
+ */
+export interface DoctorAccount {
+  _id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  image?: string;
+  /** Backend copies `email` into this field on the doctor login response. */
+  portalEmail?: string;
+  speciality?: string;
+  department?: string;
+  hospitalId?: string;
+  hospitalName?: string;
+  isActive?: boolean;
+  verificationStatus?: string;
+}
+
+/** Hospital context resolved by the backend during doctor authentication. */
+export interface DoctorHospitalContext {
+  _id: string;
+  name?: string;
+  slug?: string;
+  logo?: string | null;
+}
+
+export interface DoctorLoginResponse {
+  success: boolean;
+  message?: string;
+  token: string;
+  doctor: DoctorAccount;
+  /** Server-resolved hospital for the authenticated doctor. */
+  hospital?: DoctorHospitalContext | null;
+}
+
+export interface DoctorPanelResponse {
+  success: boolean;
+  message?: string;
+  doctor?: DoctorAccount;
+}
+
+/** Doctor signup mirrors the web doctor panel + backend `signupDoctor`. */
+export interface DoctorSignupPayload {
+  name: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  phone: string;
+  hospitalId: string;
+  department?: string;
+  category?: string;
+  speciality?: string;
+  specialization?: string;
+  experience: number | string;
+}
+
+export interface DoctorSignupResponse {
+  success: boolean;
+  message?: string;
+  doctor?: DoctorAccount;
 }
 
 export interface RegisterResponse {
@@ -465,31 +1018,36 @@ export interface VerifyOtpResponse {
 // Appointment status / consultation / payment
 // ---------------------------------------------------------------------------
 export type AppointmentStatus =
-  | 'pending'
-  | 'confirmed'
-  | 'completed'
-  | 'cancel'
-  | 'rescheduled'
-  | 'missed';
+  | "pending"
+  | "confirmed"
+  | "completed"
+  | "cancel"
+  | "rescheduled"
+  | "missed";
 
-export type ConsultationType = 'clinic' | 'video';
-export type ConsultationMode = 'scheduled' | 'instant';
-export type MeetingStatus = 'not_created' | 'ready' | 'started' | 'completed';
+export type ConsultationType = "clinic" | "video";
+export type ConsultationMode = "scheduled" | "instant";
+export type MeetingStatus = "not_created" | "ready" | "started" | "completed";
 export type ConsultationStatus =
-  | 'waiting'
-  | 'doctor_ready'
-  | 'ready_to_join'
-  | 'in_progress'
-  | 'completed'
-  | 'unavailable';
-export type PaymentMethod = 'cash' | 'online';
+  | "waiting"
+  | "doctor_ready"
+  | "ready_to_join"
+  | "in_progress"
+  | "completed"
+  | "unavailable";
+export type PaymentMethod = "cash" | "online";
 
 /**
  * Canonical payment states used once the backend has been wired to Razorpay.
  * The backend owns the state machine and never marks a payment SUCCESS before
  * it has verified the Razorpay signature. These mirror the server contract.
  */
-export type PaymentStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | 'REFUNDED';
+export type PaymentStatus =
+  | "PENDING"
+  | "SUCCESS"
+  | "FAILED"
+  | "CANCELLED"
+  | "REFUNDED";
 
 /**
  * Razorpay order created server-side (with the Key Secret) and returned to the
@@ -528,19 +1086,24 @@ export interface VerifyPaymentResponse {
 // Subscriptions (Super Admin + Hospital Admin)
 // ---------------------------------------------------------------------------
 export type SubscriptionStatus =
-  | 'trial'
-  | 'active'
-  | 'expired'
-  | 'cancelled'
-  | 'suspended'
-  | 'past_due';
+  | "trial"
+  | "active"
+  | "expired"
+  | "cancelled"
+  | "suspended"
+  | "past_due";
 
-export type SubscriptionBillingCycle = 'monthly' | 'yearly' | 'none';
-export type SubscriptionPaymentStatus = 'paid' | 'pending' | 'failed' | 'refunded' | 'n/a';
+export type SubscriptionBillingCycle = "monthly" | "yearly" | "none";
+export type SubscriptionPaymentStatus =
+  | "paid"
+  | "pending"
+  | "failed"
+  | "refunded"
+  | "n/a";
 
 export interface SubscriptionPlan {
   _id: string;
-  key: 'free' | 'basic' | 'professional' | 'premium' | 'enterprise';
+  key: "free" | "basic" | "professional" | "premium" | "enterprise";
   name: string;
   monthlyPrice: number;
   yearlyPrice: number;
@@ -550,6 +1113,10 @@ export interface SubscriptionPlan {
   trialDays: number;
   sortOrder: number;
   subscriberCount: number;
+  /** Healthcare-themed plan picture/artwork (stored on the plan record). */
+  imageUrl?: string;
+  /** Optional short marketing description shown on the plan card. */
+  description?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -568,8 +1135,8 @@ export interface SubscriptionHistoryEntry {
 export interface SubscriptionPaymentRecord {
   _id?: string;
   amount: number;
-  billingCycle: Extract<SubscriptionBillingCycle, 'monthly' | 'yearly'>;
-  paymentStatus: Exclude<SubscriptionPaymentStatus, 'n/a'>;
+  billingCycle: Extract<SubscriptionBillingCycle, "monthly" | "yearly">;
+  paymentStatus: Exclude<SubscriptionPaymentStatus, "n/a">;
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
   paidAt?: string;
@@ -646,7 +1213,7 @@ export interface SubscriptionPlansResponse {
   plans: SubscriptionPlan[];
 }
 
-export type SubscriptionListSort = 'renewal' | 'amount' | 'hospital' | 'recent';
+export type SubscriptionListSort = "renewal" | "amount" | "hospital" | "recent";
 
 // ---------------------------------------------------------------------------
 // Platform analytics / stats (Super Admin)
@@ -684,11 +1251,13 @@ export interface PlatformUser {
   email: string;
   phone?: string;
   image?: string;
+  gender?: string;
+  dob?: string;
   role?: UserRole;
   isAdmin?: boolean;
   isActive?: boolean;
   authProvider?: string;
-  hospital?: Pick<Hospital, '_id' | 'name' | 'slug' | 'isActive'> | null;
+  hospital?: Pick<Hospital, "_id" | "name" | "slug" | "isActive"> | null;
   hospitalId?: string | Hospital;
   createdAt?: string;
   updatedAt?: string;
@@ -765,7 +1334,7 @@ export interface HospitalAdminDashboardResponse {
 // ---------------------------------------------------------------------------
 
 export interface OnlineDoctor extends Doctor {
-  onlineStatus?: 'online' | 'offline';
+  onlineStatus?: "online" | "offline";
   onlineConsultationEnabled?: boolean;
   instantConsultationEnabled?: boolean;
   nextAvailableSlot?: {
@@ -774,7 +1343,7 @@ export interface OnlineDoctor extends Doctor {
     slotCountToday: number;
     weekday: string;
   } | null;
-  hospital?: Pick<Hospital, '_id' | 'name' | 'logo'> | null;
+  hospital?: Pick<Hospital, "_id" | "name" | "logo"> | null;
 }
 
 export interface OnlineDoctorsResponse {
@@ -827,6 +1396,9 @@ export interface PatientConsultation {
   diagnosis?: string;
   prescription?: string;
   followUpAdvice?: string;
+  medicines?: AppointmentMedicineItem[];
+  isReviewed?: boolean;
+  reviewId?: string;
   createdAt?: string;
 }
 
@@ -914,9 +1486,9 @@ export interface HospitalConsultationStats {
     activeOnlineDoctors: number;
     revenue: number;
   };
-  doctors?: (Pick<Doctor, '_id' | 'name' | 'speciality'> & {
+  doctors?: (Pick<Doctor, "_id" | "name" | "speciality"> & {
     onlineConsultationEnabled?: boolean;
-    onlineStatus?: 'online' | 'offline';
+    onlineStatus?: "online" | "offline";
   })[];
   recent?: unknown[];
 }

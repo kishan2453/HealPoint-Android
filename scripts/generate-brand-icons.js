@@ -1,16 +1,17 @@
 /**
  * HealPoint brand asset generator.
  *
- * Dev-time utility that writes HealPoint app icons + splash (no Expo starter
- * branding). Pure Node (zlib only) — no external image libraries.
+ * Dev-time utility that writes HealPoint app icons + splash using pure Node.js
+ * (zlib only) — no external dependencies. Produces clean, supersampled,
+ * high-resolution assets with the upgraded medical cross and focal point mark.
  *
  * Usage:  node scripts/generate-brand-icons.js
  */
-const zlib = require('zlib');
-const fs = require('fs');
-const path = require('path');
+const zlib = require("zlib");
+const fs = require("fs");
+const path = require("path");
 
-const OUT = path.join(__dirname, '..', 'assets', 'images');
+const OUT = path.join(__dirname, "..", "assets", "images");
 
 // ---------------------------------------------------------------------------
 // Minimal PNG encoder (RGBA, 8-bit)
@@ -38,7 +39,7 @@ function crc32(buf) {
 function chunk(type, data) {
   const len = Buffer.alloc(4);
   len.writeUInt32BE(data.length, 0);
-  const typeBuf = Buffer.from(type, 'ascii');
+  const typeBuf = Buffer.from(type, "ascii");
   const crc = Buffer.alloc(4);
   crc.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])), 0);
   return Buffer.concat([len, typeBuf, data, crc]);
@@ -58,72 +59,142 @@ function encodePng(width, height, rgba) {
     rgba.copy(raw, y * stride + 1, y * width * 4, (y + 1) * width * 4);
   }
   const idat = zlib.deflateSync(raw, { level: 9 });
-  return Buffer.concat([sig, chunk('IHDR', ihdr), chunk('IDAT', idat), chunk('IEND', Buffer.alloc(0))]);
+  return Buffer.concat([
+    sig,
+    chunk("IHDR", ihdr),
+    chunk("IDAT", idat),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
 }
 
 // ---------------------------------------------------------------------------
-// Drawing
+// Mathematical Geometry for the Upgraded HealPoint Brand
 // ---------------------------------------------------------------------------
 function hexToRgb(hex) {
-  const value = hex.replace('#', '');
-  return [parseInt(value.slice(0, 2), 16), parseInt(value.slice(2, 4), 16), parseInt(value.slice(4, 6), 16)];
+  const value = hex.replace("#", "");
+  return [
+    parseInt(value.slice(0, 2), 16),
+    parseInt(value.slice(2, 4), 16),
+    parseInt(value.slice(4, 6), 16),
+  ];
 }
 
-/** Inside the HealPoint "H" glyph (normalized 0..1 space). */
-function inH(x, y) {
-  const left = x >= 0.22 && x <= 0.4 && y >= 0.18 && y <= 0.82;
-  const right = x >= 0.6 && x <= 0.78 && y >= 0.18 && y <= 0.82;
-  const bar = y >= 0.45 && y <= 0.55 && x >= 0.22 && x <= 0.78;
-  return left || right || bar;
+function inRoundedRect(px, py, hw, hl, r) {
+  const qx = Math.abs(px) - (hw - r);
+  const qy = Math.abs(py) - (hl - r);
+  if (qx <= 0 || qy <= 0) return Math.abs(px) <= hw && Math.abs(py) <= hl;
+  return qx * qx + qy * qy <= r * r;
 }
 
 /**
- * Render an icon.
- * @param size pixel size
- * @param bgHex background color or null for transparent
- * @param fgHex foreground glyph color
- * @param glyphScale scale glyph within the canvas (1 = full, 0.66 = adaptive safe zone)
+ * Inside the HealPoint medical cross + focal point glyph (normalized space -0.5..0.5).
+ */
+function inHealPointGlyph(dx, dy) {
+  const centerDist = Math.sqrt(dx * dx + dy * dy);
+  const beaconR = 0.065;
+  const apertureR = 0.145;
+
+  // Center beacon point
+  if (centerDist <= beaconR) return true;
+  // Center aperture cutout
+  if (centerDist <= apertureR) return false;
+
+  // Vitality channel cutouts on the horizontal arm
+  if (Math.abs(dy) <= 0.016 && Math.abs(dx) >= 0.16 && Math.abs(dx) <= 0.28) {
+    return false;
+  }
+
+  // Cross arms (vertical and horizontal with soft rounded corners)
+  const inVert = inRoundedRect(dx, dy, 0.11, 0.31, 0.035);
+  const inHoriz = inRoundedRect(dx, dy, 0.31, 0.11, 0.035);
+  return inVert || inHoriz;
+}
+
+/**
+ * Superellipse squircle for app icon background.
+ */
+function inSquircle(dx, dy) {
+  const nx = Math.abs(dx) / 0.45;
+  const ny = Math.abs(dy) / 0.45;
+  return Math.pow(nx, 4.2) + Math.pow(ny, 4.2) <= 1.0;
+}
+
+/**
+ * Render an icon with 4x supersampling (anti-aliasing).
  */
 function renderIcon(size, bgHex, fgHex, glyphScale = 1) {
   const rgba = Buffer.alloc(size * size * 4);
   const bg = bgHex ? hexToRgb(bgHex) : null;
   const fg = hexToRgb(fgHex);
-  const S = 4; // supersampling
-  const margin = (1 - glyphScale) / 2;
+  const S = 4; // 4x supersampling (16 sub-pixel samples per pixel)
 
   for (let y = 0; y < size; y += 1) {
     for (let x = 0; x < size; x += 1) {
-      let coverage = 0;
+      let glyphCoverage = 0;
+      let bgCoverage = 0;
+
       for (let sy = 0; sy < S; sy += 1) {
         for (let sx = 0; sx < S; sx += 1) {
-          const px = (x + (sx + 0.5) / S) / size;
-          const py = (y + (sy + 0.5) / S) / size;
-          const nx = margin + px * (1 - margin * 2);
-          const ny = margin + py * (1 - margin * 2);
-          if (inH(nx, ny)) coverage += 1;
+          // Normalized from -0.5 to +0.5
+          const nx = (x + (sx + 0.5) / S) / size - 0.5;
+          const ny = (y + (sy + 0.5) / S) / size - 0.5;
+
+          // Scaled for glyph
+          const gdx = nx / glyphScale;
+          const gdy = ny / glyphScale;
+
+          if (inHealPointGlyph(gdx, gdy)) {
+            glyphCoverage += 1;
+          }
+
+          if (bg) {
+            if (inSquircle(nx, ny)) {
+              bgCoverage += 1;
+            }
+          }
         }
       }
-      const alpha = coverage / (S * S);
+
+      const glyphAlpha = glyphCoverage / (S * S);
+      const bgAlpha = bg ? bgCoverage / (S * S) : 0;
       const idx = (y * size + x) * 4;
+
       if (bg) {
-        // Composite foreground over background.
-        rgba[idx] = Math.round(fg[0] * alpha + bg[0] * (1 - alpha));
-        rgba[idx + 1] = Math.round(fg[1] * alpha + bg[1] * (1 - alpha));
-        rgba[idx + 2] = Math.round(fg[2] * alpha + bg[2] * (1 - alpha));
-        rgba[idx + 3] = 255;
+        // Composite white glyph over teal background squircle
+        if (glyphAlpha > 0) {
+          rgba[idx] = Math.round(fg[0] * glyphAlpha + bg[0] * (1 - glyphAlpha));
+          rgba[idx + 1] = Math.round(
+            fg[1] * glyphAlpha + bg[1] * (1 - glyphAlpha),
+          );
+          rgba[idx + 2] = Math.round(
+            fg[2] * glyphAlpha + bg[2] * (1 - glyphAlpha),
+          );
+          rgba[idx + 3] = Math.round(Math.max(bgAlpha, glyphAlpha) * 255);
+        } else if (bgAlpha > 0) {
+          rgba[idx] = bg[0];
+          rgba[idx + 1] = bg[1];
+          rgba[idx + 2] = bg[2];
+          rgba[idx + 3] = Math.round(bgAlpha * 255);
+        } else {
+          rgba[idx] = 0;
+          rgba[idx + 1] = 0;
+          rgba[idx + 2] = 0;
+          rgba[idx + 3] = 0;
+        }
       } else {
+        // Pure glyph with transparent background (splash icon & foregrounds)
         rgba[idx] = fg[0];
         rgba[idx + 1] = fg[1];
         rgba[idx + 2] = fg[2];
-        rgba[idx + 3] = Math.round(alpha * 255);
+        rgba[idx + 3] = Math.round(glyphAlpha * 255);
       }
     }
   }
   return encodePng(size, size, rgba);
 }
 
-const BRAND_TEAL = '#0E9F8E';
-const BRAND_WHITE = '#FFFFFF';
+const BRAND_TEAL = "#0E9F8E";
+const BRAND_WHITE = "#FFFFFF";
 
 function write(name, buffer) {
   const file = path.join(OUT, name);
@@ -131,9 +202,14 @@ function write(name, buffer) {
   console.log(`wrote ${file} (${buffer.length} bytes)`);
 }
 
-write('icon.png', renderIcon(1024, BRAND_TEAL, BRAND_WHITE, 0.92));
-write('splash-icon.png', renderIcon(1024, null, BRAND_WHITE, 0.5));
-write('android-icon-background.png', renderIcon(432, BRAND_TEAL, BRAND_WHITE, 0.72));
-write('android-icon-foreground.png', renderIcon(432, null, BRAND_WHITE, 0.66));
-write('android-icon-monochrome.png', renderIcon(432, null, BRAND_WHITE, 0.66));
-console.log('HealPoint brand assets generated.');
+console.log("Generating premium HealPoint brand icons...");
+write("icon.png", renderIcon(1024, BRAND_TEAL, BRAND_WHITE, 0.9));
+write("splash-icon.png", renderIcon(1024, null, BRAND_WHITE, 0.52));
+write(
+  "android-icon-background.png",
+  renderIcon(432, BRAND_TEAL, BRAND_WHITE, 0.72),
+);
+write("android-icon-foreground.png", renderIcon(432, null, BRAND_WHITE, 0.66));
+write("android-icon-monochrome.png", renderIcon(432, null, BRAND_WHITE, 0.66));
+write("favicon.png", renderIcon(96, BRAND_TEAL, BRAND_WHITE, 0.88));
+console.log("HealPoint brand assets generated successfully.");

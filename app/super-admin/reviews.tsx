@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Palette, Spacing, Typography } from '@/constants/theme';
 import { formatISODate } from '@/lib/format';
+import { toErrorMessage } from '@/services/api';
 import * as reviewService from '@/services/reviews';
 import type { Review } from '@/types';
 
@@ -51,7 +52,7 @@ export default function SuperAdminReviewsScreen() {
       setReviews(res.reviews || []);
       setTotal(res.totalCount || 0);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load reviews.');
+      setError(toErrorMessage(err, 'Unable to load reviews.'));
     } finally {
       setLoading(false);
     }

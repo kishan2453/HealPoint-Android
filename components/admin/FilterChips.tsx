@@ -1,10 +1,10 @@
 /**
  * HealPoint - horizontal filter chips row used by admin list screens.
  */
-import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import React from "react";
+import { Pressable, ScrollView, StyleSheet, Text } from "react-native";
 
-import { Palette, Radius, Spacing, Typography } from '@/constants/theme';
+import { Palette, Radius, Spacing, Typography } from "@/constants/theme";
 
 export interface FilterChipOption {
   label: string;
@@ -39,7 +39,9 @@ export function FilterChips({ options, selected, onSelect }: FilterChipsProps) {
               pressed && styles.chipPressed,
             ]}
           >
-            <Text style={[styles.label, active && styles.labelActive]}>{option.label}</Text>
+            <Text style={[styles.label, active && styles.labelActive]}>
+              {option.label}
+            </Text>
           </Pressable>
         );
       })}
@@ -50,8 +52,7 @@ export function FilterChips({ options, selected, onSelect }: FilterChipsProps) {
 const styles = StyleSheet.create({
   row: {
     gap: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.xs,
   },
   chip: {
     paddingHorizontal: Spacing.lg,
@@ -70,7 +71,7 @@ const styles = StyleSheet.create({
   },
   label: {
     ...Typography.bodySmall,
-    fontWeight: '600',
+    fontWeight: "600",
     color: Palette.textMuted,
   },
   labelActive: {

@@ -13,6 +13,7 @@ import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Palette, Spacing, Typography } from '@/constants/theme';
 import { formatINR } from '@/lib/format';
+import { toErrorMessage } from '@/services/api';
 import * as appointmentService from '@/services/appointments';
 import * as userService from '@/services/users';
 import type { Appointment, PlatformStats } from '@/types';
@@ -34,7 +35,7 @@ export default function SuperAdminEarningsScreen() {
       setStats(statsRes.stats || null);
       setAppointments(apptsRes.appointments || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load earnings.');
+      setError(toErrorMessage(err, 'Unable to load earnings.'));
     } finally {
       setLoading(false);
     }

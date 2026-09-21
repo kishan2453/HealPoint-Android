@@ -3,13 +3,20 @@
  * The primary variant renders a layered "premium" surface (soft top sheen +
  * darker bottom edge) so CTAs feel polished without needing a native gradient.
  */
-import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import React from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  ViewStyle,
+} from "react-native";
 
-import { Palette, Radius, Spacing, Typography } from '@/constants/theme';
+import { Palette, Radius, Spacing, Typography } from "@/constants/theme";
 
-type Variant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+type Variant = "primary" | "secondary" | "outline" | "ghost" | "danger";
 type IconName = keyof typeof Ionicons.glyphMap;
 
 interface ButtonProps {
@@ -24,18 +31,25 @@ interface ButtonProps {
   icon?: IconName;
 }
 
-const variantColors: Record<Variant, { bg: string; text: string; border?: string }> = {
+const variantColors: Record<
+  Variant,
+  { bg: string; text: string; border?: string }
+> = {
   primary: { bg: Palette.primary, text: Palette.white },
   secondary: { bg: Palette.primaryLight, text: Palette.primaryDark },
-  outline: { bg: 'transparent', text: Palette.primary, border: Palette.primary },
-  ghost: { bg: 'transparent', text: Palette.primary },
+  outline: {
+    bg: "transparent",
+    text: Palette.primary,
+    border: Palette.primary,
+  },
+  ghost: { bg: "transparent", text: Palette.primary },
   danger: { bg: Palette.error, text: Palette.white },
 };
 
 export function Button({
   title,
   onPress,
-  variant = 'primary',
+  variant = "primary",
   loading = false,
   disabled = false,
   fullWidth = true,
@@ -44,7 +58,7 @@ export function Button({
 }: ButtonProps) {
   const colors = variantColors[variant];
   const isDisabled = disabled || loading;
-  const isPrimary = variant === 'primary';
+  const isPrimary = variant === "primary";
 
   return (
     <Pressable
@@ -56,7 +70,10 @@ export function Button({
       style={({ pressed }) => [
         styles.base,
         fullWidth && styles.fullWidth,
-        { backgroundColor: colors.bg, borderColor: colors.border ?? 'transparent' },
+        {
+          backgroundColor: colors.bg,
+          borderColor: colors.border ?? "transparent",
+        },
         isPrimary && styles.primaryBase,
         pressed && !isDisabled && styles.pressed,
         isDisabled && styles.disabled,
@@ -84,19 +101,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
     gap: Spacing.sm,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   fullWidth: {
-    width: '100%',
+    width: "100%",
   },
   primaryBase: {
     minHeight: 56,
     borderRadius: Radius.md + 2,
-    borderTopColor: 'rgba(255,255,255,0.28)',
+    borderTopColor: "rgba(255,255,255,0.28)",
     borderRightColor: Palette.primaryDark,
     borderBottomColor: Palette.primaryDark,
     borderLeftColor: Palette.primaryDark,
@@ -110,12 +127,12 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
   },
   sheen: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    height: '55%',
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    height: "55%",
+    backgroundColor: "rgba(255,255,255,0.14)",
     borderTopLeftRadius: Radius.md + 2,
     borderTopRightRadius: Radius.md + 2,
   },
@@ -128,5 +145,7 @@ const styles = StyleSheet.create({
   },
   label: {
     ...Typography.button,
+    textAlign: "center",
+    flexShrink: 1,
   },
 });

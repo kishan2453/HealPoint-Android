@@ -7,26 +7,35 @@
  * server has no sort param); pagination is NOT faked because the backend does
  * not expose skip/page — instead an honest "showing X of Y" note is shown.
  */
-import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Keyboard, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams } from "expo-router";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  FlatList,
+  Keyboard,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { DoctorCard } from '@/components/DoctorCard';
-import { DrawerToggleButton } from '@/components/DrawerToggleButton';
-import { DoctorListSkeleton } from '@/components/DoctorCardSkeleton';
-import { DoctorFilterSheet } from '@/components/DoctorFilterSheet';
-import { DoctorSortSheet } from '@/components/DoctorSortSheet';
-import { Button } from '@/components/ui/Button';
-import { EmptyState } from '@/components/ui/EmptyState';
-import { ErrorState } from '@/components/ui/ErrorState';
-import { SearchBar } from '@/components/ui/SearchBar';
-import { Palette, Radius, Spacing, Typography } from '@/constants/theme';
-import { useFavorites } from '@/hooks/use-favorites';
-import { useHospitals } from '@/hooks/use-hospitals';
-import { useDoctorFilterOptions } from '@/hooks/use-doctor-filter-options';
-import { useDoctorSearch } from '@/hooks/use-doctor-search';
+import { DoctorCard } from "@/components/DoctorCard";
+import { DrawerToggleButton } from "@/components/DrawerToggleButton";
+import { DoctorListSkeleton } from "@/components/DoctorCardSkeleton";
+import { DoctorFilterSheet } from "@/components/DoctorFilterSheet";
+import { DoctorSortSheet } from "@/components/DoctorSortSheet";
+import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { SearchBar } from "@/components/ui/SearchBar";
+import { Palette, Radius, Spacing, Typography } from "@/constants/theme";
+import { useFavorites } from "@/hooks/use-favorites";
+import { useHospitals } from "@/hooks/use-hospitals";
+import { useDoctorFilterOptions } from "@/hooks/use-doctor-filter-options";
+import { useDoctorSearch } from "@/hooks/use-doctor-search";
 import {
   buildDoctorSearchParams,
   countActiveFilters,
@@ -35,12 +44,13 @@ import {
   sortLabel,
   type DoctorSearchFilters,
   type DoctorSort,
-} from '@/lib/doctor-search';
+} from "@/lib/doctor-search";
 
 export default function DoctorsScreen() {
   const params = useLocalSearchParams<{
     search?: string;
     speciality?: string;
+    department?: string;
     online?: string;
     hospitalId?: string;
     favorites?: string;
@@ -51,18 +61,23 @@ export default function DoctorsScreen() {
   const { doctors, totalCount, loading, error, runSearch } = useDoctorSearch();
   const { options: filterOptions } = useDoctorFilterOptions();
 
-  const initialQuery = typeof params.search === 'string' ? params.search : '';
-  const initialHospitalId = typeof params.hospitalId === 'string' ? params.hospitalId : '';
+  const initialQuery = typeof params.search === "string" ? params.search : "";
+  const initialHospitalId =
+    typeof params.hospitalId === "string" ? params.hospitalId : "";
+  const initialSpeciality =
+    (typeof params.speciality === "string" && params.speciality) ||
+    (typeof params.department === "string" && params.department) ||
+    "";
   const initialFilters: DoctorSearchFilters = {
-    ...(typeof params.speciality === 'string' && params.speciality ? { speciality: params.speciality } : {}),
-    ...(params.online === '1' ? { consultationType: 'video' as const } : {}),
+    ...(initialSpeciality ? { speciality: initialSpeciality } : {}),
+    ...(params.online === "1" ? { consultationType: "video" as const } : {}),
   };
 
   const [query, setQuery] = useState(initialQuery);
   const [hospitalId, setHospitalId] = useState(initialHospitalId);
-  const [favoritesOnly, setFavoritesOnly] = useState(params.favorites === '1');
+  const [favoritesOnly, setFavoritesOnly] = useState(params.favorites === "1");
   const [filters, setFilters] = useState<DoctorSearchFilters>(initialFilters);
-  const [sort, setSort] = useState<DoctorSort>('recommended');
+  const [sort, setSort] = useState<DoctorSort>("recommended");
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [sortVisible, setSortVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -81,23 +96,34 @@ export default function DoctorsScreen() {
 
   // Run a real search whenever the screen opens or route params change.
   useEffect(() => {
-    const signature = `${params.search ?? ''}|${params.speciality ?? ''}|${params.online ?? ''}|${params.hospitalId ?? ''}|${params.favorites ?? ''}`;
+    const signature = `${params.search ?? ""}|${params.speciality ?? ""}|${params.department ?? ""}|${params.online ?? ""}|${params.hospitalId ?? ""}|${params.favorites ?? ""}`;
     if (appliedParamsRef.current === signature) return;
     appliedParamsRef.current = signature;
 
-    const nextQuery = typeof params.search === 'string' ? params.search : '';
-    const nextHospitalId = typeof params.hospitalId === 'string' ? params.hospitalId : '';
-    const nextFavorites = params.favorites === '1';
+    const nextQuery = typeof params.search === "string" ? params.search : "";
+    const nextHospitalId =
+      typeof params.hospitalId === "string" ? params.hospitalId : "";
+    const nextFavorites = params.favorites === "1";
+    const nextSpeciality =
+      (typeof params.speciality === "string" && params.speciality) ||
+      (typeof params.department === "string" && params.department) ||
+      "";
     const nextFilters: DoctorSearchFilters = {
-      ...(typeof params.speciality === 'string' && params.speciality ? { speciality: params.speciality } : {}),
-      ...(params.online === '1' ? { consultationType: 'video' as const } : {}),
+      ...(nextSpeciality ? { speciality: nextSpeciality } : {}),
+      ...(params.online === "1" ? { consultationType: "video" as const } : {}),
     };
 
     setQuery(nextQuery);
     setHospitalId(nextHospitalId);
     setFavoritesOnly(nextFavorites);
     setFilters(nextFilters);
-    runSearch(buildDoctorSearchParams({ query: nextQuery, hospitalId: nextHospitalId, filters: nextFilters }));
+    runSearch(
+      buildDoctorSearchParams({
+        query: nextQuery,
+        hospitalId: nextHospitalId,
+        filters: nextFilters,
+      }),
+    );
   }, [params, runSearch]);
 
   // --- Actions (every search press / filter apply = a real API request) -----
@@ -118,15 +144,15 @@ export default function DoctorsScreen() {
   };
 
   const toggleHospital = (id: string) => {
-    const next = hospitalId === id ? '' : id;
+    const next = hospitalId === id ? "" : id;
     setHospitalId(next);
     runSearch(buildDoctorSearchParams({ query, hospitalId: next, filters }));
   };
 
   const removeActiveFilter = (key: string) => {
-    if (key === 'hospital') {
-      setHospitalId('');
-      runSearch(buildDoctorSearchParams({ query, hospitalId: '', filters }));
+    if (key === "hospital") {
+      setHospitalId("");
+      runSearch(buildDoctorSearchParams({ query, hospitalId: "", filters }));
       return;
     }
     const next = { ...filters };
@@ -137,21 +163,28 @@ export default function DoctorsScreen() {
 
   const clearAll = () => {
     Keyboard.dismiss();
-    setQuery('');
-    setHospitalId('');
+    setQuery("");
+    setHospitalId("");
     setFilters({});
-    runSearch(buildDoctorSearchParams({ query: '', hospitalId: '', filters: {} }));
+    // Also leave the "favorites only" view — arriving from the Home Favorites
+    // quick action (…/doctors?favorites=1), "Clear" must drop that filter too.
+    setFavoritesOnly(false);
+    runSearch(
+      buildDoctorSearchParams({ query: "", hospitalId: "", filters: {} }),
+    );
   };
 
   const selectSort = (next: DoctorSort) => {
     setSort(next);
   };
 
-
   // --- Derived values ---------------------------------------------------------
 
   const hasQuery = query.trim().length > 0;
-  const activeFilterCount = useMemo(() => countActiveFilters(filters, hospitalId), [filters, hospitalId]);
+  const activeFilterCount = useMemo(
+    () => countActiveFilters(filters, hospitalId),
+    [filters, hospitalId],
+  );
   const hasActiveFilters = activeFilterCount > 0 || favoritesOnly;
 
   const activeFilterItems = useMemo(() => {
@@ -160,18 +193,22 @@ export default function DoctorsScreen() {
   }, [filters, hospitals, hospitalId]);
 
   // Sorting re-orders the REAL returned data; 'recommended' = server order.
-  const sortedDoctors = useMemo(() => sortDoctors(doctors, sort), [doctors, sort]);
+  const sortedDoctors = useMemo(
+    () => sortDoctors(doctors, sort),
+    [doctors, sort],
+  );
 
   // Favorites is a client-side view over the fetched catalog (the backend has
   // no favorites filter) — applied on top of real results only.
   const visibleDoctors = useMemo(() => {
     if (!favoritesOnly) return sortedDoctors;
-    return sortedDoctors.filter((doctor) => favoriteIds.has(String(doctor._id)));
+    return sortedDoctors.filter((doctor) =>
+      favoriteIds.has(String(doctor._id)),
+    );
   }, [sortedDoctors, favoritesOnly, favoriteIds]);
 
-
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       {/* ---------------- Header ---------------- */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
@@ -180,12 +217,12 @@ export default function DoctorsScreen() {
             <Text style={styles.title}>Find a doctor</Text>
             <Text style={styles.subtitle}>
               {loading
-                ? 'Searching doctors...'
+                ? "Searching doctors..."
                 : visibleDoctors.length > 0
                   ? favoritesOnly
-                    ? `${visibleDoctors.length} saved doctor${visibleDoctors.length === 1 ? '' : 's'}`
-                    : `${visibleDoctors.length} doctor${visibleDoctors.length === 1 ? '' : 's'} found`
-                  : 'No doctors found'}
+                    ? `${visibleDoctors.length} saved doctor${visibleDoctors.length === 1 ? "" : "s"}`
+                    : `${visibleDoctors.length} doctor${visibleDoctors.length === 1 ? "" : "s"} found`
+                  : "No doctors found"}
             </Text>
           </View>
         </View>
@@ -216,14 +253,22 @@ export default function DoctorsScreen() {
           accessibilityRole="button"
           accessibilityLabel="Open filters"
           onPress={() => setFiltersVisible(true)}
-          style={({ pressed }) => [styles.toolbarButton, pressed && styles.pressed]}
+          style={({ pressed }) => [
+            styles.toolbarButton,
+            pressed && styles.pressed,
+          ]}
         >
           <Ionicons
             name="options-outline"
             size={18}
             color={activeFilterCount > 0 ? Palette.primary : Palette.textMuted}
           />
-          <Text style={[styles.toolbarButtonText, activeFilterCount > 0 && styles.toolbarButtonTextActive]}>
+          <Text
+            style={[
+              styles.toolbarButtonText,
+              activeFilterCount > 0 && styles.toolbarButtonTextActive,
+            ]}
+          >
             Filters
           </Text>
           {activeFilterCount > 0 ? (
@@ -237,7 +282,11 @@ export default function DoctorsScreen() {
           accessibilityRole="button"
           accessibilityLabel="Sort doctors"
           onPress={() => setSortVisible(true)}
-          style={({ pressed }) => [styles.toolbarButton, styles.sortButton, pressed && styles.pressed]}
+          style={({ pressed }) => [
+            styles.toolbarButton,
+            styles.sortButton,
+            pressed && styles.pressed,
+          ]}
         >
           <Ionicons name="swap-vertical" size={18} color={Palette.textMuted} />
           <Text style={styles.toolbarButtonText} numberOfLines={1}>
@@ -251,13 +300,15 @@ export default function DoctorsScreen() {
             accessibilityRole="button"
             accessibilityLabel="Clear search and filters"
             onPress={clearAll}
-            style={({ pressed }) => [styles.clearAllButton, pressed && styles.pressed]}
+            style={({ pressed }) => [
+              styles.clearAllButton,
+              pressed && styles.pressed,
+            ]}
           >
             <Text style={styles.clearAllText}>Clear</Text>
           </Pressable>
         ) : null}
       </View>
-
 
       {/* ---------------- Active filter chips ---------------- */}
       {activeFilterItems.length > 0 || favoritesOnly ? (
@@ -282,7 +333,10 @@ export default function DoctorsScreen() {
               </View>
             ) : null}
             {activeFilterItems.map((item) => (
-              <View key={item.key} style={[styles.activeChip, styles.activeChipSelected]}>
+              <View
+                key={item.key}
+                style={[styles.activeChip, styles.activeChipSelected]}
+              >
                 <Text style={styles.activeChipText}>{item.label}</Text>
                 <Pressable
                   accessibilityRole="button"
@@ -314,11 +368,21 @@ export default function DoctorsScreen() {
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
                   onPress={() => toggleHospital(String(hospital._id))}
-                  style={[styles.hospitalChip, active && styles.hospitalChipActive]}
+                  style={[
+                    styles.hospitalChip,
+                    active && styles.hospitalChipActive,
+                  ]}
                 >
-                  <Ionicons name="business" size={13} color={active ? Palette.white : Palette.textMuted} />
+                  <Ionicons
+                    name="business"
+                    size={13}
+                    color={active ? Palette.white : Palette.textMuted}
+                  />
                   <Text
-                    style={[styles.hospitalChipText, active && styles.hospitalChipTextActive]}
+                    style={[
+                      styles.hospitalChipText,
+                      active && styles.hospitalChipTextActive,
+                    ]}
                     numberOfLines={1}
                   >
                     {hospital.name}
@@ -330,7 +394,6 @@ export default function DoctorsScreen() {
         </View>
       ) : null}
 
-
       {/* ---------------- Results ---------------- */}
       {loading ? (
         <DoctorListSkeleton count={6} />
@@ -340,19 +403,23 @@ export default function DoctorsScreen() {
         <EmptyState
           title={
             hasActiveFilters || hasQuery
-              ? 'No doctors match your search'
-              : 'No doctors available'
+              ? "No doctors match your search"
+              : "No doctors available"
           }
           message={
             favoritesOnly
-              ? 'Tap the heart on any doctor card to save them here.'
+              ? "Tap the heart on any doctor card to save them here."
               : hasActiveFilters || hasQuery
-                ? 'Try a different search term or remove some filters.'
-                : 'Please check back later — new doctors are added regularly.'
+                ? "Try a different search term or remove some filters."
+                : "Please check back later — new doctors are added regularly."
           }
           action={
             hasActiveFilters || hasQuery ? (
-              <Button title="Clear search & filters" variant="outline" onPress={clearAll} />
+              <Button
+                title="Clear search & filters"
+                variant="outline"
+                onPress={clearAll}
+              />
             ) : undefined
           }
         />
@@ -363,7 +430,13 @@ export default function DoctorsScreen() {
           renderItem={({ item, index }) => (
             <DoctorCard doctor={item} index={index} />
           )}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Palette.primary} />}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={Palette.primary}
+            />
+          }
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -374,11 +447,13 @@ export default function DoctorsScreen() {
               {totalCount > visibleDoctors.length ? (
                 <Text style={styles.footerNote}>
                   Showing {visibleDoctors.length} of {totalCount} doctors. The
-                  directory has more — refine your search or filters to find them.
+                  directory has more — refine your search or filters to find
+                  them.
                 </Text>
               ) : (
                 <Text style={styles.footerNote}>
-                  {totalCount} doctor{totalCount === 1 ? '' : 's'} in this result
+                  {totalCount} doctor{totalCount === 1 ? "" : "s"} in this
+                  result
                 </Text>
               )}
             </View>
@@ -404,7 +479,6 @@ export default function DoctorsScreen() {
   );
 }
 
-
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
@@ -416,8 +490,8 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
   },
   headerTexts: {
@@ -433,8 +507,8 @@ const styles = StyleSheet.create({
     color: Palette.textMuted,
   },
   searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
@@ -446,15 +520,15 @@ const styles = StyleSheet.create({
     minWidth: 108,
   },
   toolbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
   },
   toolbarButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.xs,
     borderWidth: 1,
     borderColor: Palette.border,
@@ -469,13 +543,13 @@ const styles = StyleSheet.create({
   },
   toolbarButtonTextActive: {
     color: Palette.primary,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   sortButton: {
     flexShrink: 1,
   },
   clearAllButton: {
-    marginLeft: 'auto',
+    marginLeft: "auto",
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.xs,
   },
@@ -488,30 +562,31 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: 9,
     backgroundColor: Palette.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: Spacing.xxs,
   },
   badgeText: {
     color: Palette.white,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   pressed: {
-    opacity: 0.6,
+    opacity: 0.88,
+    transform: [{ scale: 0.98 }],
   },
   chipsSection: {
     paddingTop: Spacing.sm,
   },
   chipsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
     paddingHorizontal: Spacing.lg,
   },
   activeChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.xs,
     borderRadius: Radius.pill,
     paddingVertical: Spacing.sm,
@@ -523,12 +598,12 @@ const styles = StyleSheet.create({
   activeChipText: {
     ...Typography.bodySmall,
     color: Palette.white,
-    fontWeight: '600',
+    fontWeight: "600",
     maxWidth: 160,
   },
   hospitalChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.xs,
     borderRadius: Radius.pill,
     borderWidth: 1,
@@ -548,7 +623,7 @@ const styles = StyleSheet.create({
   },
   hospitalChipTextActive: {
     color: Palette.white,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   listContent: {
     paddingHorizontal: Spacing.lg,
@@ -559,13 +634,12 @@ const styles = StyleSheet.create({
     height: Spacing.md,
   },
   listFooter: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingTop: Spacing.lg,
   },
   footerNote: {
     ...Typography.caption,
     color: Palette.textMuted,
-    textAlign: 'center',
+    textAlign: "center",
   },
 });
-

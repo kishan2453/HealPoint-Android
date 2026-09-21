@@ -22,6 +22,7 @@
  */
 import { DeviceEventEmitter, NativeModules, Platform, TurboModuleRegistry } from 'react-native';
 import type { TurboModule } from 'react-native';
+import Constants from 'expo-constants';
 
 import type {
   RazorpayCheckoutOptions,
@@ -71,6 +72,38 @@ export function isRazorpayCheckoutAvailable(): boolean {
   return resolveNativeModule() !== null;
 }
 
+/**
+ * True when the app is executing inside Expo Go (the host "store client"),
+ * which cannot bundle third-party native modules such as Razorpay. A
+ * development build (`npx expo run:android`) or an EAS build runs as a
+ * "standalone" app instead, where the module IS present.
+ */
+export function isRunningInExpoGo(): boolean {
+  if (Platform.OS === 'web') return false;
+  try {
+    const env = (Constants as unknown as { executionEnvironment?: string }).executionEnvironment;
+    return env === 'storeClient';
+  } catch {
+    // If the constant is unavailable, fall back to the module probe.
+    return resolveNativeModule() === null;
+  }
+}
+
+/** Development-only, honest explanation for builds without the native module. */
+function unavailableMessage(): string {
+  if (isRunningInExpoGo()) {
+    return (
+      'Online payment needs a native development build, but you are running Expo Go, which does not bundle Razorpay. ' +
+      'Your appointment is saved. To pay online, install the development build with `npx expo run:android` (or `eas build --profile development`) and open it again. ' +
+      'You can also pay at the clinic.'
+    );
+  }
+  return (
+    'Razorpay is not available in this build. Please use a development build or the installed app. ' +
+    'Your appointment is saved — you can also pay at the clinic.'
+  );
+}
+
 function normalizeError(raw: unknown): RazorpayPaymentError {
   if (raw && typeof raw === 'object') {
     const candidate = raw as Record<string, unknown>;
@@ -109,7 +142,7 @@ export function openRazorpayCheckout(options: RazorpayCheckoutOptions): Promise<
       new Error(
         Platform.OS === 'web'
           ? 'Online payment is not available in the web app yet.'
-          : 'Razorpay is not available in this build. Please use a development build or the installed app.',
+          : unavailableMessage(),
       ),
     );
   }

@@ -25,6 +25,8 @@ interface AdminModuleScreenProps {
   onRetry?: () => void;
   children: React.ReactNode;
   right?: React.ReactNode;
+  /** Optional loading state replacement (e.g. a list skeleton). */
+  loadingComponent?: React.ReactNode;
 }
 
 export function AdminModuleScreen({
@@ -37,13 +39,18 @@ export function AdminModuleScreen({
   onRetry,
   children,
   right,
+  loadingComponent,
 }: AdminModuleScreenProps) {
   return (
     <RoleGuard allowedRoles={allowedRoles}>
       <View style={{ flex: 1 }}>
         <AppHeader title={title} subtitle={subtitle} showBack right={right} />
         {loading ? (
-          <Loading label="Loading..." />
+          loadingComponent ? (
+            <>{loadingComponent}</>
+          ) : (
+            <Loading label="Loading..." />
+          )
         ) : error ? (
           <ErrorState message={error} onRetry={onRetry} />
         ) : empty ? (

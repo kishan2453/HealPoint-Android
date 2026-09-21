@@ -1,26 +1,266 @@
 /**
- * HealPoint - Doctor availability module (doctor app).
+ * HealPoint - Doctor availability (real synced slot calendar).
+ *
+ * The signed-in doctor reads the SAME persisted Slot inventory the Hospital
+ * Admin generates/blocks (`GET /doctor/slots/calendar` + `/availability`).
+ * Weekly overview + per-day timeline come from real backend data — no mock
+ * schedule, no dead buttons. Leave/holiday/override-blocked days surface with
+ * their real engine reason; blocked slots show the admin's block reason.
  */
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { RoleGuard } from '@/components/RoleGuard';
-import { ModuleScreen } from '@/components/ui/ModuleScreen';
+import { AdminModuleScreen } from '@/components/admin/AdminModuleScreen';
+import { Badge } from '@/components/ui/Badge';
+import { Card } from '@/components/ui/Card';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { Loading } from '@/components/ui/Loading';
+import { Palette, Radius, Spacing, Typography } from '@/constants/theme';
+import { toErrorMessage } from '@/services/api';
+import * as slotService from '@/services/slots';
+import type { SlotDay, SlotItem } from '@/services/slots';
+
+function addDays(date: Date, days: number): Date {
+  const out = new Date(date);
+  out.setDate(out.getDate() + days);
+  return out;
+}
+
+function toDD(date: Date): string {
+  const d = String(date.getDate()).padStart(2, '0');
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  return `${d}-${m}-${date.getFullYear()}`;
+}
+
+/** 24h "HH:mm" -> "09:00 AM" label. */
+function formatSlotTime(hhmm: string): string {
+  const parts = String(hhmm || '').split(':');
+  if (parts.length !== 2) return hhmm || '';
+  let h = Number(parts[0]) % 24;
+  const m = parts[1];
+  const ap = h < 12 ? 'AM' : 'PM';
+  if (h === 0) h = 12;
+  else if (h > 12) h = h - 12;
+  return `${String(h).padStart(2, '0')}:${m} ${ap}`;
+}
+
+function weekdayShort(ddmmyyyy: string): string {
+  const match = /^(\d{2})-(\d{2})-(\d{4})$/.exec(String(ddmmyyyy || ''));
+  if (!match) return '';
+  const date = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()] || '';
+}
+
+function slotBadge(status: SlotItem['status']): { label: string; variant: 'success' | 'primary' | 'warning' | 'neutral' } {
+  switch (status) {
+    case 'available':
+      return { label: 'Available', variant: 'success' };
+    case 'booked':
+      return { label: 'Booked', variant: 'primary' };
+    case 'blocked':
+      return { label: 'Blocked', variant: 'warning' };
+    default:
+      return { label: status || 'Closed', variant: 'neutral' };
+  }
+}
+
 
 export default function DoctorAvailabilityScreen() {
+  const [rangeDays, setRangeDays] = useState<7 | 14>(7);
+  const [fromDate, setFromDate] = useState(() => toDD(new Date()));
+  const [toDate, setToDate] = useState(() => toDD(addDays(new Date(), 6)));
+  const [calendar, setCalendar] = useState<slotService.SlotCalendarResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await slotService.getDoctorSlotCalendar(fromDate, toDate);
+      setCalendar(res);
+      const first = (res.data?.perDate || []).find((d) => (d.slots || []).length > 0);
+      setSelectedDate(first ? first.date : (res.data?.perDate?.[0]?.date || ''));
+    } catch (err) {
+      setError(toErrorMessage(err, 'Unable to load your availability.'));
+    } finally {
+      setLoading(false);
+    }
+  }, [fromDate, toDate]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const perDate: SlotDay[] = useMemo(() => calendar?.data?.perDate || [], [calendar]);
+  const counts = calendar?.data?.counts;
+  const selected: SlotDay | undefined = useMemo(
+    () => perDate.find((d) => d.date === selectedDate) || perDate[0],
+    [perDate, selectedDate],
+  );
+
+  const setRange = (days: 7 | 14) => {
+    const from = new Date();
+    setRangeDays(days);
+    setFromDate(toDD(from));
+    setToDate(toDD(addDays(from, days - 1)));
+  };
+
   return (
     <RoleGuard allowedRoles={['doctor']}>
-      <ModuleScreen
-        title="Availability"
-        icon="time-outline"
-        accent="#2F80ED"
-        description="Control when patients can book you. Set your working hours, weekly schedule and time-slot duration."
-        features={[
-          'Manage weekly schedule',
-          'Set slot duration',
-          'Block holidays & leave',
-          'Pause online booking when needed',
-        ]}
-      />
+      <AdminModuleScreen
+        title="My Availability"
+        subtitle="Same live slots patients see — generated by your hospital"
+        allowedRoles={['doctor']}
+        loading={loading}
+        loadingComponent={<Loading label="Loading your slots..." />}
+        error={error}
+        onRetry={load}
+      >
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <View style={styles.rangeRow}>
+            {([7, 14] as const).map((days) => (
+              <Pressable
+                key={days}
+                accessibilityRole="button"
+                onPress={() => setRange(days)}
+                style={[styles.rangeChip, rangeDays === days && styles.rangeChipActive]}
+              >
+                <Text style={[styles.rangeText, rangeDays === days && styles.rangeTextActive]}>
+                  {days === 7 ? 'This week' : 'Next 14 days'}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          {counts ? (
+            <View style={styles.statsRow}>
+              {[
+                { label: 'Available', value: counts.available },
+                { label: 'Booked', value: counts.booked },
+                { label: 'Blocked', value: counts.blocked },
+              ].map((stat) => (
+                <Card key={stat.label} style={styles.statChip}>
+                  <Text style={styles.statValue}>{stat.value}</Text>
+                  <Text style={styles.statLabel}>{stat.label}</Text>
+                </Card>
+              ))}
+            </View>
+          ) : null}
+          {perDate.length === 0 ? (
+            <EmptyState
+              title="No slots yet"
+              message="Your hospital has not generated slots for this range yet."
+            />
+          ) : (
+            <View style={styles.daysWrap}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayStrip}>
+                {perDate.map((day) => {
+                  const active = selected?.date === day.date;
+                  const open = (day.slots || []).filter((s) => s.status === 'available').length;
+                  return (
+                    <Pressable
+                      key={day.date}
+                      accessibilityRole="button"
+                      onPress={() => setSelectedDate(day.date)}
+                      style={[styles.dayChip, active && styles.dayChipActive]}
+                    >
+                      <Text style={[styles.dayWeek, active && styles.dayTextActive]}>{weekdayShort(day.date)}</Text>
+                      <Text style={[styles.dayDate, active && styles.dayTextActive]}>{day.date.slice(0, 5)}</Text>
+                      <Text style={[styles.dayOpen, active && styles.dayTextActive]}>
+                        {open > 0 ? `${open} open` : 'Closed'}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+              {selected ? (
+                <Card style={styles.dayCard}>
+                  <View style={styles.dayHeader}>
+                    <Text style={styles.dayTitle}>{weekdayShort(selected.date)} · {selected.date}</Text>
+                    <Text style={styles.dayCount}>{(selected.slots || []).length} slots</Text>
+                  </View>
+                  {(selected.slots || []).length === 0 ? (
+                    <Text style={styles.closedNote}>No bookable slots this day — patients see the same closed day.</Text>
+                  ) : (
+                    <View style={styles.slotGrid}>
+                      {(selected.slots || []).map((slot) => {
+                        const badge = slotBadge(slot.status);
+                        return (
+                          <View key={slot.id} style={styles.slotCard}>
+                            <Text style={styles.slotTime}>{formatSlotTime(slot.startTime)}</Text>
+                            <Badge label={badge.label} variant={badge.variant} />
+                            {slot.status === 'blocked' && slot.blockReason ? (
+                              <Text style={styles.blockNote} numberOfLines={2}>{slot.blockReason}</Text>
+                            ) : null}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )}
+                </Card>
+              ) : null}
+            </View>
+          )}
+        </ScrollView>
+      </AdminModuleScreen>
     </RoleGuard>
   );
 }
+
+const styles = StyleSheet.create({
+  content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xxxl, gap: Spacing.md },
+  rangeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
+  rangeChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    backgroundColor: Palette.surface,
+  },
+  rangeChipActive: { borderColor: Palette.primary, backgroundColor: Palette.primaryLight },
+  rangeText: { ...Typography.bodySmall, color: Palette.text },
+  rangeTextActive: { color: Palette.primaryDark, fontWeight: '600' },
+  statsRow: { flexDirection: 'row', gap: Spacing.sm },
+  statChip: { flex: 1, alignItems: 'flex-start' },
+  statValue: { ...Typography.h4, color: Palette.text },
+  statLabel: { ...Typography.caption, color: Palette.textMuted },
+  daysWrap: { gap: Spacing.sm },
+  dayStrip: { gap: Spacing.sm, paddingVertical: Spacing.xs },
+  dayChip: {
+    minWidth: 84,
+    padding: Spacing.sm,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    backgroundColor: Palette.surface,
+    alignItems: 'center',
+    gap: 2,
+  },
+  dayChipActive: { borderColor: Palette.primary, backgroundColor: Palette.primaryLight },
+  dayWeek: { ...Typography.caption, color: Palette.textMuted, fontWeight: '600' },
+  dayDate: { ...Typography.bodySmall, color: Palette.text, fontWeight: '600' },
+  dayOpen: { ...Typography.caption, color: Palette.textMuted },
+  dayTextActive: { color: Palette.primaryDark },
+  dayCard: { gap: Spacing.sm },
+  dayHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  dayTitle: { ...Typography.label, color: Palette.text },
+  dayCount: { ...Typography.caption, color: Palette.textMuted },
+  closedNote: { ...Typography.bodySmall, color: Palette.textMuted },
+  slotGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  slotCard: {
+    width: 118,
+    padding: Spacing.sm,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    backgroundColor: Palette.surface,
+    gap: Spacing.xs,
+  },
+  slotTime: { ...Typography.bodySmall, color: Palette.text, fontWeight: '600' },
+  blockNote: { ...Typography.caption, color: Palette.textMuted },
+});
+
+

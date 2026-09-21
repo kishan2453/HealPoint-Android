@@ -24,18 +24,18 @@
 // transformer cache (default "1.0") instead of trying to deserialize a stale /
 // half-written cache file – the documented source of the "Unable to deserialize
 // cloned data" / "falling back to full crawl" warnings on Windows.
-const { getDefaultConfig } = require('expo/metro-config');
+const { getDefaultConfig } = require("expo/metro-config");
 
 const projectRoot = __dirname;
 const config = getDefaultConfig(projectRoot);
 
 // Escape the Windows/Unix project path so it can be embedded in a RegExp.
-const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const root = escapeRegExp(projectRoot);
 
 // Regex source for a path-separator class matching "\" or "/". The literal
 // needs FOUR backslashes in the template so the compiled regex source is [\\/].
-const sep = '[\\\\/]';
+const sep = "[\\\\/]";
 
 // Folders Metro does NOT need to watch/index/cache. None of these are source
 // files imported by the app, so excluding them removes noise from the file map.
@@ -54,13 +54,33 @@ const blockList = [
 const existingBlockList = Array.isArray(config.resolver.blockList)
   ? config.resolver.blockList
   : [];
-config.resolver.blockList = [
-  ...existingBlockList,
-  ...blockList,
-];
+config.resolver.blockList = [...existingBlockList, ...blockList];
 
 // Deterministic cache version. Bumping this cleanly invalidates Metro's on-disk
 // bundler cache instead of deserializing a stale/half-written cache file.
-config.cacheVersion = 'healpoint-v3';
+config.cacheVersion = "healpoint-v5";
+
+// Middleware enhancement: if an Android dev-client or browser requests
+// `/_expo/loading.bundle`, rewrite it to the real application entry point
+// (`/node_modules/expo-router/entry.bundle`). This avoids `UnableToResolveError`
+// when the dev launcher opens the project with an interstitial loading URL.
+const prevEnhance = config.server?.enhanceMiddleware;
+config.server = {
+  ...config.server,
+  enhanceMiddleware: (metroMiddleware, server) => {
+    const parent = prevEnhance
+      ? prevEnhance(metroMiddleware, server)
+      : metroMiddleware;
+    return (req, res, next) => {
+      if (req.url && req.url.includes("/_expo/loading.bundle")) {
+        req.url = req.url.replace(
+          "/_expo/loading.bundle",
+          "/node_modules/expo-router/entry.bundle",
+        );
+      }
+      return parent(req, res, next);
+    };
+  },
+};
 
 module.exports = config;

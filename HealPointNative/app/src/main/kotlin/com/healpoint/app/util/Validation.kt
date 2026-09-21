@@ -6,7 +6,13 @@ package com.healpoint.app.util
  */
 object Validation {
 
-    private val EMAIL_REGEX = Regex("^\\S+@\\S+\\.\\S+$")
+    /**
+     * Balanced email rule: accepts real-world addresses (including `+` tags and
+     * the `.test` development domain) while rejecting genuinely broken formats
+     * (`doctor@`, `@example.com`, `doctor@@example.com`, whitespace inside, and
+     * 1-letter TLDs). Mirrors `lib/validation.ts` in the Expo client.
+     */
+    private val EMAIL_REGEX = Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
     private val PHONE_REGEX = Regex("^[6-9]\\d{9}$")
 
     fun isValidEmail(value: String): Boolean = EMAIL_REGEX.matches(value.trim())

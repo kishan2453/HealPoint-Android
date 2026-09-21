@@ -64,6 +64,25 @@ export function appointmentStatusBadge(status: StatusValue): BadgeVariant {
   return badgeFor(status, APPOINTMENT_STATUS);
 }
 
+/** Badge variant for the normalized appointment-payment state (see lib/appointments). */
+export function appointmentPaymentBadge(status: StatusValue): BadgeVariant {
+  switch (String(status ?? '').trim().toLowerCase()) {
+    case 'paid':
+      return 'success';
+    case 'pending':
+      return 'warning';
+    case 'failed':
+      return 'error';
+    case 'refunded':
+    case 'cancelled':
+      return 'neutral';
+    case 'cash':
+      return 'primary';
+    default:
+      return 'neutral';
+  }
+}
+
 export function formatStatusLabel(value: StatusValue): string {
   const text = String(value ?? 'Unknown').replace(/[_-]/g, ' ');
   return text.charAt(0).toUpperCase() + text.slice(1);

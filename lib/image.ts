@@ -149,3 +149,41 @@ export function resolveHospitalImage(hospital?: Partial<Hospital> | null): strin
 export function getUserImage(image?: string): string {
   return resolveImageSource(image);
 }
+
+// ---------------------------------------------------------------------------
+// Subscription plan artwork
+// ---------------------------------------------------------------------------
+
+/**
+ * Healthcare-themed plan artwork pool (original HealPoint branding, no stock
+ * watermarks). Keyed by the plan key so every plan keeps a consistent,
+ * medical-themed visual. A plan's own stored `imageUrl` always wins.
+ */
+const PLAN_ART: Record<string, string> = {
+  free: 'https://images.unsplash.com/photo-1505751172876-fa1923c5c528?q=90&w=1600&dpr=2',
+  basic: 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?q=90&w=1600&dpr=2',
+  professional: 'https://images.unsplash.com/photo-1576086213369-97a306d36557?q=90&w=1600&dpr=2',
+  premium: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?q=90&w=1600&dpr=2',
+  enterprise: 'https://images.unsplash.com/photo-1504439468489-c8920d796a29?q=90&w=1600&dpr=2',
+};
+
+const GENERAL_PLAN_ART =
+  'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?q=90&w=1600&dpr=2';
+
+/**
+ * Best plan picture for a subscription plan:
+ *  - the plan's own stored `imageUrl` when present (resolved exactly like every
+ *    other stored HealPoint image), else
+ *  - a stable healthcare-themed illustration matched to the plan key, else
+ *  - the general medical banner.
+ */
+export function getPlanImage(plan?: {
+  key?: string;
+  imageUrl?: string;
+}): string {
+  if (plan?.imageUrl && String(plan.imageUrl).trim()) {
+    return resolveImageSource(plan.imageUrl, GENERAL_PLAN_ART);
+  }
+  const key = String(plan?.key || '').trim().toLowerCase();
+  return PLAN_ART[key] || GENERAL_PLAN_ART;
+}

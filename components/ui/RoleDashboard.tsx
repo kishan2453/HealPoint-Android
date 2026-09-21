@@ -6,28 +6,40 @@
  * list of the planned sub-modules — it never fabricates data or leaves a blank
  * screen. Once the endpoints exist these screens are filled in with real data.
  */
-import React from 'react';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import React from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
-import { DrawerToggleButton } from '@/components/DrawerToggleButton';
-import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { EmptyState } from '@/components/ui/EmptyState';
-import { Screen } from '@/components/ui/Screen';
-import { Palette, Radius, Spacing, Typography } from '@/constants/theme';
-import { useAuth } from '@/hooks/use-auth';
-import { canonicalRole, type CanonicalRole } from '@/lib/roles';
+import { DrawerToggleButton } from "@/components/DrawerToggleButton";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Screen } from "@/components/ui/Screen";
+import { Palette, Radius, Spacing, Typography } from "@/constants/theme";
+import { useAuth } from "@/hooks/use-auth";
+import { canonicalRole, type CanonicalRole } from "@/lib/roles";
 
 interface RoleDashboardProps {
   title: string;
   icon: keyof typeof Ionicons.glyphMap;
   accent: string;
   modules: string[];
+  /**
+   * Optional signed-in line. When omitted the default "Signed in as {name}
+   * · {role}" is shown. Pass a custom value to surface extra context such as
+   * the doctor's registered hospital.
+   */
+  subtitle?: string;
 }
 
-export function RoleDashboard({ title, icon, accent, modules }: RoleDashboardProps) {
+export function RoleDashboard({
+  title,
+  icon,
+  accent,
+  modules,
+  subtitle,
+}: RoleDashboardProps) {
   const router = useRouter();
   const { user, signOut, isLoading } = useAuth();
   const role: CanonicalRole = canonicalRole(user?.role);
@@ -41,7 +53,8 @@ export function RoleDashboard({ title, icon, accent, modules }: RoleDashboardPro
         <View style={styles.headerText}>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.subtitle}>
-            Signed in as {user?.name || 'user'} · {role.replace('_', ' ')}
+            {subtitle ??
+              `Signed in as ${user?.name || "user"} · ${role.replace("_", " ")}`}
           </Text>
         </View>
         <DrawerToggleButton />
@@ -58,7 +71,11 @@ export function RoleDashboard({ title, icon, accent, modules }: RoleDashboardPro
             </View>
             {modules.map((label) => (
               <View key={label} style={styles.moduleRow}>
-                <Ionicons name="checkmark-circle-outline" size={18} color={Palette.success} />
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={18}
+                  color={Palette.success}
+                />
                 <Text style={styles.moduleRowText}>{label}</Text>
               </View>
             ))}
@@ -74,9 +91,7 @@ export function RoleDashboard({ title, icon, accent, modules }: RoleDashboardPro
             variant="outline"
             onPress={async () => {
               await signOut();
-              // ProtectedRoute/RoleRoute redirect to /welcome automatically once
-              // the auth state clears.
-              router.replace('/welcome');
+              router.replace("/login");
             }}
           />
         </>
@@ -87,8 +102,8 @@ export function RoleDashboard({ title, icon, accent, modules }: RoleDashboardPro
 
 const styles = StyleSheet.create({
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
     marginBottom: Spacing.lg,
   },
@@ -96,8 +111,8 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: Radius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerText: {
     flex: 1,
@@ -110,15 +125,15 @@ const styles = StyleSheet.create({
     ...Typography.bodySmall,
     color: Palette.textMuted,
     marginTop: 2,
-    textTransform: 'capitalize',
+    textTransform: "capitalize",
   },
   spinner: {
     marginTop: Spacing.xxl,
   },
   moduleHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: Spacing.sm,
   },
   moduleTitle: {
@@ -130,8 +145,8 @@ const styles = StyleSheet.create({
     color: Palette.warning,
   },
   moduleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
     paddingVertical: Spacing.xs,
   },

@@ -1,6 +1,7 @@
 /**
  * Notifications API — mirrors routes/notificationRoutes.js on the backend.
  */
+import { API_QUICK_TIMEOUT_MS, API_TIMEOUT_MS } from '@/lib/env';
 import { api } from './api';
 import type { NotificationsResponse } from '@/types';
 
@@ -19,7 +20,12 @@ export async function getNotifications(
   if (params.limit) query.set('limit', String(params.limit));
   const qs = query.toString();
 
-  return api.get<NotificationsResponse>(`/notification/get-all${qs ? `?${qs}` : ''}`, { auth: true });
+  return api.get<NotificationsResponse>(`/notification/get-all${qs ? `?${qs}` : ''}`, {
+    auth: true,
+    // Badge reads (`limit=1`) are tiny — fail fast instead of holding the
+    // Home header hostage behind the 25s catalog budget.
+    timeout: params.limit === 1 && !params.status && !params.type ? API_QUICK_TIMEOUT_MS : API_TIMEOUT_MS,
+  });
 }
 
 export async function updateNotificationRead(

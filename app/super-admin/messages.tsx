@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Palette, Spacing, Typography } from '@/constants/theme';
 import { formatISODate } from '@/lib/format';
+import { toErrorMessage } from '@/services/api';
 import * as messageService from '@/services/messages';
 import type { WebMessage } from '@/types';
 
@@ -41,7 +42,7 @@ export default function SuperAdminMessagesScreen() {
       setMessages(res.webMessages || []);
       setTotal(res.totalCount || 0);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load messages.');
+      setError(toErrorMessage(err, 'Unable to load messages.'));
     } finally {
       setLoading(false);
     }

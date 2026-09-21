@@ -3,8 +3,8 @@
  * Supports an optional leading icon and an optional right slot (e.g. a
  * show/hide-password toggle) so form screens stay consistent.
  */
-import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useRef, useState } from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   StyleSheet,
@@ -13,9 +13,15 @@ import {
   TextInputProps,
   View,
   ViewStyle,
-} from 'react-native';
+} from "react-native";
 
-import { Palette, Radius, Shadows, Spacing, Typography } from '@/constants/theme';
+import {
+  Palette,
+  Radius,
+  Shadows,
+  Spacing,
+  Typography,
+} from "@/constants/theme";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -32,7 +38,7 @@ interface InputProps extends TextInputProps {
    *  - `outline` (default): white surface with a border.
    *  - `filled`: tinted, softer surface used on premium forms.
    */
-  variant?: 'outline' | 'filled';
+  variant?: "outline" | "filled";
 }
 
 export function Input({
@@ -42,35 +48,46 @@ export function Input({
   style,
   leftIcon,
   rightSlot,
-  variant = 'outline',
+  variant = "outline",
   onFocus,
   onBlur,
   ...props
 }: InputProps) {
   const [focused, setFocused] = useState(false);
   const halo = useRef(new Animated.Value(0)).current;
+  const errorAnim = useRef(new Animated.Value(error ? 1 : 0)).current;
 
   useEffect(() => {
     Animated.timing(halo, {
       toValue: focused ? 1 : 0,
-      duration: 200,
+      duration: 180,
       useNativeDriver: true,
     }).start();
   }, [focused, halo]);
+
+  useEffect(() => {
+    Animated.timing(errorAnim, {
+      toValue: error ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [error, errorAnim]);
 
   const haloOpacity = halo.interpolate({
     inputRange: [0, 1],
     outputRange: [0, 0.14],
   });
 
-  const filled = variant === 'filled';
+  const filled = variant === "filled";
   const isError = Boolean(error);
   const accent = isError ? Palette.error : Palette.primary;
 
   return (
     <View style={[styles.container, containerStyle]}>
       {label ? (
-        <Text style={[styles.label, isError && styles.labelError]}>{label}</Text>
+        <Text style={[styles.label, isError && styles.labelError]}>
+          {label}
+        </Text>
       ) : null}
       <View
         style={[
@@ -86,7 +103,11 @@ export function Input({
           pointerEvents="none"
           style={[
             styles.halo,
-            { backgroundColor: filled ? Palette.primary : 'rgba(14, 159, 142, 0.10)' },
+            {
+              backgroundColor: filled
+                ? Palette.primary
+                : "rgba(14, 159, 142, 0.10)",
+            },
             { opacity: haloOpacity },
           ]}
         />
@@ -94,7 +115,13 @@ export function Input({
           <Ionicons
             name={leftIcon}
             size={20}
-            color={isError ? Palette.error : focused ? Palette.primary : Palette.textMuted}
+            color={
+              isError
+                ? Palette.error
+                : focused
+                  ? Palette.primary
+                  : Palette.textMuted
+            }
             style={styles.leftIcon}
           />
         ) : null}
@@ -114,14 +141,30 @@ export function Input({
         />
         {rightSlot ? <View style={styles.rightSlot}>{rightSlot}</View> : null}
       </View>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? (
+        <Animated.View
+          style={{
+            opacity: errorAnim,
+            transform: [
+              {
+                translateY: errorAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-4, 0],
+                }),
+              },
+            ],
+          }}
+        >
+          <Text style={styles.error}>{error}</Text>
+        </Animated.View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    width: '100%',
+    width: "100%",
     gap: Spacing.xs,
   },
   label: {
@@ -135,9 +178,9 @@ const styles = StyleSheet.create({
     minHeight: 52,
     borderRadius: Radius.md,
     borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    overflow: 'hidden',
+    flexDirection: "row",
+    alignItems: "center",
+    overflow: "hidden",
   },
   halo: {
     ...StyleSheet.absoluteFillObject,
@@ -148,7 +191,7 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.surface,
   },
   inputFilled: {
-    borderColor: 'transparent',
+    borderColor: "transparent",
     backgroundColor: Palette.primaryLight,
   },
   leftIcon: {
@@ -163,7 +206,7 @@ const styles = StyleSheet.create({
     color: Palette.text,
   },
   inputFilledText: {
-    fontWeight: '500',
+    fontWeight: "500",
   },
   rightSlot: {
     paddingRight: Spacing.sm,

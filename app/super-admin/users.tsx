@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Palette, Spacing, Typography } from '@/constants/theme';
 import { formatISODate } from '@/lib/format';
+import { toErrorMessage } from '@/services/api';
 import * as userService from '@/services/users';
 import type { PlatformUser } from '@/types';
 
@@ -54,7 +55,7 @@ export default function SuperAdminUsersScreen() {
         setTotal(res.totalCount);
         setPage(nextPage);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unable to load users.');
+        setError(toErrorMessage(err, 'Unable to load users.'));
       } finally {
         setLoading(false);
         setLoadingMore(false);

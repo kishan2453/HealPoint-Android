@@ -84,30 +84,44 @@ Verify from the phone's browser: `http://<laptop-IP>:8080/api/v1/health`.
 
 ## 4. Google Sign-In (optional)
 
-The app reads platform-specific OAuth client IDs from `.env`:
+The app reads platform-specific **public** OAuth client IDs from `.env`:
 
 ```dotenv
-EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=<android-web/native-client-id>
-EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=<ios-client-id>
-EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=<web-client-id>
+EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=<android-client-id>   # used on Android
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=<ios-client-id>           # used on iOS
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=<web-client-id>           # used on web
 ```
 
-1. Create OAuth 2.0 credentials at
-   https://console.cloud.google.com/apis/credentials. Create **Web** and
-   **Android** application credentials (the Android type is required for
-   native Google Sign-In on a physical device).
-2. Put the **client secret** only in the backend `.env`
-   (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`).
-3. Put the public **Android / iOS / Web client IDs** in the mobile `.env`
-   (see above). If a platform's ID is empty, the "Continue with Google" button
-   shows a friendly message instead of crashing — email/password still works.
-4. Register the app's OAuth redirect URI in the Google console
-   ("Authorized redirect URIs"). On a dev phone through Expo Go it is
-   printed by the app when you press the button; typical value:
-   `exp://<laptop-IP>:8081/--/oauth2redirect`.
+The mobile app only ever sends a one-time authorization code + the exact
+redirect URI to the backend (`POST /api/v1/user/google/login`), which
+exchanges and validates it with Google server-side. **No client secret ever
+exists in the mobile app.**
 
-The mobile app only ever sends a one-time authorization code + redirect URI
-to the backend, which exchanges and validates it with Google server-side.
+1. Create OAuth 2.0 credentials at
+   https://console.cloud.google.com/apis/credentials. Use the existing
+   **Android** client (`com.healpoint.app`) — a public installed-app client:
+   secret-less **PKCE** exchange, no secret anywhere. A **Web** client
+   (plus `GOOGLE_CLIENT_SECRET` in the backend `.env`) is only needed if you
+   also integrate a browser portal; it is NOT required for the Android app.
+2. Put the public **Android ID** in the mobile `.env`
+   (`EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`) **and** in the backend `.env`
+   (`GOOGLE_ANDROID_CLIENT_ID`, same public value) so the server accepts the
+   PKCE exchange and validates the ID-token `aud`.
+3. **Google Console — "Authorized redirect URIs" on the Android client** must
+   list the exact URI the app sends, or Google returns
+   `Error 400: invalid_request — Access blocked: Authorization error — the app
+   does not comply with OAuth policy`:
+   - `healpoint://oauth2redirect`
+     (standalone / dev-client / production builds; the `healpoint` scheme is
+     already registered in the Android manifest intent filter)
+   - `exp://<DEV-MACHINE-LAN-IP>:8081/--/oauth2redirect`
+     (when testing with Expo Go on a physical device)
+4. OAuth consent screen: while the app is in **Testing**, add
+   `codexdemouse1@gmail.com` as a **Test user** (owner accounts work too).
+   Publish to **Production** only after verification, otherwise test users are
+   required.
+5. If a platform's ID is empty, the "Continue with Google" button is hidden
+   gracefully — email/password still works.
 
 ## 5. Razorpay Online Payments
 
@@ -141,8 +155,12 @@ Book appointment → Pay Online → backend creates Razorpay Order
 ### Backend setup
 
 The backend (in `Doctor-apppointment/server-with-client`) must expose three
-endpoints. The exact contracts, reference code and the payment state machine
-are documented in [`RAZORPAY_BACKEND_IMPLEMENTATION.md`](./RAZORPAY_BACKEND_IMPLEMENTATION.md):
+endpoints. A complete, ready-to-copy implementation of the order creation,
+signature verification and webhook handling now ships in
+[`server-razorpay/`](./server-razorpay/README.md) — copy the three files into
+the backend, mount the routers and set the backend `.env` keys. The exact
+contracts and the payment state machine are also documented in
+[`RAZORPAY_BACKEND_IMPLEMENTATION.md`](./RAZORPAY_BACKEND_IMPLEMENTATION.md):
 
 | Endpoint | Purpose |
 | --- | --- |
@@ -154,12 +172,15 @@ Backend `.env`:
 ```dotenv
 RAZORPAY_KEY_ID=rzp_test_xxxxxxxx
 RAZORPAY_KEY_SECRET=<long-secret>
+# optional: RAZORPAY_WEBHOOK_SECRET=<webhook-secret>
 ```
 
-Until the backend endpoints exist, the app shows an honest "online payment is
-not configured yet" failure — it never fakes a successful payment.
+Until the backend endpoints are wired in, the app shows an honest "online
+payment is not configured yet" failure — it never fakes a successful payment.
 
 ## 6. Run the app
+
+### 6a. General (Expo Go) — works, but NO Razorpay
 
 ```bash
 npx expo start
@@ -168,7 +189,49 @@ npx expo start
 Scan the QR code with Expo Go (phone and laptop on the same Wi-Fi).
 
 > **Razorpay note:** online payment needs the native module, which Expo Go does
-> not include. Use `npx expo run:android` (development build) or an EAS build.
+> not include. In Expo Go the app deliberately shows an honest message instead
+> of faking a payment. Use a development build (below) for real payments.
+
+### 6b. Android native development build — REQUIRED for Razorpay
+
+The native `react-native-razorpay` module is already autolinked and has been
+compiled successfully in this project. Pick one workflow:
+
+**Option A — local Gradle build (no EAS account needed):**
+
+```bash
+# 1. (only once / after native deps change) regenerate the android project
+npx expo prebuild --clean
+# 2. build + install the debug APK on your connected phone/emulator
+npx expo run:android
+# 3. start Metro for the dev build
+npx expo start
+```
+
+> The first Gradle build takes 30–60 minutes (native compile). Later builds are
+> incremental and fast. The debug APK is written to
+> `android/app/build/outputs/apk/debug/app-debug.apk` — copy it to your phone if
+> adb is not available.
+
+**Option B — EAS development build (cloud):**
+
+```bash
+eas build --profile development --platform android
+# install the resulting dev-client APK on the phone, then:
+npx expo start
+```
+
+Then open the app **from the development build's launcher icon** (NOT from Expo
+Go). Inside it, “Pay online” opens the real native Razorpay Checkout.
+
+### 6c. Backend must be running & reachable
+
+Make sure the backend is up and the phone can reach it:
+
+```bash
+npm run detect:ip      # writes the laptop's real Wi-Fi IP into .env
+npm run verify:backend # health + online-doctors checks over LAN/loopback
+```
 
 ## 7. Scripts
 

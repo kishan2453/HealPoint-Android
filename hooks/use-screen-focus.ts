@@ -10,12 +10,21 @@
  * a data hook). Firing the callback on mount caused the SAME API request to be
  * issued twice back-to-back — duplicate requests, wasted bandwidth, and an
  * unnecessary second AbortController timeout racing the first one on Android.
+ *
+ * The callback is stored in a ref so rapid re-renders never re-subscribe the
+ * focus effect (which would re-fire and multiply requests while navigating).
+ * An optional `minIntervalMs` throttles refetches so rapidly hopping between
+ * screens (Home → Doctor → Back → Home) reuses the just-fetched data instead
+ * of hammering the backend on every focus event.
  */
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useRef } from 'react';
 
-export function useScreenFocus(onFocus: () => void): void {
+export function useScreenFocus(onFocus: () => void, minIntervalMs = 0): void {
+  const callbackRef = useRef(onFocus);
+  callbackRef.current = onFocus;
   const hasFocusedOnce = useRef(false);
+  const lastFocusAt = useRef(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -23,8 +32,10 @@ export function useScreenFocus(onFocus: () => void): void {
         hasFocusedOnce.current = true;
         return;
       }
-      onFocus();
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []),
+      const now = Date.now();
+      if (minIntervalMs > 0 && now - lastFocusAt.current < minIntervalMs) return;
+      lastFocusAt.current = now;
+      callbackRef.current();
+    }, [minIntervalMs]),
   );
 }

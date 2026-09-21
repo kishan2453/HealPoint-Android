@@ -6,28 +6,28 @@
  * does not belong in this group is redirected to their own home route (never a
  * blank screen). While the persisted session is restoring we show the splash.
  */
-import React from 'react';
-import { Redirect } from 'expo-router';
+import React from "react";
+import { Redirect } from "expo-router";
 
-import { SplashScreen } from '@/components/splash-screen';
-import { useAuth } from '@/hooks/use-auth';
-import { canonicalRole, homeRouteForRole } from '@/lib/roles';
+import { SplashScreen } from "@/components/splash-screen";
+import { useAuth } from "@/hooks/use-auth";
+import { canonicalRole, homeRouteForRole } from "@/lib/roles";
 
 export function RoleRoute({
   allowedRoles,
   children,
 }: {
-  allowedRoles: ('patient' | 'doctor' | 'admin' | 'super_admin')[];
+  allowedRoles: ("patient" | "doctor" | "admin" | "super_admin")[];
   children: React.ReactNode;
 }) {
-  const { isLoading, isAuthenticated, user } = useAuth();
+  const { isLoading, isAuthenticated, hasSeenOnboarding, user } = useAuth();
 
   if (isLoading) {
     return <SplashScreen />;
   }
 
   if (!isAuthenticated) {
-    return <Redirect href="/welcome" />;
+    return <Redirect href={hasSeenOnboarding ? "/login" : "/welcome"} />;
   }
 
   if (!allowedRoles.includes(canonicalRole(user?.role))) {

@@ -263,6 +263,9 @@ export default function PaymentScreen() {
   const amount = appointment.amount || 0;
   const badge = paymentBadge(normalizedStatus);
   const bookingClosed = ['cancel', 'missed'].includes(appointment.bookingStatus || '');
+  // A booking that was made for cash / UPI at the clinic should never be shown
+  // as an online-payment failure. Show an informational state instead.
+  const cashAppointment = (appointment.paymentMethod || '').toLocaleLowerCase() === 'cash';
 
   if (alreadyPaid) {
     return renderSuccessState();
@@ -278,6 +281,14 @@ export default function PaymentScreen() {
           tone="error"
           title="Payment unavailable"
           message="This appointment is no longer open for payment. Please contact the clinic for assistance."
+          action={primaryButton('Back', goBack)}
+        />
+      ) : cashAppointment ? (
+        <StateView
+          icon="cash-outline"
+          tone="warning"
+          title="Cash payment booking"
+          message="This appointment was booked for cash / UPI payment at the clinic. It is not an online (Razorpay) booking, so there is nothing to pay here."
           action={primaryButton('Back', goBack)}
         />
       ) : phase === 'failed' ? (
@@ -330,8 +341,8 @@ export default function PaymentScreen() {
       <StateView
         icon="close-circle-outline"
         tone="error"
-        title="Payment Failed"
-        message={errorText || 'Your payment could not be completed. No money has been deducted.'}
+        title="Payment failed"
+        message={errorText || 'Your appointment has not been confirmed as paid. You can retry the payment or pay at the clinic.'}
         action={
           <View style={styles.stateActions}>
             <Button title="Retry Payment" onPress={handlePay} />

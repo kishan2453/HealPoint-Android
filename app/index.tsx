@@ -1,9 +1,9 @@
-import { Redirect } from 'expo-router';
-import React from 'react';
+import { Redirect } from "expo-router";
+import React from "react";
 
-import { SplashScreen } from '@/components/splash-screen';
-import { useAuth } from '@/hooks/use-auth';
-import { homeRouteForRole } from '@/lib/roles';
+import { SplashScreen } from "@/components/splash-screen";
+import { useAuth } from "@/hooks/use-auth";
+import { homeRouteForRole } from "@/lib/roles";
 
 /**
  * Root entry. Shows the splash while the persisted session is being restored,
@@ -15,14 +15,17 @@ import { homeRouteForRole } from '@/lib/roles';
  * Unauthenticated users go to the welcome screen.
  */
 export default function Index() {
-  const { isLoading, isAuthenticated, user } = useAuth();
+  const { isLoading, isAuthenticated, hasSeenOnboarding, user } = useAuth();
 
   if (isLoading) {
     return <SplashScreen />;
   }
 
   if (!isAuthenticated) {
-    return <Redirect href="/welcome" />;
+    if (!hasSeenOnboarding) {
+      return <Redirect href="/welcome" />;
+    }
+    return <Redirect href="/login" />;
   }
 
   // NEVER redirect to "/" — this is the very screen running the auth check, so

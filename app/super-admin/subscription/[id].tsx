@@ -18,13 +18,19 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { FormMessage } from '@/components/ui/FormMessage';
 import { Palette, Radius, Spacing, Typography } from '@/constants/theme';
 import { formatINR, formatISODate } from '@/lib/format';
+import {
+  isExpiringSoon,
+  remainingDaysLabel,
+  subscriptionDurationLabel,
+} from '@/lib/subscription';
 import { toErrorMessage } from '@/services/api';
 import * as subscriptionService from '@/services/subscriptions';
 import type { Subscription, SubscriptionPlan } from '@/types';
 
-type ActionType = 'activate' | 'suspend' | 'cancel' | 'paid';
+type ActionType = 'activate' | 'suspend' | 'cancel' | 'paid' | 'renew' | 'extend' | 'changePlan';
 
 export default function SuperAdminSubscriptionDetailScreen() {
   const router = useRouter();
@@ -33,6 +39,8 @@ export default function SuperAdminSubscriptionDetailScreen() {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [notice, setNotice] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [pendingAction, setPendingAction] = useState<ActionType | null>(null);
   const [changePlanOpen, setChangePlanOpen] = useState(false);
@@ -63,26 +71,45 @@ export default function SuperAdminSubscriptionDetailScreen() {
     if (!subscription || !pendingAction) return;
     setActionLoading(true);
     setError('');
+    setActionError('');
+    setNotice('');
     try {
       if (pendingAction === 'activate') {
         const res = await subscriptionService.activateSubscription(subscription._id);
         setSubscription(res.subscription);
+        setNotice('Subscription activated.');
       } else if (pendingAction === 'suspend') {
         const res = await subscriptionService.suspendSubscription(subscription._id);
         setSubscription(res.subscription);
+        setNotice('Subscription suspended.');
       } else if (pendingAction === 'cancel') {
         const res = await subscriptionService.cancelSubscription(subscription._id);
         setSubscription(res.subscription);
+        setNotice('Subscription cancelled.');
       } else if (pendingAction === 'paid') {
         const res = await subscriptionService.updateSubscriptionPaymentStatus(subscription._id, {
           paymentStatus: 'paid',
           amount: subscription.amount,
         });
         setSubscription(res.subscription);
+        setNotice('Current cycle marked as paid.');
+      } else if (pendingAction === 'renew') {
+        const res = await subscriptionService.renewSubscription(subscription._id, {
+          note: 'Renewed by Super Admin',
+        });
+        setSubscription(res.subscription);
+        setNotice('Subscription renewed.');
+      } else if (pendingAction === 'extend') {
+        const res = await subscriptionService.extendSubscription(subscription._id, {
+          days: 30,
+          note: 'Extended by 30 days',
+        });
+        setSubscription(res.subscription);
+        setNotice('Subscription extended by 30 days.');
       }
       setPendingAction(null);
     } catch (err) {
-      setError(toErrorMessage(err, 'Action failed.'));
+      setActionError(toErrorMessage(err, 'Action failed.'));
       setPendingAction(null);
     } finally {
       setActionLoading(false);
@@ -93,6 +120,8 @@ export default function SuperAdminSubscriptionDetailScreen() {
     if (!subscription) return;
     setActionLoading(true);
     setError('');
+    setActionError('');
+    setNotice('');
     try {
       const res = await subscriptionService.changeSubscriptionPlan(subscription._id, {
         planId: plan._id,
@@ -101,42 +130,10 @@ export default function SuperAdminSubscriptionDetailScreen() {
       });
       setSubscription(res.subscription);
       setChangePlanOpen(false);
+      setNotice(`Plan changed to ${plan.name}.`);
     } catch (err) {
-      setError(toErrorMessage(err, 'Plan change failed.'));
+      setActionError(toErrorMessage(err, 'Plan change failed.'));
       setChangePlanOpen(false);
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const renew = async () => {
-    if (!subscription) return;
-    setActionLoading(true);
-    setError('');
-    try {
-      const res = await subscriptionService.renewSubscription(subscription._id, {
-        note: 'Renewed by Super Admin',
-      });
-      setSubscription(res.subscription);
-    } catch (err) {
-      setError(toErrorMessage(err, 'Renewal failed.'));
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const extend30 = async () => {
-    if (!subscription) return;
-    setActionLoading(true);
-    setError('');
-    try {
-      const res = await subscriptionService.extendSubscription(subscription._id, {
-        days: 30,
-        note: 'Extended by 30 days',
-      });
-      setSubscription(res.subscription);
-    } catch (err) {
-      setError(toErrorMessage(err, 'Extension failed.'));
     } finally {
       setActionLoading(false);
     }
@@ -159,6 +156,10 @@ return (
     >
       {subscription ? (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <View style={styles.contentWrap}>
+          {notice ? <FormMessage type="success" message={notice} /> : null}
+          {actionError ? <FormMessage type="error" message={actionError} /> : null}
+
           <Card padded>
             <Text style={styles.hospitalName}>{hospitalName}</Text>
             <Text style={styles.muted}>
@@ -167,7 +168,9 @@ return (
             <View style={styles.badges}>
               <StatusBadge value={subscription.status} variant={subscriptionStatusBadge(subscription.status)} />
               <Badge label={String(subscription.paymentStatus || 'n/a').toUpperCase()} variant={paymentStatusBadge(subscription.paymentStatus)} />
+              {isExpiringSoon(subscription) ? <Badge label="Expiring soon" variant="warning" /> : null}
             </View>
+            <Text style={styles.remaining}>{remainingDaysLabel(subscription.expiryDate)}</Text>
           </Card>
 
           <Card padded>
@@ -195,6 +198,10 @@ return (
               </Text>
             </View>
             <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Duration</Text>
+              <Text style={styles.detailValue}>{subscriptionDurationLabel(subscription.startDate, subscription.expiryDate)}</Text>
+            </View>
+            <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Auto-renew</Text>
               <Text style={styles.detailValue}>{subscription.autoRenew ? 'On' : 'Off'}</Text>
             </View>
@@ -204,8 +211,8 @@ return (
             <Text style={styles.sectionTitle}>Actions</Text>
             <View style={styles.actionGrid}>
               <Button title="Change Plan" variant="secondary" fullWidth={false} style={styles.actionBtn} icon="swap-horizontal-outline" onPress={() => setChangePlanOpen(true)} />
-              <Button title="Renew" variant="secondary" fullWidth={false} style={styles.actionBtn} icon="refresh-outline" onPress={renew} />
-              <Button title="+30 days" variant="secondary" fullWidth={false} style={styles.actionBtn} icon="calendar-outline" onPress={extend30} />
+              <Button title="Renew" variant="secondary" fullWidth={false} style={styles.actionBtn} icon="refresh-outline" onPress={() => setPendingAction('renew')} />
+              <Button title="+30 days" variant="secondary" fullWidth={false} style={styles.actionBtn} icon="calendar-outline" onPress={() => setPendingAction('extend')} />
               <Button title="Activate" variant="secondary" fullWidth={false} style={styles.actionBtn} icon="play-outline" onPress={() => setPendingAction('activate')} />
               <Button title="Suspend" variant="outline" fullWidth={false} style={styles.actionBtn} icon="pause-outline" onPress={() => setPendingAction('suspend')} />
               <Button title="Mark Paid" variant="outline" fullWidth={false} style={styles.actionBtn} icon="checkmark-done-outline" onPress={() => setPendingAction('paid')} />
@@ -266,6 +273,7 @@ return (
               ))
             )}
           </Card>
+          </View>
         </ScrollView>
       ) : null}
       <ConfirmDialog
@@ -277,7 +285,11 @@ return (
               ? 'Suspend subscription?'
               : pendingAction === 'cancel'
                 ? 'Cancel subscription?'
-                : 'Mark as paid?'
+                : pendingAction === 'renew'
+                  ? 'Renew subscription?'
+                  : pendingAction === 'extend'
+                    ? 'Extend subscription by 30 days?'
+                    : 'Mark as paid?'
         }
         message={
           pendingAction === 'activate'
@@ -286,7 +298,11 @@ return (
               ? 'This hospital subscription will be temporarily suspended.'
               : pendingAction === 'cancel'
                 ? 'This will permanently cancel the hospital subscription. The action is recorded.'
-                : 'Mark the current cycle payment as paid.'
+                : pendingAction === 'renew'
+                  ? 'This will record a renewal for the hospital subscription.'
+                  : pendingAction === 'extend'
+                    ? 'This will add 30 days to the current expiry date.'
+                    : 'Mark the current cycle payment as paid.'
         }
         confirmLabel={
           pendingAction === 'activate'
@@ -295,7 +311,11 @@ return (
               ? 'Suspend'
               : pendingAction === 'cancel'
                 ? 'Cancel subscription'
-                : 'Mark paid'
+                : pendingAction === 'renew'
+                  ? 'Renew'
+                  : pendingAction === 'extend'
+                    ? 'Extend 30 days'
+                    : 'Mark paid'
         }
         tone={pendingAction === 'cancel' ? 'danger' : 'primary'}
         loading={actionLoading}
@@ -339,10 +359,12 @@ return (
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xxxl, gap: Spacing.md },
+  contentWrap: { width: '100%', maxWidth: 1000, alignSelf: 'center', gap: Spacing.md },
   backButton: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   hospitalName: { ...Typography.h4, color: Palette.text },
   muted: { ...Typography.bodySmall, color: Palette.textMuted },
-  badges: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm },
+  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginTop: Spacing.sm },
+  remaining: { ...Typography.label, color: Palette.primaryDark, marginTop: Spacing.sm },
   sectionTitle: { ...Typography.label, color: Palette.text, marginBottom: Spacing.sm },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: Spacing.xs, borderBottomWidth: 1, borderBottomColor: Palette.divider },
   detailLabel: { ...Typography.bodySmall, color: Palette.textMuted },
