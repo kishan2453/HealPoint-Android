@@ -5,7 +5,7 @@
  * Appointment -> Payment -> Doctor Consultation -> Digital Prescription -> Medical Report -> Follow-up -> Next Appointment.
  */
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { DrawerToggleButton } from "@/components/DrawerToggleButton";
+import { FamilyMemberFilterBar } from "@/components/FamilyMemberFilterBar";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -62,9 +63,13 @@ const FILTER_TABS: {
 
 export default function HealthTimelineScreen() {
   const router = useRouter();
+  const { memberId } = useLocalSearchParams<{ memberId?: string }>();
   const { user } = useAuth();
 
   const [activeFilter, setActiveFilter] = useState<TimelineFilterType>("all");
+  const [familyMemberFilter, setFamilyMemberFilter] = useState<string>(
+    memberId || "all",
+  );
   const [events, setEvents] = useState<PatientTimelineEvent[]>([]);
   const [summary, setSummary] = useState<PatientTimelineSummary | null>(null);
   const [page, setPage] = useState(1);
@@ -85,6 +90,7 @@ export default function HealthTimelineScreen() {
         const res: PatientTimelineResponse =
           await appointmentService.getPatientHealthTimeline({
             filter: activeFilter,
+            familyMemberId: familyMemberFilter,
             page: targetPage,
             limit: 15,
           });
@@ -111,7 +117,7 @@ export default function HealthTimelineScreen() {
         setLoadingMore(false);
       }
     },
-    [activeFilter],
+    [activeFilter, familyMemberFilter],
   );
 
   useScreenFocus(
@@ -123,7 +129,7 @@ export default function HealthTimelineScreen() {
 
   useEffect(() => {
     loadTimeline(1, false);
-  }, [activeFilter, user?._id]);
+  }, [activeFilter, familyMemberFilter, user?._id]);
 
   const onRefresh = () => {
     loadTimeline(1, false, true);
@@ -470,6 +476,12 @@ export default function HealthTimelineScreen() {
           <DrawerToggleButton />
         </View>
       </View>
+
+      {/* Family Member Isolation Filter */}
+      <FamilyMemberFilterBar
+        selectedMemberId={familyMemberFilter}
+        onSelectMember={setFamilyMemberFilter}
+      />
 
       {/* Main List */}
       {loading ? (

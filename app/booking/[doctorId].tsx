@@ -11,6 +11,7 @@ import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   Pressable,
   ScrollView,
@@ -49,7 +50,16 @@ import { isValidIndianPhone } from "@/lib/validation";
 import { ApiClientError, toErrorMessage } from "@/services/api";
 import * as appointmentService from "@/services/appointments";
 import { getDoctorDetails } from "@/services/doctors";
-import type { ConsultationType, Doctor, PaymentMethod } from "@/types";
+import * as familyService from "@/services/family";
+import * as subscriptionService from "@/services/subscriptions";
+import type {
+  ConsultationType,
+  Doctor,
+  FamilyMember,
+  FamilyRelationship,
+  PaymentMethod,
+  UserSubscriptionEntitlement,
+} from "@/types";
 
 const STEPS = ["Date", "Time", "Confirm"] as const;
 type StepKey = (typeof STEPS)[number];
@@ -86,6 +96,8 @@ function BookingConfirmationView({
   selectedDateStr,
   selectedSlot,
   consultationType,
+  patientName,
+  patientRelationship,
   successAppointmentId,
   successReference,
   onViewPass,
@@ -99,6 +111,8 @@ function BookingConfirmationView({
   selectedDateStr: string;
   selectedSlot: string;
   consultationType: ConsultationType;
+  patientName?: string;
+  patientRelationship?: string;
   successAppointmentId: string;
   successReference: string;
   onViewPass: () => void;
@@ -219,6 +233,13 @@ function BookingConfirmationView({
 
           {/* Full Summary Card */}
           <Card padded style={styles.confirmCard}>
+            {patientName ? (
+              <ConfirmRow
+                icon="person-circle"
+                label="Patient"
+                value={`${patientName}${patientRelationship ? ` (${patientRelationship})` : ""}`}
+              />
+            ) : null}
             <ConfirmRow
               icon="person"
               label="Attending Doctor"
@@ -291,10 +312,11 @@ function BookingConfirmationView({
 
 export default function BookingScreen() {
   const router = useRouter();
-  const { doctorId, type, mode } = useLocalSearchParams<{
+  const { doctorId, type, mode, memberId } = useLocalSearchParams<{
     doctorId?: string;
     type?: string;
     mode?: string;
+    memberId?: string;
   }>();
   const { user } = useAuth();
 
@@ -306,6 +328,41 @@ export default function BookingScreen() {
   const [doctor, setDoctor] = useState<Doctor | null>(null);
   const [loadingDoctor, setLoadingDoctor] = useState(true);
   const [loadError, setLoadError] = useState("");
+
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+  const [selectedPatientType, setSelectedPatientType] = useState<
+    "self" | "family"
+  >(memberId ? "family" : "self");
+  const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState<string>(
+    memberId || "",
+  );
+
+  useEffect(() => {
+    if (!user?._id) return;
+    familyService
+      .getFamilyMembers(user._id)
+      .then((list) => {
+        setFamilyMembers(list);
+        if (memberId && list.some((m) => m._id === memberId)) {
+          setSelectedPatientType("family");
+          setSelectedFamilyMemberId(memberId);
+        }
+      })
+      .catch(() => {});
+  }, [user?._id, memberId]);
+
+  const selectedMember = useMemo(() => {
+    if (selectedPatientType === "self") return null;
+    return familyMembers.find((m) => m._id === selectedFamilyMemberId) || null;
+  }, [selectedPatientType, selectedFamilyMemberId, familyMembers]);
+
+  const patientName = selectedMember
+    ? selectedMember.name
+    : user?.name || "Patient";
+  const patientRelationship: FamilyRelationship = selectedMember
+    ? selectedMember.relationship
+    : "Self";
+  const activePhone = (selectedMember?.phone || user?.phone || "").trim();
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
@@ -320,12 +377,72 @@ export default function BookingScreen() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
     requestedType === "video" ? "online" : "cash",
   );
+  const [entitlement, setEntitlement] =
+    useState<UserSubscriptionEntitlement | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [bookingError, setBookingError] = useState("");
   const [successAppointmentId, setSuccessAppointmentId] = useState("");
   const [successReference, setSuccessReference] = useState("");
 
-  const phoneValid = isValidIndianPhone(user?.phone || "");
+  useEffect(() => {
+    let active = true;
+    subscriptionService
+      .getPatientSubscriptionEntitlement()
+      .then((ent) => {
+        if (!active) return;
+        setEntitlement(ent);
+        if (requestedType === "video" && !ent.isEligibleForVideoConsultation) {
+          setConsultationType("clinic");
+          setPaymentMethod("cash");
+          router.push({
+            pathname: "/(drawer)/subscription",
+            params: { notice: ent.code || "subscription_required" },
+          });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [requestedType, router]);
+
+  const handleSelectVideoConsultation = async () => {
+    try {
+      const ent =
+        entitlement ||
+        (await subscriptionService.getPatientSubscriptionEntitlement());
+      setEntitlement(ent);
+      if (!ent.isEligibleForVideoConsultation) {
+        Alert.alert(
+          ent.code === "quota_exhausted"
+            ? "Limit Reached"
+            : "Subscription Required",
+          ent.code === "quota_exhausted"
+            ? "Your monthly video consultation limit has been reached. Choose an eligible plan to continue."
+            : "Video consultations are available with an active premium plan. Choose a plan to continue.",
+          [
+            { text: "Stay on Clinic Visit", style: "cancel" },
+            {
+              text: "View Plans",
+              onPress: () => {
+                router.push({
+                  pathname: "/(drawer)/subscription",
+                  params: { notice: ent.code || "subscription_required" },
+                });
+              },
+            },
+          ],
+        );
+        return;
+      }
+      setConsultationType("video");
+      setPaymentMethod("online");
+    } catch {
+      setConsultationType("video");
+    }
+  };
+
+  const phoneValid = isValidIndianPhone(activePhone || user?.phone || "");
   const onlineAvailable = isRazorpayCheckoutAvailable();
 
   // Next 7 days starting from today
@@ -426,6 +543,31 @@ export default function BookingScreen() {
       return;
     }
 
+    if (
+      consultationType === "video" &&
+      entitlement &&
+      !entitlement.isEligibleForVideoConsultation
+    ) {
+      Alert.alert(
+        "Subscription Required",
+        entitlement.message ||
+          "An active subscription plan is required for video consultations.",
+        [
+          { text: "Stay on Clinic Visit", style: "cancel" },
+          {
+            text: "View Plans",
+            onPress: () => {
+              router.push({
+                pathname: "/(drawer)/subscription",
+                params: { notice: entitlement.code || "subscription_required" },
+              });
+            },
+          },
+        ],
+      );
+      return;
+    }
+
     setSubmitting(true);
     try {
       const res = await appointmentService.bookAppointment({
@@ -436,6 +578,12 @@ export default function BookingScreen() {
         consultationType,
         consultationMode:
           consultationType === "video" ? consultationMode : "scheduled",
+        familyMemberId: selectedMember ? selectedMember._id : undefined,
+        patientName,
+        patientRelationship,
+        patientPhone: activePhone,
+        patientGender: selectedMember?.gender || user?.gender,
+        patientDob: selectedMember?.dob || user?.dob,
       });
 
       const booked = res.appointment as unknown as
@@ -468,7 +616,19 @@ export default function BookingScreen() {
           booked?.appointmentId || booked?.displayAppointmentId || bookedId,
         ),
       );
-    } catch (err) {
+    } catch (err: any) {
+      const rawCode = err?.raw?.code;
+      if (
+        rawCode === "subscription_required" ||
+        rawCode === "quota_exhausted"
+      ) {
+        router.push({
+          pathname: "/(drawer)/subscription",
+          params: { notice: rawCode },
+        });
+        return;
+      }
+
       const message = toErrorMessage(err, "Booking failed. Please try again.");
       const serverMessage =
         err instanceof ApiClientError ? err.serverMessage || "" : "";
@@ -545,6 +705,8 @@ export default function BookingScreen() {
         selectedDateStr={selectedDateStr}
         selectedSlot={selectedSlot}
         consultationType={consultationType}
+        patientName={patientName}
+        patientRelationship={patientRelationship}
         successAppointmentId={successAppointmentId}
         successReference={successReference}
         onViewPass={() =>
@@ -1028,7 +1190,7 @@ export default function BookingScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ selected: consultationType === "video" }}
-                onPress={() => setConsultationType("video")}
+                onPress={handleSelectVideoConsultation}
                 style={[
                   styles.typeChip,
                   consultationType === "video" && styles.typeChipActive,
@@ -1087,7 +1249,112 @@ export default function BookingScreen() {
             </View>
           </View>
 
-          <Text style={styles.payLabel}>Payment Method</Text>
+          {/* Patient Selector ("Who is this appointment for?") */}
+          <Text style={styles.payLabel}>Who is this appointment for?</Text>
+          <View style={styles.patientChipsRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: selectedPatientType === "self" }}
+              onPress={() => setSelectedPatientType("self")}
+              style={[
+                styles.patientChip,
+                selectedPatientType === "self" && styles.patientChipActive,
+              ]}
+            >
+              <Ionicons
+                name="person"
+                size={14}
+                color={
+                  selectedPatientType === "self"
+                    ? Palette.primary
+                    : Palette.textMuted
+                }
+              />
+              <Text
+                style={[
+                  styles.patientChipText,
+                  selectedPatientType === "self" &&
+                    styles.patientChipTextActive,
+                ]}
+              >
+                Myself ({user?.name ? user.name.split(" ")[0] : "Self"})
+              </Text>
+            </Pressable>
+
+            {familyMembers.map((member) => {
+              const active =
+                selectedPatientType === "family" &&
+                selectedFamilyMemberId === member._id;
+              return (
+                <Pressable
+                  key={member._id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  onPress={() => {
+                    setSelectedPatientType("family");
+                    setSelectedFamilyMemberId(member._id);
+                  }}
+                  style={[
+                    styles.patientChip,
+                    active && styles.patientChipActive,
+                  ]}
+                >
+                  <Ionicons
+                    name="people"
+                    size={14}
+                    color={active ? Palette.primary : Palette.textMuted}
+                  />
+                  <Text
+                    style={[
+                      styles.patientChipText,
+                      active && styles.patientChipTextActive,
+                    ]}
+                  >
+                    {member.name} ({member.relationship})
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <Pressable
+            style={styles.addMemberLink}
+            onPress={() => router.push("/(drawer)/health/family" as never)}
+          >
+            <Ionicons
+              name="add-circle-outline"
+              size={16}
+              color={Palette.primary}
+            />
+            <Text style={styles.addMemberLinkText}>
+              Add or manage family members
+            </Text>
+          </Pressable>
+
+          {/* Active Patient Notice */}
+          <View style={styles.patientNoticeBox}>
+            <Ionicons
+              name={
+                selectedPatientType === "self"
+                  ? "person-circle"
+                  : "people-circle"
+              }
+              size={18}
+              color={Palette.primary}
+            />
+            <Text style={styles.patientNoticeText}>
+              Booking for:{" "}
+              <Text style={{ fontWeight: "700", color: Palette.text }}>
+                {patientName}
+              </Text>{" "}
+              ({patientRelationship})
+              {selectedMember?.dob ? ` • DOB: ${selectedMember.dob}` : ""}
+            </Text>
+          </View>
+
+          <Text style={[styles.payLabel, { marginTop: Spacing.md }]}>
+            Payment Method
+          </Text>
           <View style={styles.payRow}>
             <Pressable
               accessibilityRole="button"
@@ -1169,6 +1436,10 @@ export default function BookingScreen() {
 
           {/* Booking Summary Box */}
           <View style={styles.summary}>
+            <SummaryRow
+              label="Patient"
+              value={`${patientName} (${patientRelationship})`}
+            />
             <SummaryRow label="Doctor" value={formatDoctorName(doctor.name)} />
             <SummaryRow label="Department" value={specialtyLabel} />
             <SummaryRow label="Hospital" value={hospitalName} />
@@ -1669,6 +1940,64 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  patientChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.xs,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.xs,
+  },
+  patientChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.sm + 4,
+    paddingVertical: Spacing.xs + 2,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    backgroundColor: Palette.surfaceAlt,
+    gap: 6,
+  },
+  patientChipActive: {
+    backgroundColor: `${Palette.primary}20`,
+    borderColor: Palette.primary,
+  },
+  patientChipText: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+  },
+  patientChipTextActive: {
+    color: Palette.primary,
+    fontWeight: "700",
+  },
+  addMemberLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.xs,
+  },
+  addMemberLinkText: {
+    ...Typography.caption,
+    color: Palette.primary,
+    fontWeight: "600",
+  },
+  patientNoticeBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: `${Palette.primary}10`,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs + 2,
+    borderRadius: Radius.sm,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.xs,
+  },
+  patientNoticeText: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    flex: 1,
   },
   payRow: {
     flexDirection: "row",

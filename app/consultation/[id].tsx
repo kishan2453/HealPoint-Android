@@ -48,6 +48,7 @@ import {
 } from "@/lib/meet";
 import { toErrorMessage } from "@/services/api";
 import * as consultationService from "@/services/consultations";
+import * as subscriptionService from "@/services/subscriptions";
 import type { CareJourney, PatientConsultationDetail } from "@/types";
 
 function statusBadge(status?: string): {
@@ -166,6 +167,8 @@ export default function ConsultationDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [joinError, setJoinError] = useState("");
+  const [joinSubscriptionRequired, setJoinSubscriptionRequired] =
+    useState(false);
   const [joining, setJoining] = useState(false);
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
 
@@ -203,10 +206,27 @@ export default function ConsultationDetailScreen() {
     if (!id || joining) return;
     setJoining(true);
     setJoinError("");
+    setJoinSubscriptionRequired(false);
     try {
-      // 1. Authorize with backend — enforces participant ownership, payment & time window
+      // 1. Verify patient video consultation subscription entitlement
+      const entitlement = await subscriptionService
+        .getPatientSubscriptionEntitlement()
+        .catch(() => null);
+      if (entitlement && !entitlement.isEligibleForVideoConsultation) {
+        setJoinSubscriptionRequired(true);
+        setJoinError(entitlement.message);
+        return;
+      }
+
+      // 2. Authorize with backend — enforces participant ownership, payment & time window
       const res = await consultationService.getPatientMeetingLink(String(id));
       if (!res.allowed || !res.meetingUrl) {
+        if (
+          res.subscriptionCode === "subscription_required" ||
+          res.subscriptionCode === "quota_exhausted"
+        ) {
+          setJoinSubscriptionRequired(true);
+        }
         setJoinError(
           res.message ||
             "Video meeting link is not ready yet. Please try again shortly.",
@@ -214,7 +234,7 @@ export default function ConsultationDetailScreen() {
         return;
       }
 
-      // 2. Open external Google Meet safely
+      // 3. Open external Google Meet safely
       const opened = openGoogleMeetUrl(res.meetingUrl);
       if (!opened) {
         setJoinError(
@@ -557,6 +577,16 @@ export default function ConsultationDetailScreen() {
           )}
 
           {joinError ? <FormMessage type="error" message={joinError} /> : null}
+
+          {joinSubscriptionRequired ? (
+            <Button
+              title="Upgrade Subscription Plan"
+              variant="primary"
+              icon="shield-checkmark"
+              onPress={() => router.push("/subscription")}
+              style={{ marginTop: Spacing.sm }}
+            />
+          ) : null}
         </Card>
 
         {/* ---------------- Care Journey Timeline ---------------- */}

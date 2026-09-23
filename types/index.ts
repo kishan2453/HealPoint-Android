@@ -54,6 +54,34 @@ export type UserRole =
   | "admin"
   | "super_admin";
 
+export type FamilyRelationship =
+  | "Self"
+  | "Father"
+  | "Mother"
+  | "Spouse"
+  | "Son"
+  | "Daughter"
+  | "Brother"
+  | "Sister"
+  | "Other";
+
+export interface FamilyMember {
+  _id: string;
+  userId: string;
+  name: string;
+  relationship: FamilyRelationship;
+  gender?: "male" | "female" | "other" | string;
+  dob?: string;
+  phone?: string;
+  bloodGroup?: string;
+  allergies?: string[];
+  chronicConditions?: string[];
+  image?: string;
+  isArchived?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface User {
   _id: string;
   name: string;
@@ -72,6 +100,7 @@ export interface User {
     relation?: string;
   };
   role?: UserRole;
+  familyMembers?: FamilyMember[];
   // Doctor portal context (populated for doctors via /doctor/login).
   hospitalId?: string;
   hospitalName?: string;
@@ -379,6 +408,9 @@ export interface Appointment {
   patientName?: string;
   patientId?: any;
   patientPhone?: string;
+  familyMemberId?: string;
+  familyRelationship?: FamilyRelationship;
+  isFamilyBooking?: boolean;
   amount?: number;
   consultationType?: ConsultationType;
   consultationMode?: ConsultationMode;
@@ -517,10 +549,44 @@ export interface PatientDiagnosisItem {
 }
 
 export interface PatientFollowUpItem {
+  id?: string;
   appointmentId: string;
-  date: string;
+  displayAppointmentId?: string;
+  date?: string;
+  originalVisitDate?: string;
+  originalVisitTime?: string;
+  doctorId?: string;
   doctorName?: string;
+  doctorSpecialty?: string;
+  hospitalName?: string;
+  department?: string;
+  consultationType?: "clinic" | "video";
   advice: string;
+  timeframe?: string;
+  recommendedTimeframe?: string;
+  targetDate?: string;
+  recommendedTargetDate?: string;
+  status?: "pending_booking" | "scheduled" | "completed" | "cancelled";
+  statusLabel?: string;
+  statusVariant?: "warning" | "primary" | "success" | "neutral";
+  hasPrescription?: boolean;
+  medicinesCount?: number;
+  hasReports?: boolean;
+  reportsCount?: number;
+  linkedAppointmentId?: string;
+  linkedAppointmentDate?: string;
+  linkedAppointmentTime?: string;
+  actionRoute?: string;
+  actionParams?: Record<string, string>;
+  actionLabel?: string;
+  nextAction?: {
+    key: string;
+    label: string;
+    icon: string;
+    variant: "primary" | "secondary" | "outline";
+    route: string;
+    params?: Record<string, string>;
+  };
 }
 
 export interface PatientMedicalHistoryResponse {
@@ -739,6 +805,9 @@ export interface AppointmentDetails {
   bookingStatusLabel?: string;
   patientName?: string;
   patientPhone?: string;
+  familyMemberId?: string;
+  familyRelationship?: FamilyRelationship;
+  isFamilyBooking?: boolean;
   statusHistory?: AppointmentStatusHistoryItem[];
   medicalReports?: AppointmentMedicalReportItem[];
   appointmentHistory?: unknown[];
@@ -791,6 +860,12 @@ export interface BookAppointmentPayload {
   paymentMethod?: PaymentMethod;
   consultationType?: ConsultationType;
   consultationMode?: ConsultationMode;
+  familyMemberId?: string;
+  patientName?: string;
+  patientRelationship?: FamilyRelationship;
+  patientPhone?: string;
+  patientGender?: string;
+  patientDob?: string;
 }
 
 export interface BookAppointmentResponse {
@@ -1103,7 +1178,16 @@ export type SubscriptionPaymentStatus =
 
 export interface SubscriptionPlan {
   _id: string;
-  key: "free" | "basic" | "professional" | "premium" | "enterprise";
+  key:
+    | "free"
+    | "gold"
+    | "platinum"
+    | "prime"
+    | "basic"
+    | "professional"
+    | "premium"
+    | "enterprise"
+    | (string & {});
   name: string;
   monthlyPrice: number;
   yearlyPrice: number;
@@ -1113,6 +1197,8 @@ export interface SubscriptionPlan {
   trialDays: number;
   sortOrder: number;
   subscriberCount: number;
+  /** Monthly video consultations included (0 for Free, 4 Gold, 7 Platinum, 10 Prime, or Super Admin configured). */
+  videoConsultationsMonthly?: number;
   /** Healthcare-themed plan picture/artwork (stored on the plan record). */
   imageUrl?: string;
   /** Optional short marketing description shown on the plan card. */
@@ -1145,7 +1231,8 @@ export interface SubscriptionPaymentRecord {
 
 export interface Subscription {
   _id: string;
-  hospitalId: string | Hospital;
+  userId?: string;
+  hospitalId?: string | Hospital;
   hospital?: Hospital | null;
   hospitalName?: string;
   planId?: string;
@@ -1159,6 +1246,11 @@ export interface Subscription {
   billingCycle: SubscriptionBillingCycle;
   paymentStatus: SubscriptionPaymentStatus;
   autoRenew: boolean;
+  videoConsultationsAllowance?: number;
+  videoConsultationsUsed?: number;
+  videoConsultationsRemaining?: number;
+  billingPeriodStart?: string;
+  billingPeriodEnd?: string;
   history: SubscriptionHistoryEntry[];
   payments: SubscriptionPaymentRecord[];
   createdAt?: string;
@@ -1211,6 +1303,35 @@ export interface SubscriptionPlansResponse {
   success: boolean;
   message?: string;
   plans: SubscriptionPlan[];
+}
+
+export type SubscriptionEntitlementCode =
+  | "consultation_available"
+  | "quota_exhausted"
+  | "subscription_required"
+  | "appointment_not_eligible";
+
+export interface UserSubscriptionEntitlement {
+  hasActiveSubscription: boolean;
+  planKey: string;
+  planName: string;
+  monthlyQuota: number;
+  usedThisMonth: number;
+  remainingQuota: number;
+  isEligibleForVideoConsultation: boolean;
+  code: SubscriptionEntitlementCode;
+  message: string;
+  billingPeriodStart?: string;
+  billingPeriodEnd?: string;
+  expiryDate?: string;
+  canUpgrade: boolean;
+  activePlan?: SubscriptionPlan;
+}
+
+export interface SubscriptionEntitlementResponse {
+  success: boolean;
+  message?: string;
+  entitlement: UserSubscriptionEntitlement;
 }
 
 export type SubscriptionListSort = "renewal" | "amount" | "hospital" | "recent";
@@ -1427,6 +1548,9 @@ export interface PatientMeetingLinkResponse {
   meetingUrl?: string;
   meetingStatus?: MeetingStatus;
   consultationStatus?: ConsultationStatus;
+  subscriptionCode?: SubscriptionEntitlementCode;
+  quotaRemaining?: number;
+  monthlyQuota?: number;
 }
 
 export interface DoctorConsultationPatient {

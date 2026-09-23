@@ -97,6 +97,11 @@ export function patientDrawerMenu(): DrawerMenuSection[] {
           href: "/health/reports" as Href,
         },
         {
+          label: "Follow-Ups & Care Plans",
+          icon: "refresh-outline",
+          href: "/health/follow-ups" as Href,
+        },
+        {
           label: "Family Members",
           icon: "people-outline",
           href: "/health/family" as Href,
@@ -106,6 +111,11 @@ export function patientDrawerMenu(): DrawerMenuSection[] {
     {
       title: "Payments",
       items: [
+        {
+          label: "Subscription & Plans",
+          icon: "shield-checkmark-outline",
+          href: "/subscription" as Href,
+        },
         {
           label: "Payment History",
           icon: "card-outline",
@@ -159,6 +169,11 @@ export function doctorDrawerMenu(): DrawerMenuSection[] {
           href: "/doctor/patients" as Href,
         },
         {
+          label: "Follow-Ups & Care Plans",
+          icon: "refresh-outline",
+          href: "/doctor/follow-ups" as Href,
+        },
+        {
           label: "Availability",
           icon: "time-outline",
           href: "/doctor/availability" as Href,
@@ -194,6 +209,16 @@ export function adminDrawerMenu(): DrawerMenuSection[] {
       title: "Hospital",
       items: [
         { label: "Dashboard", icon: "grid-outline", href: "/(admin)" as Href },
+        {
+          label: "Operations Center",
+          icon: "pulse-outline",
+          href: "/admin/operations" as Href,
+        },
+        {
+          label: "Online Consultations",
+          icon: "videocam-outline",
+          href: "/admin/consultations" as Href,
+        },
         {
           label: "Hospital Profile",
           icon: "business-outline",
@@ -288,6 +313,16 @@ export function adminDrawerMenu(): DrawerMenuSection[] {
           label: "Settings",
           icon: "settings-outline",
           href: "/admin/settings" as Href,
+        },
+        {
+          label: "Help & Support",
+          icon: "help-buoy-outline",
+          href: "/admin/support" as Href,
+        },
+        {
+          label: "Security",
+          icon: "shield-checkmark-outline",
+          href: "/admin/security" as Href,
         },
       ],
     },

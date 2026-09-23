@@ -5,13 +5,20 @@
  * endpoints manage the full platform.
  */
 import { api } from "./api";
+import {
+  computeSubscriptionEntitlement,
+  DEFAULT_SUBSCRIPTION_PLANS,
+} from "@/lib/subscription-entitlement";
 import type {
   Subscription,
   SubscriptionDetailResponse,
+  SubscriptionEntitlementResponse,
   SubscriptionListResponse,
   SubscriptionListSort,
   SubscriptionOverview,
   SubscriptionPlansResponse,
+  UserAppointmentsResponse,
+  UserSubscriptionEntitlement,
 } from "@/types";
 
 export async function getSubscriptionOverview(): Promise<{
@@ -75,6 +82,7 @@ export async function createPlan(payload: {
   monthlyPrice: number;
   yearlyPrice: number;
   features: string[];
+  videoConsultationsMonthly?: number;
   isActive?: boolean;
   trialDays?: number;
   sortOrder?: number;
@@ -99,6 +107,7 @@ export async function updatePlan(
     monthlyPrice: number;
     yearlyPrice: number;
     features: string[];
+    videoConsultationsMonthly: number;
     trialDays: number;
     sortOrder: number;
     imageUrl?: string;
@@ -269,4 +278,58 @@ export async function verifySubscriptionPayment(
     payload,
     { auth: true },
   );
+}
+
+/**
+ * Retrieves the current patient's subscription entitlement, video consultation quota,
+ * and eligibility. First checks server endpoint `/subscription/entitlement`, then
+ * gracefully falls back to deterministic entitlement calculation from the user's
+ * real subscription status, configured plans, and confirmed appointments.
+ */
+export async function getPatientSubscriptionEntitlement(): Promise<UserSubscriptionEntitlement> {
+  try {
+    const res = await api.get<SubscriptionEntitlementResponse>(
+      "/subscription/entitlement",
+      { auth: true },
+    );
+    if (res && res.success && res.entitlement) {
+      return res.entitlement;
+    }
+  } catch {
+    // Graceful fallback to server-synced entitlement calculation
+  }
+
+  try {
+    const [subRes, plansRes, apptsRes] = await Promise.all([
+      getMySubscription().catch(() => null),
+      getPlans().catch(() => null),
+      api
+        .get<UserAppointmentsResponse>(
+          "/appointment/get-user-appointments/me",
+          {
+            auth: true,
+          },
+        )
+        .catch(() => null),
+    ]);
+
+    const subscription = subRes?.subscription || null;
+    const plans =
+      plansRes?.plans && plansRes.plans.length > 0
+        ? plansRes.plans
+        : DEFAULT_SUBSCRIPTION_PLANS;
+    const appointments = apptsRes?.appoinmtent || [];
+
+    return computeSubscriptionEntitlement({
+      subscription,
+      plans,
+      appointments,
+    });
+  } catch {
+    return computeSubscriptionEntitlement({
+      subscription: null,
+      plans: DEFAULT_SUBSCRIPTION_PLANS,
+      appointments: [],
+    });
+  }
 }

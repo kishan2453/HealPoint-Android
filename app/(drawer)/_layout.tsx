@@ -105,6 +105,10 @@ export default function DrawerLayout() {
           options={{ title: "Payment History", ...hidden }}
         />
         <Drawer.Screen
+          name="subscription"
+          options={{ title: "Subscription & Plans", ...hidden }}
+        />
+        <Drawer.Screen
           name="support"
           options={{ title: "Help & Support", ...hidden }}
         />

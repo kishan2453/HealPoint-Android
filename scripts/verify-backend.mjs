@@ -45,8 +45,10 @@ const loopbackUrl = loopbackBase(apiBase);
 const results = [];
 async function probe(label, url, check) {
   const start = Date.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    const res = await fetch(url, { signal: controller.signal });
     const ms = Date.now() - start;
     let body = null;
     try {
@@ -58,8 +60,16 @@ async function probe(label, url, check) {
     results.push({ label, url, ok, status: res.status, ms, body });
     return ok;
   } catch (err) {
-    results.push({ label, url, ok: false, error: err?.message, ms: Date.now() - start });
+    results.push({
+      label,
+      url,
+      ok: false,
+      error: err?.message,
+      ms: Date.now() - start,
+    });
     return false;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -69,25 +79,29 @@ console.log(`[verify] API base (loopback check): ${loopbackUrl}`);
 const healthOk = await probe(
   "health (loopback)",
   `${loopbackUrl}/health`,
-  (status, body) => status === 200 && body?.ok === true && body?.database === "connected",
+  (status, body) =>
+    status === 200 && body?.ok === true && body?.database === "connected",
 );
 
 const onlineDoctorsOk = await probe(
   "online-doctors (loopback)",
   `${loopbackUrl}/consultation/online-doctors`,
-  (status, body) => status === 200 && body?.success === true && Array.isArray(body?.doctors),
+  (status, body) =>
+    status === 200 && body?.success === true && Array.isArray(body?.doctors),
 );
 
 const healthLanOk = await probe(
   "health (LAN/app)",
   `${apiBase}/health`,
-  (status, body) => status === 200 && body?.ok === true && body?.database === "connected",
+  (status, body) =>
+    status === 200 && body?.ok === true && body?.database === "connected",
 );
 
 const onlineDoctorsLanOk = await probe(
   "online-doctors (LAN/app)",
   `${apiBase}/consultation/online-doctors`,
-  (status, body) => status === 200 && body?.success === true && Array.isArray(body?.doctors),
+  (status, body) =>
+    status === 200 && body?.success === true && Array.isArray(body?.doctors),
 );
 
 console.log("\n[verify] results:");
@@ -98,7 +112,8 @@ for (const r of results) {
   if (!r.ok) {
     console.log(`        url: ${r.url}`);
     if (r.error) console.log(`        error: ${r.error}`);
-    if (r.body) console.log(`        body: ${JSON.stringify(r.body).slice(0, 200)}`);
+    if (r.body)
+      console.log(`        body: ${JSON.stringify(r.body).slice(0, 200)}`);
   }
 }
 
@@ -114,11 +129,17 @@ if (backendUp && !lanReachable) {
   );
   console.log(
     "[verify] the path the phone uses. Confirm the phone can open",
-    `${apiBase.replace(/\/api\/v1$/, '')}/ in its Chrome (network), and add an inbound rule if not.`,
+    `${apiBase.replace(/\/api\/v1$/, "")}/ in its Chrome (network), and add an inbound rule if not.`,
   );
 }
 
 const allOk = backendUp && lanReachable;
-if (backendUp && !lanReachable) console.log("\n[verify] BACKEND UP (loopback PASS, LAN self-check blocked by firewall)");
-else console.log(allOk ? "\n[verify] ALL CHECKS PASSED" : "\n[verify] SOME CHECKS FAILED");
-process.exit(backendUp ? 0 : 1);
+if (backendUp && !lanReachable)
+  console.log(
+    "\n[verify] BACKEND UP (loopback PASS, LAN self-check blocked by firewall)",
+  );
+else
+  console.log(
+    allOk ? "\n[verify] ALL CHECKS PASSED" : "\n[verify] SOME CHECKS FAILED",
+  );
+process.exitCode = backendUp && lanReachable ? 0 : backendUp ? 0 : 1;

@@ -30,7 +30,7 @@ import Constants from "expo-constants";
 export const API_PORT = 8080;
 
 /** Verified active Wi-Fi LAN IPv4 of the backend host. */
-export const DEFAULT_LAN_IP = "10.41.240.176";
+export const DEFAULT_LAN_IP = "192.168.1.36";
 
 /** Every API route lives under this base path on the backend. */
 export const API_BASE_PATH = "/api/v1";
@@ -258,12 +258,43 @@ export function describeApiEndpoint(): string {
   }
 }
 
-/** Log the resolved endpoint + source once in development builds. */
-if (__DEV__) {
+export type ApiUrlType = "localhost" | "lan" | "public" | "unconfigured";
+
+export function getApiUrlType(url: string = API_URL): ApiUrlType {
+  if (!url || url.includes(PLACEHOLDER_HOST)) return "unconfigured";
+  if (url.includes("localhost") || url.includes("127.0.0.1"))
+    return "localhost";
+  if (isPrivateLanUrl(url)) return "lan";
+  return "public";
+}
+
+export interface ApiDiagnosticInfo {
+  apiUrl: string;
+  endpoint: string;
+  environment: "development" | "production";
+  urlType: ApiUrlType;
+  source: string;
+  isConfigured: boolean;
+}
+
+export function getApiDiagnosticInfo(): ApiDiagnosticInfo {
   const source = envApiUrl()
     ? "EXPO_PUBLIC_API_URL"
     : detectMetroHost()
       ? "Metro dev server host"
       : "verified LAN IP fallback";
-  console.log(`[env] API base URL: ${API_URL} (source: ${source})`);
+  return {
+    apiUrl: API_URL,
+    endpoint: describeApiEndpoint(),
+    environment: __DEV__ ? "development" : "production",
+    urlType: getApiUrlType(API_URL),
+    source,
+    isConfigured: isApiUrlConfigured(),
+  };
 }
+
+/** Safe runtime diagnostic log (never includes tokens, keys, or credentials). */
+const _diagnostic = getApiDiagnosticInfo();
+console.log(
+  `[HealPoint API] URL: ${_diagnostic.apiUrl} | Env: ${_diagnostic.environment} | Type: ${_diagnostic.urlType} | Source: ${_diagnostic.source}`,
+);

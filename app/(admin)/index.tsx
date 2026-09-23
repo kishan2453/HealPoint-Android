@@ -25,6 +25,7 @@ import { toErrorMessage } from "@/services/api";
 import * as adminService from "@/services/admin";
 import * as notificationsService from "@/services/notifications";
 import * as subscriptionService from "@/services/subscriptions";
+import { OperationsCenter } from "@/components/admin/OperationsCenter";
 import type { Subscription } from "@/types";
 
 interface QuickLinkItem {
@@ -38,6 +39,9 @@ interface QuickLinkItem {
 export default function AdminDashboardScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const [viewMode, setViewMode] = useState<"operations" | "modules">(
+    "operations",
+  );
   const [dashboard, setDashboard] = useState<Awaited<
     ReturnType<typeof adminService.getHospitalAdminDashboard>
   > | null>(null);
@@ -98,6 +102,18 @@ export default function AdminDashboardScreen() {
         : "5.0";
 
   const quickLinks: QuickLinkItem[] = [
+    {
+      label: "Operations Center",
+      icon: "pulse-outline",
+      href: "/admin/operations",
+      accent: "#059669",
+    },
+    {
+      label: "Online Consultations",
+      icon: "videocam-outline",
+      href: "/admin/consultations",
+      accent: "#7C3AED",
+    },
     {
       label: "Doctors",
       icon: "medkit-outline",
@@ -183,6 +199,18 @@ export default function AdminDashboardScreen() {
       href: "/admin/subscription",
       accent: "#9B51E0",
     },
+    {
+      label: "Support & Help",
+      icon: "help-buoy-outline",
+      href: "/admin/support",
+      accent: "#2F80ED",
+    },
+    {
+      label: "Security",
+      icon: "shield-outline",
+      href: "/admin/security",
+      accent: "#EB5757",
+    },
   ];
 
   return (
@@ -226,7 +254,61 @@ export default function AdminDashboardScreen() {
           </View>
         </View>
 
-        {loading ? (
+        {/* VIEW MODE SELECTOR */}
+        <View style={styles.segmentContainer}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setViewMode("operations")}
+            style={[
+              styles.segmentBtn,
+              viewMode === "operations" && styles.segmentBtnActive,
+            ]}
+          >
+            <Ionicons
+              name="pulse"
+              size={15}
+              color={
+                viewMode === "operations" ? Palette.white : Palette.textMuted
+              }
+            />
+            <Text
+              style={[
+                styles.segmentText,
+                viewMode === "operations" && styles.segmentTextActive,
+              ]}
+            >
+              Operations Center
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setViewMode("modules")}
+            style={[
+              styles.segmentBtn,
+              viewMode === "modules" && styles.segmentBtnActive,
+            ]}
+          >
+            <Ionicons
+              name="grid"
+              size={15}
+              color={viewMode === "modules" ? Palette.white : Palette.textMuted}
+            />
+            <Text
+              style={[
+                styles.segmentText,
+                viewMode === "modules" && styles.segmentTextActive,
+              ]}
+            >
+              Overview & Modules
+            </Text>
+          </Pressable>
+        </View>
+
+        {viewMode === "operations" ? (
+          <View style={{ flex: 1 }}>
+            <OperationsCenter />
+          </View>
+        ) : loading ? (
           <Loading label="Loading hospital data..." />
         ) : error ? (
           <ErrorState message={error} onRetry={load} />
@@ -428,6 +510,37 @@ const styles = StyleSheet.create({
     color: Palette.white,
     fontSize: 9,
     fontWeight: "700",
+  },
+  segmentContainer: {
+    flexDirection: "row",
+    backgroundColor: Palette.surface,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+    borderRadius: Radius.lg,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    gap: 3,
+  },
+  segmentBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+  },
+  segmentBtnActive: {
+    backgroundColor: Palette.primary,
+  },
+  segmentText: {
+    ...Typography.caption,
+    fontWeight: "700",
+    color: Palette.textMuted,
+  },
+  segmentTextActive: {
+    color: Palette.white,
   },
   content: {
     paddingHorizontal: Spacing.lg,

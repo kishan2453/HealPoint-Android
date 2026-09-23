@@ -6,7 +6,7 @@
  */
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   FlatList,
@@ -21,6 +21,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { DrawerToggleButton } from "@/components/DrawerToggleButton";
+import { FamilyMemberFilterBar } from "@/components/FamilyMemberFilterBar";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -43,9 +44,13 @@ import type { Appointment, AppointmentMedicineItem } from "@/types";
 
 export default function PrescriptionsScreen() {
   const router = useRouter();
+  const { memberId } = useLocalSearchParams<{ memberId?: string }>();
   const { user } = useAuth();
   const userId = user?._id;
 
+  const [familyMemberFilter, setFamilyMemberFilter] = useState<string>(
+    memberId || "all",
+  );
   const [prescriptions, setPrescriptions] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -55,7 +60,8 @@ export default function PrescriptionsScreen() {
   const loadPrescriptions = async () => {
     setError("");
     try {
-      const history = await appointmentService.getPatientMedicalHistory();
+      const history =
+        await appointmentService.getPatientMedicalHistory(familyMemberFilter);
       setPrescriptions(history.prescriptions || []);
     } catch (err) {
       setError(toErrorMessage(err, "Unable to load digital prescriptions."));
@@ -69,7 +75,7 @@ export default function PrescriptionsScreen() {
 
   useEffect(() => {
     loadPrescriptions();
-  }, [userId]);
+  }, [userId, familyMemberFilter]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -404,6 +410,12 @@ export default function PrescriptionsScreen() {
           ) : null}
         </View>
       </View>
+
+      {/* Family Member Isolation Filter */}
+      <FamilyMemberFilterBar
+        selectedMemberId={familyMemberFilter}
+        onSelectMember={setFamilyMemberFilter}
+      />
 
       {loading && !refreshing ? (
         <Loading fullScreen label="Loading verified prescriptions..." />

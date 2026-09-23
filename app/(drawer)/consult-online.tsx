@@ -7,9 +7,9 @@
  * verified booking + Razorpay flow, after which a real Google Meet link is
  * attached by the doctor.
  */
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   FlatList,
   Keyboard,
@@ -19,27 +19,28 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { OnlineDoctorCard } from '@/components/OnlineDoctorCard';
-import { DrawerToggleButton } from '@/components/DrawerToggleButton';
-import { EmptyState } from '@/components/ui/EmptyState';
-import { ErrorState } from '@/components/ui/ErrorState';
-import { Loading } from '@/components/ui/Loading';
-import { Palette, Radius, Spacing, Typography } from '@/constants/theme';
-import { useScreenFocus } from '@/hooks/use-screen-focus';
-import { toErrorMessage } from '@/services/api';
-import * as consultationService from '@/services/consultations';
-import type { OnlineDoctor } from '@/types';
+import { OnlineDoctorCard } from "@/components/OnlineDoctorCard";
+import { DrawerToggleButton } from "@/components/DrawerToggleButton";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { Loading } from "@/components/ui/Loading";
+import { Palette, Radius, Spacing, Typography } from "@/constants/theme";
+import { useScreenFocus } from "@/hooks/use-screen-focus";
+import { toErrorMessage } from "@/services/api";
+import * as consultationService from "@/services/consultations";
+import * as subscriptionService from "@/services/subscriptions";
+import type { OnlineDoctor, UserSubscriptionEntitlement } from "@/types";
 
 const SPECIALITIES = [
-  'General Physician',
-  'Cardiologist',
-  'Dermatologist',
-  'Pediatrician',
-  'Psychiatrist',
-  'Orthopedic',
+  "General Physician",
+  "Cardiologist",
+  "Dermatologist",
+  "Pediatrician",
+  "Psychiatrist",
+  "Orthopedic",
 ];
 
 export default function ConsultOnlineScreen() {
@@ -47,15 +48,40 @@ export default function ConsultOnlineScreen() {
 
   const [doctors, setDoctors] = useState<OnlineDoctor[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [verifyingAccess, setVerifyingAccess] = useState(true);
+  const [entitlement, setEntitlement] =
+    useState<UserSubscriptionEntitlement | null>(null);
+  const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
-  const [query, setQuery] = useState('');
-  const [speciality, setSpeciality] = useState('');
+  const [query, setQuery] = useState("");
+  const [speciality, setSpeciality] = useState("");
+
+  const verifyEntitlement = useCallback(async () => {
+    try {
+      const ent = await subscriptionService.getPatientSubscriptionEntitlement();
+      setEntitlement(ent);
+      if (!ent.isEligibleForVideoConsultation) {
+        // Free user or exhausted quota -> DIRECTLY OPEN PREMIUM/SUBSCRIPTION PLANS
+        router.replace({
+          pathname: "/(drawer)/subscription",
+          params: { notice: ent.code || "subscription_required" },
+        });
+        return false;
+      }
+      return true;
+    } catch {
+      return true;
+    } finally {
+      setVerifyingAccess(false);
+    }
+  }, [router]);
 
   const loadDoctors = useCallback(
-    async (opts: { search?: string; speciality?: string; quiet?: boolean } = {}) => {
+    async (
+      opts: { search?: string; speciality?: string; quiet?: boolean } = {},
+    ) => {
       if (!opts.quiet) setLoading(true);
-      setError('');
+      setError("");
       try {
         const res = await consultationService.getOnlineDoctors({
           search: opts.search || undefined,
@@ -63,13 +89,13 @@ export default function ConsultOnlineScreen() {
         });
         setDoctors(res.doctors || []);
       } catch (err) {
-        // Never show raw backend HTML ("Cannot GET …") to patients. The clean
-        // API hardening in services/api.ts converts it for us; here we surface
-        // the exact friendly message for the Consult Online experience and
-        // keep the real technical detail in development logs only.
-        setError('Online consultation is temporarily unavailable. Please try again.');
+        setError(
+          "Online consultation is temporarily unavailable. Please try again.",
+        );
         if (__DEV__) {
-          console.warn('[consult-online] Failed to load online doctors.', { detail: toErrorMessage(err) });
+          console.warn("[consult-online] Failed to load online doctors.", {
+            detail: toErrorMessage(err),
+          });
         }
       } finally {
         setLoading(false);
@@ -79,11 +105,21 @@ export default function ConsultOnlineScreen() {
     [],
   );
 
-  useScreenFocus(() => loadDoctors({ quiet: true }));
+  useScreenFocus(() => {
+    verifyEntitlement().then((eligible) => {
+      if (eligible) {
+        loadDoctors({ quiet: true });
+      }
+    });
+  });
+
   useEffect(() => {
-    loadDoctors();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    verifyEntitlement().then((eligible) => {
+      if (eligible) {
+        loadDoctors();
+      }
+    });
+  }, [verifyEntitlement, loadDoctors]);
 
   const onSearch = () => {
     Keyboard.dismiss();
@@ -91,9 +127,13 @@ export default function ConsultOnlineScreen() {
   };
 
   const onSelectSpeciality = (value: string) => {
-    const next = speciality === value ? '' : value;
+    const next = speciality === value ? "" : value;
     setSpeciality(next);
-    loadDoctors({ search: query, speciality: next === '' ? undefined : next, quiet: true });
+    loadDoctors({
+      search: query,
+      speciality: next === "" ? undefined : next,
+      quiet: true,
+    });
   };
 
   const onRefresh = () => {
@@ -102,25 +142,62 @@ export default function ConsultOnlineScreen() {
     loadDoctors({ search: query, speciality, quiet: true });
   };
 
+  if (verifyingAccess) {
+    return (
+      <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+        <View style={styles.header}>
+          <DrawerToggleButton />
+          <View style={styles.headerTitles}>
+            <Text style={styles.headerTitle}>Consult Online</Text>
+            <Text style={styles.headerSubtitle}>
+              Video consultation with verified doctors
+            </Text>
+          </View>
+        </View>
+        <Loading label="Checking video consultation access..." />
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       {/* ---------------- Header ---------------- */}
       <View style={styles.header}>
         <DrawerToggleButton />
         <View style={styles.headerTitles}>
           <Text style={styles.headerTitle}>Consult Online</Text>
-          <Text style={styles.headerSubtitle}>Video consultation with verified doctors</Text>
+          <Text style={styles.headerSubtitle}>
+            Video consultation with verified doctors
+          </Text>
         </View>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="My consultations"
-          onPress={() => router.push('/consultations')}
-          style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+          onPress={() => router.push("/consultations")}
+          style={({ pressed }) => [
+            styles.iconButton,
+            pressed && styles.pressed,
+          ]}
           hitSlop={8}
         >
           <Ionicons name="list" size={22} color={Palette.primaryDark} />
         </Pressable>
       </View>
+
+      {/* ---------------- Quota Status Banner ---------------- */}
+      {entitlement?.hasActiveSubscription &&
+      entitlement?.isEligibleForVideoConsultation ? (
+        <View style={styles.quotaBanner}>
+          <Ionicons name="sparkles" size={16} color={Palette.primary} />
+          <Text style={styles.quotaText}>
+            <Text style={styles.quotaBold}>
+              {entitlement.planName} Plan Active
+            </Text>{" "}
+            • {entitlement.remainingQuota} video consultation
+            {entitlement.remainingQuota > 1 ? "s" : ""} remaining this month
+          </Text>
+        </View>
+      ) : null}
 
       {/* ---------------- Hero ---------------- */}
       <View style={styles.hero}>
@@ -128,7 +205,8 @@ export default function ConsultOnlineScreen() {
         <View style={styles.heroTexts}>
           <Text style={styles.heroTitle}>Talk to a doctor online</Text>
           <Text style={styles.heroSubtitle}>
-            Book a video consultation, pay securely, and join your doctor on Google Meet.
+            Book a video consultation, pay securely, and join your doctor on
+            Google Meet.
           </Text>
         </View>
       </View>
@@ -150,13 +228,16 @@ export default function ConsultOnlineScreen() {
             accessibilityRole="button"
             accessibilityLabel="Search doctors"
             onPress={onSearch}
-            style={({ pressed }) => [styles.searchBtn, pressed && styles.pressed]}
+            style={({ pressed }) => [
+              styles.searchBtn,
+              pressed && styles.pressed,
+            ]}
           >
             <Text style={styles.searchBtnText}>Search</Text>
           </Pressable>
         </View>
       </View>
-{/* ---------------- Speciality chips ---------------- */}
+      {/* ---------------- Speciality chips ---------------- */}
       <View style={styles.chipsRow}>
         {SPECIALITIES.map((name) => {
           const active = speciality === name;
@@ -168,7 +249,9 @@ export default function ConsultOnlineScreen() {
               onPress={() => onSelectSpeciality(name)}
               style={[styles.chip, active && styles.chipActive]}
             >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{name}</Text>
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                {name}
+              </Text>
             </Pressable>
           );
         })}
@@ -181,14 +264,18 @@ export default function ConsultOnlineScreen() {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Palette.primary} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Palette.primary}
+          />
         }
         ListHeaderComponent={
           <View style={styles.sectionNote}>
             <Text style={styles.sectionNoteText}>
               {loading
-                ? 'Finding online doctors…'
-                : `${doctors.length} online doctor${doctors.length === 1 ? '' : 's'} available`}
+                ? "Finding online doctors…"
+                : `${doctors.length} online doctor${doctors.length === 1 ? "" : "s"} available`}
             </Text>
           </View>
         }
@@ -205,19 +292,26 @@ export default function ConsultOnlineScreen() {
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => {
-                    setQuery('');
-                    setSpeciality('');
-                    loadDoctors({ search: '', speciality: undefined });
+                    setQuery("");
+                    setSpeciality("");
+                    loadDoctors({ search: "", speciality: undefined });
                   }}
-                  style={({ pressed }) => [styles.resetBtn, pressed && styles.pressed]}
+                  style={({ pressed }) => [
+                    styles.resetBtn,
+                    pressed && styles.pressed,
+                  ]}
                 >
-                  <Text style={styles.resetBtnText}>Show all online doctors</Text>
+                  <Text style={styles.resetBtnText}>
+                    Show all online doctors
+                  </Text>
                 </Pressable>
               }
             />
           )
         }
-        renderItem={({ item, index }) => <OnlineDoctorCard doctor={item} index={index} />}
+        renderItem={({ item, index }) => (
+          <OnlineDoctorCard doctor={item} index={index} />
+        )}
       />
     </SafeAreaView>
   );
@@ -228,8 +322,8 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
@@ -250,15 +344,36 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: Radius.pill,
     backgroundColor: Palette.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   pressed: {
     opacity: 0.6,
   },
+  quotaBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+    backgroundColor: Palette.primaryLight,
+    borderWidth: 1,
+    borderColor: Palette.primary,
+  },
+  quotaText: {
+    ...Typography.bodySmall,
+    color: Palette.primaryDark,
+    flex: 1,
+  },
+  quotaBold: {
+    fontWeight: "700",
+  },
   hero: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
     marginHorizontal: Spacing.lg,
     padding: Spacing.lg,
@@ -275,15 +390,15 @@ const styles = StyleSheet.create({
   },
   heroSubtitle: {
     ...Typography.caption,
-    color: 'rgba(255,255,255,0.92)',
+    color: "rgba(255,255,255,0.92)",
   },
   searchWrap: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
   },
   searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
     backgroundColor: Palette.surface,
     borderRadius: Radius.md,
@@ -309,8 +424,8 @@ const styles = StyleSheet.create({
     color: Palette.white,
   },
   chipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
@@ -333,7 +448,7 @@ const styles = StyleSheet.create({
   },
   chipTextActive: {
     color: Palette.primaryDark,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   list: {
     padding: Spacing.lg,
@@ -352,7 +467,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    alignItems: 'center',
+    alignItems: "center",
   },
   resetBtnText: {
     ...Typography.label,

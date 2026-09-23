@@ -24,6 +24,7 @@ import {
   Typography,
 } from "@/constants/theme";
 import { formatDDMMYYYY, formatINR } from "@/lib/format";
+import { parseRecommendedTimeframe } from "@/lib/followup-intelligence";
 import type { Appointment, AppointmentDetails } from "@/types";
 
 export type JourneyStepStatus = "completed" | "current" | "upcoming" | "failed";
@@ -137,13 +138,16 @@ export function computeJourneySteps(
 
   // 1. STAGE: Booked
   const createdAtFormatted = formatIsoDate(appointment.createdAt);
+  const patientDesc = appointment.patientName
+    ? ` for ${appointment.patientName}${appointment.familyRelationship && appointment.familyRelationship !== "Self" ? ` (${appointment.familyRelationship})` : ""}`
+    : "";
   steps.push({
     id: "booked",
     title: "Appointment Booked",
     status: "completed",
     timestamp: createdAtFormatted,
-    description: `Booked for ${formatDDMMYYYY(slotDateStr)}${slotTimeStr ? ` at ${slotTimeStr}` : ""}`,
-    actor: "Patient",
+    description: `Booked${patientDesc} for ${formatDDMMYYYY(slotDateStr)}${slotTimeStr ? ` at ${slotTimeStr}` : ""}`,
+    actor: appointment.patientName || "Patient",
     badgeLabel: "Confirmed",
   });
 
@@ -377,7 +381,9 @@ export function computeJourneySteps(
       title: "Consultation Completed",
       status: "completed",
       timestamp: consultationCompletedAtFormatted,
-      description: "Clinical consultation successfully completed with doctor",
+      description: appointment.patientName
+        ? `Clinical consultation for ${appointment.patientName} successfully completed with doctor`
+        : "Clinical consultation successfully completed with doctor",
       badgeLabel: "Completed",
     });
   } else if (
@@ -466,15 +472,40 @@ export function computeJourneySteps(
     });
   }
 
-  // 8. STAGE: Follow-Up (Only show if doctor specifically advised a follow-up)
-  const followUp = (appointment.followUpAdvice || "").trim();
+  // 8. STAGE: Follow-Up & Care Plan (Only show if doctor specifically advised a follow-up)
+  const prescriptionFollowUp = (
+    appointment as {
+      prescriptionInstructions?: { followUpInstructions?: string };
+    }
+  ).prescriptionInstructions?.followUpInstructions;
+
+  const followUp = (
+    appointment.followUpAdvice ||
+    prescriptionFollowUp ||
+    ""
+  ).trim();
+
   if (followUp) {
+    const slotDate =
+      "slotDate" in appointment && appointment.slotDate
+        ? appointment.slotDate
+        : "date" in appointment && appointment.date
+          ? appointment.date
+          : "";
+    const { timeframe, targetDate } = parseRecommendedTimeframe(
+      followUp,
+      slotDate,
+    );
+    const badge =
+      timeframe && timeframe !== "As Advised" ? timeframe : "Recommended";
+    const targetDesc = targetDate ? ` • Target: ~${targetDate}` : "";
+
     steps.push({
       id: "follow_up",
-      title: "Follow-Up Advised",
+      title: "Follow-Up Care Plan",
       status: "completed",
-      description: followUp,
-      badgeLabel: "Recommended",
+      description: `${followUp}${targetDesc}`,
+      badgeLabel: badge,
       action: callbacks?.onFollowUpPress
         ? {
             label: "Book Follow-Up",

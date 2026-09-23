@@ -6,6 +6,7 @@
  * enforced by the server).
  */
 import { api } from "./api";
+import { deriveFollowUpsFromAppointments } from "@/lib/followup-intelligence";
 import * as slotService from "./slots";
 import type {
   Appointment,
@@ -139,16 +140,45 @@ export async function verifyAppointmentPayment(payload: {
 }
 
 // ---- Patient Medical Records & Health History -----------------------------
-export async function getPatientMedicalHistory(): Promise<PatientMedicalHistoryResponse> {
+
+function matchesFamilyMember(
+  appt: Appointment,
+  filterMemberId?: string,
+): boolean {
+  if (!filterMemberId || filterMemberId === "all") return true;
+  if (filterMemberId === "self") {
+    return !appt.familyMemberId || appt.familyRelationship === "Self";
+  }
+  return appt.familyMemberId === filterMemberId;
+}
+
+export async function getPatientMedicalHistory(
+  filterMemberId?: string,
+): Promise<PatientMedicalHistoryResponse> {
+  const query = new URLSearchParams();
+  if (filterMemberId && filterMemberId !== "all") {
+    query.set("familyMemberId", filterMemberId);
+  }
+  const qs = query.toString();
+
+  let history: PatientMedicalHistoryResponse;
+
   try {
-    return await api.get<PatientMedicalHistoryResponse>(
-      "/appointment/patient/medical-history",
+    history = await api.get<PatientMedicalHistoryResponse>(
+      `/appointment/patient/medical-history${qs ? `?${qs}` : ""}`,
       { auth: true },
     );
-  } catch (err) {
+  } catch {
     // Fallback: derive medical records from user appointments
     const res = await getUserAppointments("me");
-    const appointments = res.appoinmtent || [];
+    let appointments = res.appoinmtent || [];
+
+    if (filterMemberId && filterMemberId !== "all") {
+      appointments = appointments.filter((a) =>
+        matchesFamilyMember(a, filterMemberId),
+      );
+    }
+
     const consultations = appointments;
     const prescriptions = appointments.filter(
       (a) => Boolean(a.prescription?.trim()) || Boolean(a.medicines?.length),
@@ -163,12 +193,6 @@ export async function getPatientMedicalHistory(): Promise<PatientMedicalHistoryR
         appointmentId: string;
       }
     >();
-    const followUps: {
-      appointmentId: string;
-      date: string;
-      doctorName?: string;
-      advice: string;
-    }[] = [];
 
     for (const appt of appointments) {
       const docName =
@@ -219,18 +243,11 @@ export async function getPatientMedicalHistory(): Promise<PatientMedicalHistoryR
           });
         }
       }
-
-      if (appt.followUpAdvice?.trim()) {
-        followUps.push({
-          appointmentId: appt._id,
-          date: appt.slotDate || "",
-          doctorName: docName,
-          advice: appt.followUpAdvice.trim(),
-        });
-      }
     }
 
-    return {
+    const followUps = deriveFollowUpsFromAppointments(consultations);
+
+    history = {
       success: true,
       summary: {
         totalConsultations: consultations.length,
@@ -245,10 +262,53 @@ export async function getPatientMedicalHistory(): Promise<PatientMedicalHistoryR
       followUps,
     };
   }
+
+  // Also filter client-side to guarantee 100% data separation
+  if (filterMemberId && filterMemberId !== "all") {
+    const filteredConsultations = (history.consultations || []).filter((a) =>
+      matchesFamilyMember(a, filterMemberId),
+    );
+    const filteredPrescriptions = (history.prescriptions || []).filter((a) =>
+      matchesFamilyMember(a, filterMemberId),
+    );
+    const validAppointmentIds = new Set(
+      filteredConsultations.map((a) => a._id),
+    );
+    const filteredReports = (history.reports || []).filter(
+      (r) =>
+        r.appointmentId && validAppointmentIds.has(String(r.appointmentId)),
+    );
+    const filteredDiagnoses = (history.diagnoses || []).filter(
+      (d) =>
+        d.appointmentId && validAppointmentIds.has(String(d.appointmentId)),
+    );
+    const filteredFollowUps = (history.followUps || []).filter(
+      (f) =>
+        f.appointmentId && validAppointmentIds.has(String(f.appointmentId)),
+    );
+
+    return {
+      ...history,
+      summary: {
+        totalConsultations: filteredConsultations.length,
+        totalPrescriptions: filteredPrescriptions.length,
+        totalReports: filteredReports.length,
+        totalDiagnoses: filteredDiagnoses.length,
+      },
+      consultations: filteredConsultations,
+      prescriptions: filteredPrescriptions,
+      reports: filteredReports,
+      diagnoses: filteredDiagnoses,
+      followUps: filteredFollowUps,
+    };
+  }
+
+  return history;
 }
 
 export interface PatientTimelineParams {
   filter?: TimelineFilterType;
+  familyMemberId?: string;
   page?: number;
   limit?: number;
 }
@@ -263,6 +323,8 @@ export async function getPatientHealthTimeline(
   const query = new URLSearchParams();
   if (params.filter && params.filter !== "all")
     query.set("filter", params.filter);
+  if (params.familyMemberId && params.familyMemberId !== "all")
+    query.set("familyMemberId", params.familyMemberId);
   if (params.page && params.page > 1) query.set("page", String(params.page));
   if (params.limit) query.set("limit", String(params.limit));
   const qs = query.toString();
@@ -274,7 +336,7 @@ export async function getPatientHealthTimeline(
     );
   } catch (err) {
     // Fallback: fetch medical history and construct timeline client-side
-    const history = await getPatientMedicalHistory();
+    const history = await getPatientMedicalHistory(params.familyMemberId);
     const allEvents: PatientTimelineResponse["events"] = [];
 
     for (const appt of history.consultations || []) {
@@ -321,6 +383,55 @@ export async function getPatientHealthTimeline(
           },
         ],
       });
+
+      // If follow-up was advised, add a dedicated follow-up milestone
+      if (appt.followUpAdvice?.trim()) {
+        const dId =
+          typeof appt.doctorId === "object" && appt.doctorId
+            ? String((appt.doctorId as { _id?: string })._id || "")
+            : "";
+
+        allEvents.push({
+          id: `fu-${appt._id}`,
+          appointmentId: appt._id,
+          displayAppointmentId: appt.displayAppointmentId || appt.appointmentId,
+          eventType: "followup",
+          filterCategory: "followups",
+          date: appt.slotDate || "",
+          time: appt.slotTime || "",
+          timestamp: new Date(appt.createdAt || Date.now()).getTime() + 1000,
+          status: "current",
+          badgeLabel: "Follow-Up Advised",
+          badgeVariant: "warning",
+          title: "Follow-Up Care Plan Recommended",
+          description: `Doctor's Advice: ${appt.followUpAdvice.trim()}`,
+          details: `Advised by ${docName} (${docSpec})`,
+          icon: "refresh-outline",
+          iconBg: "#FEF3C7",
+          iconColor: "#D97706",
+          doctor: { name: docName, speciality: docSpec },
+          hospital: { name: hospName },
+          actions: [
+            ...(dId
+              ? [
+                  {
+                    label: "Book Follow-Up Slot",
+                    type: "navigate" as const,
+                    route: "/booking/[doctorId]",
+                    params: { doctorId: dId },
+                    variant: "primary" as const,
+                  },
+                ]
+              : []),
+            {
+              label: "View Care Plan",
+              type: "navigate" as const,
+              route: "/health/follow-ups",
+              variant: "secondary" as const,
+            },
+          ],
+        });
+      }
     }
 
     const filtered =

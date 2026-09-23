@@ -147,6 +147,41 @@ function run() {
   const next = upsertEnvKey(current, url);
   fs.writeFileSync(ENV_PATH, next, "utf8");
 
+  // Also sync DEFAULT_LAN_IP in lib/env.ts
+  const envTsPath = path.join(__dirname, "..", "lib", "env.ts");
+  if (fs.existsSync(envTsPath)) {
+    const envTsContent = fs.readFileSync(envTsPath, "utf8");
+    const updatedEnvTs = envTsContent.replace(
+      /export const DEFAULT_LAN_IP = ".*?";/,
+      `export const DEFAULT_LAN_IP = "${ip}";`,
+    );
+    if (updatedEnvTs !== envTsContent) {
+      fs.writeFileSync(envTsPath, updatedEnvTs, "utf8");
+      console.log(`[detect:ip] Synced DEFAULT_LAN_IP in lib/env.ts → ${ip}`);
+    }
+  }
+
+  // Also sync preview build profile in eas.json
+  const easPath = path.join(__dirname, "..", "eas.json");
+  if (fs.existsSync(easPath)) {
+    try {
+      const easRaw = fs.readFileSync(easPath, "utf8");
+      const easJson = JSON.parse(easRaw);
+      if (easJson.build && easJson.build.preview) {
+        easJson.build.preview.env = easJson.build.preview.env || {};
+        easJson.build.preview.env.EXPO_PUBLIC_API_URL = url;
+        fs.writeFileSync(
+          easPath,
+          JSON.stringify(easJson, null, 2) + "\n",
+          "utf8",
+        );
+        console.log(`[detect:ip] Synced preview env in eas.json → ${url}`);
+      }
+    } catch (err) {
+      console.warn(`[detect:ip] Could not update eas.json: ${err.message}`);
+    }
+  }
+
   console.log(`[detect:ip] Wrote EXPO_PUBLIC_API_URL=${url}`);
   console.log("[detect:ip] Restart Expo with:  npx expo start --clear");
   console.log("[detect:ip] Keep the phone and laptop on the same Wi-Fi.");

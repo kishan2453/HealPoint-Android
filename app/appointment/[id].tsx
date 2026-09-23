@@ -57,6 +57,7 @@ import {
 import { toErrorMessage } from "@/services/api";
 import * as appointmentService from "@/services/appointments";
 import * as consultationService from "@/services/consultations";
+import * as subscriptionService from "@/services/subscriptions";
 import type { AppointmentDetails } from "@/types";
 import { deriveAppointmentIntelligence } from "@/lib/appointment-intelligence";
 
@@ -146,6 +147,8 @@ export default function AppointmentDetailScreen() {
   const [cancelling, setCancelling] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
   const [meetError, setMeetError] = useState("");
+  const [meetSubscriptionRequired, setMeetSubscriptionRequired] =
+    useState(false);
   const [joiningMeet, setJoiningMeet] = useState(false);
   const [reviewVisible, setReviewVisible] = useState(false);
 
@@ -264,6 +267,10 @@ export default function AppointmentDetailScreen() {
     router.push({ pathname: "/appointment/reschedule/[id]", params: { id } });
   };
 
+  const openCancel = () => {
+    setCancelVisible(true);
+  };
+
   const confirmCancel = async () => {
     if (!id) return;
     setCancelling(true);
@@ -290,11 +297,28 @@ export default function AppointmentDetailScreen() {
   const handleJoinMeet = async () => {
     if (!id || joiningMeet) return;
     setMeetError("");
+    setMeetSubscriptionRequired(false);
     setJoiningMeet(true);
     try {
-      // 1. Authorize with backend — enforces patient ownership, payment & timing rules
+      // 1. Verify patient video consultation subscription entitlement
+      const entitlement = await subscriptionService
+        .getPatientSubscriptionEntitlement()
+        .catch(() => null);
+      if (entitlement && !entitlement.isEligibleForVideoConsultation) {
+        setMeetSubscriptionRequired(true);
+        setMeetError(entitlement.message);
+        return;
+      }
+
+      // 2. Authorize with backend — enforces patient ownership, payment & timing rules
       const res = await consultationService.getPatientMeetingLink(id);
       if (!res.allowed || !res.meetingUrl) {
+        if (
+          res.subscriptionCode === "subscription_required" ||
+          res.subscriptionCode === "quota_exhausted"
+        ) {
+          setMeetSubscriptionRequired(true);
+        }
         setMeetError(
           res.message ||
             "Video meeting link has not been generated yet. The attending doctor will provide the link before the appointment.",
@@ -302,7 +326,7 @@ export default function AppointmentDetailScreen() {
         return;
       }
 
-      // 2. Open verified Google Meet URL
+      // 3. Open verified Google Meet URL
       const success = openGoogleMeetUrl(res.meetingUrl);
       if (!success) {
         setMeetError(
@@ -582,6 +606,37 @@ export default function AppointmentDetailScreen() {
               label={isVideo ? "Video Consultation" : "In-Person Clinic Visit"}
               variant={isVideo ? "primary" : "neutral"}
             />
+          </View>
+
+          {/* Patient Identity */}
+          <View style={styles.infoRow}>
+            <Ionicons
+              name={
+                appointment.familyMemberId ? "people-outline" : "person-outline"
+              }
+              size={18}
+              color={Palette.primary}
+            />
+            <Text style={styles.infoLabel}>Patient</Text>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                flexShrink: 1,
+              }}
+            >
+              <Text style={styles.infoValue}>
+                {appointment.patientName || "Account Holder"}
+              </Text>
+              {appointment.familyRelationship &&
+              appointment.familyRelationship !== "Self" ? (
+                <Badge
+                  label={appointment.familyRelationship}
+                  variant="primary"
+                />
+              ) : null}
+            </View>
           </View>
 
           {appointment.patientPhone ? (
@@ -892,6 +947,16 @@ export default function AppointmentDetailScreen() {
 
             {meetError ? (
               <FormMessage type="warning" message={meetError} />
+            ) : null}
+
+            {meetSubscriptionRequired ? (
+              <Button
+                title="Upgrade Subscription Plan"
+                variant="primary"
+                icon="shield-checkmark"
+                onPress={() => router.push("/subscription")}
+                style={{ marginTop: Spacing.sm }}
+              />
             ) : null}
           </Card>
         ) : null}

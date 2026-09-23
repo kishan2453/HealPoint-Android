@@ -6,7 +6,7 @@
  * and deleting patient reports with full authentication.
  */
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -25,6 +25,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { DrawerToggleButton } from "@/components/DrawerToggleButton";
+import { FamilyMemberFilterBar } from "@/components/FamilyMemberFilterBar";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -56,9 +57,13 @@ const CATEGORIES = [
 
 export default function ReportsScreen() {
   const router = useRouter();
+  const { memberId } = useLocalSearchParams<{ memberId?: string }>();
   const { user } = useAuth();
   const userId = user?._id;
 
+  const [familyMemberFilter, setFamilyMemberFilter] = useState<string>(
+    memberId || "all",
+  );
   const [reports, setReports] = useState<PatientReportItem[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,7 +85,8 @@ export default function ReportsScreen() {
   const loadReports = async () => {
     setError("");
     try {
-      const history = await appointmentService.getPatientMedicalHistory();
+      const history =
+        await appointmentService.getPatientMedicalHistory(familyMemberFilter);
       setReports(history.reports || []);
       setAppointments(history.consultations || []);
       if (history.consultations?.length > 0 && !uploadAppointmentId) {
@@ -98,7 +104,7 @@ export default function ReportsScreen() {
 
   useEffect(() => {
     loadReports();
-  }, [userId]);
+  }, [userId, familyMemberFilter]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -406,6 +412,12 @@ export default function ReportsScreen() {
           ))}
         </ScrollView>
       </View>
+
+      {/* Family Member Isolation Filter */}
+      <FamilyMemberFilterBar
+        selectedMemberId={familyMemberFilter}
+        onSelectMember={setFamilyMemberFilter}
+      />
 
       {loading && !refreshing ? (
         <Loading fullScreen label="Loading diagnostic lab reports..." />

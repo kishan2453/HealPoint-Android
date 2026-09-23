@@ -6,7 +6,7 @@
  * physician notes, and follow-up care.
  */
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   FlatList,
@@ -21,6 +21,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { DrawerToggleButton } from "@/components/DrawerToggleButton";
+import { FamilyMemberFilterBar } from "@/components/FamilyMemberFilterBar";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -56,8 +57,12 @@ type RecordTab =
 
 export default function HealthRecordsScreen() {
   const router = useRouter();
+  const { memberId } = useLocalSearchParams<{ memberId?: string }>();
   const { user } = useAuth();
   const [data, setData] = useState<PatientMedicalHistoryResponse | null>(null);
+  const [familyMemberFilter, setFamilyMemberFilter] = useState<string>(
+    memberId || "all",
+  );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -66,7 +71,8 @@ export default function HealthRecordsScreen() {
   const loadRecords = async () => {
     setError("");
     try {
-      const res = await appointmentService.getPatientMedicalHistory();
+      const res =
+        await appointmentService.getPatientMedicalHistory(familyMemberFilter);
       setData(res);
     } catch (err) {
       setError(toErrorMessage(err, "Unable to load medical records."));
@@ -80,7 +86,7 @@ export default function HealthRecordsScreen() {
 
   useEffect(() => {
     loadRecords();
-  }, [user?._id]);
+  }, [user?._id, familyMemberFilter]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -333,6 +339,12 @@ export default function HealthRecordsScreen() {
           </Pressable>
         </View>
       </View>
+
+      {/* Family Member Isolation Filter */}
+      <FamilyMemberFilterBar
+        selectedMemberId={familyMemberFilter}
+        onSelectMember={setFamilyMemberFilter}
+      />
 
       {loading && !refreshing ? (
         <Loading fullScreen label="Loading health records..." />

@@ -10,8 +10,10 @@ import {
   API_TIMEOUT_MS,
   API_URL,
   describeApiEndpoint,
+  getApiDiagnosticInfo,
   isApiUrlConfigured,
 } from "@/lib/env";
+export { getApiDiagnosticInfo as getApiRuntimeDiagnostic } from "@/lib/env";
 import type { ApiErrorCategory } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -663,6 +665,7 @@ export const api = {
   delete<T>(path: string, options?: RequestOptions) {
     return request<T>(path, { ...options, method: "DELETE" });
   },
+  diagnostic: getApiDiagnosticInfo,
 };
 
 /**

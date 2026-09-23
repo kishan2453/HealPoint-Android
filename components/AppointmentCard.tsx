@@ -232,6 +232,19 @@ function AppointmentCardRaw({
           </View>
         ) : null}
 
+        {appointment.patientName &&
+        (appointment.familyMemberId ||
+          (appointment.familyRelationship &&
+            appointment.familyRelationship !== "Self")) ? (
+          <View style={styles.patientBadge}>
+            <Ionicons name="people" size={11} color={Palette.primary} />
+            <Text style={styles.patientBadgeText} numberOfLines={1}>
+              {appointment.patientName} (
+              {appointment.familyRelationship || "Family"})
+            </Text>
+          </View>
+        ) : null}
+
         {!isCompleted && !isCancelled ? (
           <View
             style={[
@@ -495,6 +508,23 @@ const styles = StyleSheet.create({
   typeText: {
     ...Typography.caption,
     color: Palette.primaryDark,
+    fontWeight: "600",
+  },
+  patientBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: `${Palette.primary}15`,
+    borderRadius: Radius.pill,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: `${Palette.primary}30`,
+  },
+  patientBadgeText: {
+    ...Typography.caption,
+    fontSize: 11,
+    color: Palette.primary,
     fontWeight: "600",
   },
   statusPill: {

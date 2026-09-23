@@ -47,6 +47,8 @@ import { useScreenFocus } from "@/hooks/use-screen-focus";
 import { formatDDMMYYYY, formatISODate } from "@/lib/format";
 import { getUserImage } from "@/lib/image";
 import { toErrorMessage } from "@/services/api";
+import * as familyService from "@/services/family";
+import type { FamilyMember } from "@/types";
 
 type MenuItem = {
   key: string;
@@ -73,6 +75,7 @@ export default function ProfileScreen() {
   } = useFavorites();
   const savedCount = favoriteIds.size + favoriteHospitalIds.size;
 
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [logoutVisible, setLogoutVisible] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -91,8 +94,17 @@ export default function ProfileScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([refreshProfile(), refetchAppts()]);
-      await Promise.all([refreshProfile(), refetchAppts(), refreshFavorites()]);
+      await Promise.all([
+        refreshProfile(),
+        refetchAppts(),
+        refreshFavorites(),
+        user?._id
+          ? familyService
+              .getFamilyMembers(user._id)
+              .then(setFamilyMembers)
+              .catch(() => {})
+          : Promise.resolve(),
+      ]);
       setLoadError("");
     } catch (err) {
       setLoadError(toErrorMessage(err, "Unable to refresh your profile."));
@@ -548,6 +560,71 @@ export default function ProfileScreen() {
               </Text>
             </Pressable>
           </View>
+        </Card>
+
+        {/* ---------------- Family & Dependents Hub ---------------- */}
+        <Card style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <Ionicons
+              name="people-circle-outline"
+              size={20}
+              color={Palette.primary}
+            />
+            <View style={styles.sectionTitleWrap}>
+              <Text style={styles.sectionHeaderTitle}>Family & Dependents</Text>
+              <Text style={styles.sectionHeaderSubtitle}>
+                {familyMembers.length > 0
+                  ? `${familyMembers.length} active family ${familyMembers.length === 1 ? "profile" : "profiles"}`
+                  : "Book visits and manage segregated records for your loved ones"}
+              </Text>
+            </View>
+          </View>
+
+          {familyMembers.length > 0 ? (
+            <View style={styles.familyListWrap}>
+              {familyMembers.map((member) => (
+                <View key={member._id} style={styles.familyMemberItem}>
+                  <View style={styles.familyAvatar}>
+                    <Text style={styles.familyAvatarText}>
+                      {member.name.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.familyInfo}>
+                    <Text style={styles.familyName} numberOfLines={1}>
+                      {member.name}
+                    </Text>
+                    <Text style={styles.familyMeta}>
+                      {member.relationship}
+                      {member.gender ? ` • ${member.gender}` : ""}
+                      {member.bloodGroup ? ` • ${member.bloodGroup}` : ""}
+                    </Text>
+                  </View>
+                  <Badge
+                    label={member.relationship}
+                    variant="primary"
+                    style={{ backgroundColor: `${Palette.primary}15` }}
+                  />
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.emptyMedicalNote}>
+              No family members added yet. Add parents, children, or spouse to
+              book appointments for them and keep separated health records.
+            </Text>
+          )}
+
+          <Button
+            title={
+              familyMembers.length > 0
+                ? "Manage Family Healthcare"
+                : "+ Add Family Member"
+            }
+            variant="outline"
+            icon="people-outline"
+            onPress={() => router.push("/(drawer)/health/family" as never)}
+            style={styles.editBtn}
+          />
         </Card>
 
         {/* ---------------- Personal Details ---------------- */}
@@ -1296,5 +1373,45 @@ const styles = StyleSheet.create({
   tilePressed: {
     opacity: 0.82,
     transform: [{ scale: 0.96 }],
+  },
+  familyListWrap: {
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  familyMemberItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Palette.surfaceAlt,
+    padding: Spacing.sm,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Palette.border,
+  },
+  familyAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: `${Palette.primary}20`,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.sm,
+  },
+  familyAvatarText: {
+    color: Palette.primary,
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  familyInfo: {
+    flex: 1,
+    marginRight: Spacing.xs,
+  },
+  familyName: {
+    ...Typography.body,
+    fontWeight: "600",
+    color: Palette.text,
+  },
+  familyMeta: {
+    ...Typography.caption,
+    color: Palette.textMuted,
   },
 });

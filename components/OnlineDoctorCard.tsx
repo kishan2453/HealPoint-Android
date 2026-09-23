@@ -21,6 +21,7 @@ import {
 } from "@/constants/theme";
 import { formatDoctorName, formatINR } from "@/lib/format";
 import { getDoctorImage } from "@/lib/image";
+import * as subscriptionService from "@/services/subscriptions";
 import type { OnlineDoctor } from "@/types";
 
 interface OnlineDoctorCardProps {
@@ -50,7 +51,20 @@ function OnlineDoctorCardRaw({ doctor, index = 0 }: OnlineDoctorCardProps) {
   const slot = doctor.nextAvailableSlot;
   const verified = doctor.verificationStatus === "Verified";
 
-  const goBooking = (mode: "instant" | "scheduled") => {
+  const goBooking = async (mode: "instant" | "scheduled") => {
+    try {
+      const ent = await subscriptionService.getPatientSubscriptionEntitlement();
+      if (!ent.isEligibleForVideoConsultation) {
+        router.push({
+          pathname: "/(drawer)/subscription",
+          params: { notice: ent.code || "subscription_required" },
+        });
+        return;
+      }
+    } catch {
+      // Proceed to booking screen where server-side validation also protects access
+    }
+
     router.push({
       pathname: "/booking/[doctorId]",
       params: { doctorId: id, type: "video", mode },
