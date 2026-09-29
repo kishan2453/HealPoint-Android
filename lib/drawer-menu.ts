@@ -27,6 +27,11 @@ export function patientDrawerMenu(): DrawerMenuSection[] {
       items: [
         { label: "Home", icon: "home-outline", href: "/(drawer)" as Href },
         {
+          label: "Care Command Center",
+          icon: "pulse-outline",
+          href: "/command-center" as Href,
+        },
+        {
           label: "AI Assistant",
           icon: "sparkles-outline",
           href: "/ai-assistant" as Href,
@@ -77,6 +82,11 @@ export function patientDrawerMenu(): DrawerMenuSection[] {
       title: "Health",
       items: [
         {
+          label: "Digital Health Wallet",
+          icon: "wallet-outline",
+          href: "/health-wallet" as Href,
+        },
+        {
           label: "Health Timeline",
           icon: "time-outline",
           href: "/health/timeline" as Href,
@@ -87,7 +97,7 @@ export function patientDrawerMenu(): DrawerMenuSection[] {
           href: "/health/records" as Href,
         },
         {
-          label: "Prescriptions",
+          label: "Prescriptions & Reminders",
           icon: "document-text-outline",
           href: "/health/prescriptions" as Href,
         },
@@ -100,6 +110,11 @@ export function patientDrawerMenu(): DrawerMenuSection[] {
           label: "Follow-Ups & Care Plans",
           icon: "refresh-outline",
           href: "/health/follow-ups" as Href,
+        },
+        {
+          label: "Health Goals",
+          icon: "trophy-outline",
+          href: "/health/goals" as Href,
         },
         {
           label: "Family Members",

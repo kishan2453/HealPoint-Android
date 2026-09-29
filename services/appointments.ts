@@ -10,11 +10,23 @@ import { deriveFollowUpsFromAppointments } from "@/lib/followup-intelligence";
 import * as slotService from "./slots";
 import type {
   Appointment,
+  AppointmentBilling,
   AppointmentDetailsResponse,
+  AppointmentPreparationResponse,
+  AppointmentPreparationState,
   AvailableSlotsResponse,
   BookAppointmentPayload,
   BookAppointmentResponse,
+  ConsultationType,
+  CreateMedicationReminderPayload,
+  FollowUpCenterResponse,
+  FollowUpOverviewParams,
+  MedicationReminder,
+  MedicationRemindersParams,
+  MedicationRemindersResponse,
   PatientMedicalHistoryResponse,
+  RecordMedicationActionPayload,
+  PatientQuestionItem,
   PatientReportItem,
   PatientTimelineResponse,
   ReschedulePayload,
@@ -541,6 +553,209 @@ export async function getAllAdminAppointments(
   const qs = query.toString();
   return api.get<AdminAppointmentsResponse>(
     `/appointment/get-all${qs ? `?${qs}` : ""}`,
+    { auth: true },
+  );
+}
+
+export interface CalculateCostPayload {
+  doctorId: string;
+  consultationType?: ConsultationType;
+  patientRelationship?: string;
+  familyMemberId?: string;
+}
+
+export interface CalculateCostResponse {
+  success: boolean;
+  message?: string;
+  doctor: {
+    _id: string;
+    name: string;
+    fees: number;
+    speciality?: string;
+    department?: string;
+    hospitalName?: string;
+  };
+  consultationType: ConsultationType;
+  patientRelationship?: string;
+  billing: AppointmentBilling;
+  entitlement?: {
+    planKey: string;
+    planName: string;
+    isEligibleForVideoConsultation: boolean;
+    remainingQuota: number;
+    message?: string;
+  } | null;
+}
+
+/**
+ * Fetch server-verified appointment cost breakdown before payment.
+ * Ensures transparent pricing and prevents client-side fee tampering.
+ */
+export async function calculateAppointmentCost(
+  payload: CalculateCostPayload,
+): Promise<CalculateCostResponse> {
+  return api.post<CalculateCostResponse>(
+    "/appointment/calculate-cost",
+    payload,
+    { auth: true },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SMART APPOINTMENT PREPARATION & PRE-CONSULTATION CENTER
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch unified pre-consultation readiness, patient details, preparation
+ * checklist, questions, relevant health documents, and instructions.
+ */
+export async function getAppointmentPreparation(
+  appointmentId: string,
+): Promise<AppointmentPreparationResponse> {
+  return api.get<AppointmentPreparationResponse>(
+    `/appointment/preparation/${appointmentId}`,
+    { auth: true },
+  );
+}
+
+export interface SaveQuestionsPayload {
+  questions?: PatientQuestionItem[];
+  question?: string;
+  sharedWithDoctor?: boolean;
+}
+
+export interface SaveQuestionsResponse {
+  success: boolean;
+  message?: string;
+  patientQuestions: PatientQuestionItem[];
+  preparation: AppointmentPreparationState;
+}
+
+/**
+ * Save or append patient questions/concerns for consultation with doctor-sharing preference.
+ */
+export async function saveAppointmentQuestions(
+  appointmentId: string,
+  payload: SaveQuestionsPayload,
+): Promise<SaveQuestionsResponse> {
+  return api.post<SaveQuestionsResponse>(
+    `/appointment/preparation/${appointmentId}/questions`,
+    payload,
+    { auth: true },
+  );
+}
+
+export interface UpdateChecklistPayload {
+  checklistCompleted?: string[];
+  instructionsAcknowledged?: boolean;
+  symptomsNotes?: string;
+}
+
+export interface UpdateChecklistResponse {
+  success: boolean;
+  message?: string;
+  preparation: AppointmentPreparationState;
+}
+
+/**
+ * Update dynamic checklist progress, instructions acknowledgment, and symptoms notes.
+ */
+export async function updatePreparationChecklist(
+  appointmentId: string,
+  payload: UpdateChecklistPayload,
+): Promise<UpdateChecklistResponse> {
+  return api.patch<UpdateChecklistResponse>(
+    `/appointment/preparation/${appointmentId}/checklist`,
+    payload,
+    { auth: true },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SMART FOLLOW-UP & CARE CONTINUITY CENTER
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch patient's follow-up and care continuity plans.
+ * Supports family member isolation and status filtering.
+ */
+export async function getPatientFollowUps(
+  params?: FollowUpOverviewParams,
+): Promise<FollowUpCenterResponse> {
+  const query = new URLSearchParams();
+  if (params?.familyMemberId)
+    query.set("familyMemberId", params.familyMemberId);
+  if (params?.status && params.status !== "all")
+    query.set("status", params.status);
+  if (params?.search) query.set("search", params.search);
+  const qs = query.toString();
+  return api.get<FollowUpCenterResponse>(
+    `/appointment/patient/follow-ups${qs ? `?${qs}` : ""}`,
+    { auth: true },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SMART MEDICATION & PRESCRIPTION REMINDER CENTER
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch patient's medication reminders, today's schedule doses, and available prescriptions.
+ * Supports family member isolation and date filtering.
+ */
+export async function getPatientMedicationReminders(
+  params?: MedicationRemindersParams,
+): Promise<MedicationRemindersResponse> {
+  const query = new URLSearchParams();
+  if (params?.familyMemberId)
+    query.set("familyMemberId", params.familyMemberId);
+  if (params?.status && params.status !== "all")
+    query.set("status", params.status);
+  if (params?.date) query.set("date", params.date);
+  const qs = query.toString();
+  return api.get<MedicationRemindersResponse>(
+    `/appointment/patient/medication-reminders${qs ? `?${qs}` : ""}`,
+    { auth: true },
+  );
+}
+
+/**
+ * Create a new medication reminder tied to an authoritative prescription and medicine.
+ */
+export async function createMedicationReminder(
+  payload: CreateMedicationReminderPayload,
+): Promise<{ success: boolean; message?: string; reminder: MedicationReminder }> {
+  return api.post<{
+    success: boolean;
+    message?: string;
+    reminder: MedicationReminder;
+  }>("/appointment/patient/medication-reminders", payload, { auth: true });
+}
+
+/**
+ * Record medication action (taken, skipped, snoozed).
+ */
+export async function recordMedicationAction(
+  reminderId: string,
+  payload: RecordMedicationActionPayload,
+): Promise<{ success: boolean; message?: string; reminder: MedicationReminder }> {
+  return api.patch<{
+    success: boolean;
+    message?: string;
+    reminder: MedicationReminder;
+  }>(`/appointment/patient/medication-reminders/${reminderId}/action`, payload, {
+    auth: true,
+  });
+}
+
+/**
+ * Cancel / archive a medication reminder.
+ */
+export async function deleteMedicationReminder(
+  reminderId: string,
+): Promise<{ success: boolean; message?: string }> {
+  return api.delete<{ success: boolean; message?: string }>(
+    `/appointment/patient/medication-reminders/${reminderId}`,
     { auth: true },
   );
 }

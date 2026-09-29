@@ -1,8 +1,9 @@
 /**
- * HealPoint — Patient Follow-Up & Care Plan Center.
+ * HealPoint — Smart Follow-Up & Care Continuity Center.
  *
  * Provides patients with a unified view of doctor follow-up recommendations,
- * scheduled recovery visits, linked prescriptions, and lab investigations.
+ * scheduled recovery visits, linked prescriptions, lab investigations, and
+ * one-tap repeat appointment booking.
  * Driven 100% by authentic backend data (no mock/dummy records).
  */
 import { Ionicons } from "@expo/vector-icons";
@@ -10,9 +11,11 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -40,7 +43,8 @@ import { formatDDMMYYYY, formatDoctorName } from "@/lib/format";
 import { getDoctorImage } from "@/lib/image";
 import { toErrorMessage } from "@/services/api";
 import * as appointmentService from "@/services/appointments";
-import type { PatientFollowUpItem } from "@/types";
+import * as familyService from "@/services/family";
+import type { FamilyMember, FollowUpOverviewItem } from "@/types";
 
 type TabFilter = "all" | "pending_booking" | "scheduled" | "completed";
 
@@ -52,7 +56,7 @@ const FILTER_TABS: {
   { key: "all", label: "All Plans", icon: "clipboard-outline" },
   {
     key: "pending_booking",
-    label: "Due / Action Needed",
+    label: "Action Due",
     icon: "alert-circle-outline",
   },
   { key: "scheduled", label: "Scheduled", icon: "calendar-outline" },
@@ -68,34 +72,149 @@ export default function FollowUpsScreen() {
   const { user } = useAuth();
   const userId = user?._id;
 
-  const [followUps, setFollowUps] = useState<PatientFollowUpItem[]>([]);
+  const [followUps, setFollowUps] = useState<FollowUpOverviewItem[]>([]);
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+  const [selectedMemberId, setSelectedMemberId] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<TabFilter>("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
-  const loadFollowUps = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
-    setError("");
+  const loadFollowUps = useCallback(
+    async (isRefresh = false) => {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
+      setError("");
 
-    try {
-      const history = await appointmentService.getPatientMedicalHistory();
-      setFollowUps(history.followUps || []);
-    } catch (err) {
-      setError(toErrorMessage(err, "Unable to load follow-up care plans."));
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+      try {
+        const queryParams = {
+          familyMemberId:
+            selectedMemberId === "all" ? undefined : selectedMemberId,
+          status: activeTab === "all" ? undefined : activeTab,
+        };
+
+        const response =
+          await appointmentService.getPatientFollowUps(queryParams);
+
+        if (response && response.success) {
+          setFollowUps(response.followUps || []);
+          if (
+            response.patient?.familyMembers &&
+            Array.isArray(response.patient.familyMembers)
+          ) {
+            setFamilyMembers(response.patient.familyMembers);
+          }
+        } else {
+          // Graceful fallback to medical history if needed
+          const history = await appointmentService.getPatientMedicalHistory();
+          const mapped: FollowUpOverviewItem[] = (history.followUps || []).map(
+            (item) => ({
+              id: item.id || `followup-${item.appointmentId}`,
+              appointmentId: item.appointmentId,
+              displayAppointmentId:
+                item.displayAppointmentId || item.appointmentId,
+              doctorId: item.doctorId || "",
+              doctorName: item.doctorName || "Doctor",
+              doctorSpecialty: item.doctorSpecialty || "Specialist",
+              hospitalName: item.hospitalName || "HealPoint Hospital",
+              department: item.department || item.doctorSpecialty || "General",
+              consultationType: item.consultationType || "clinic",
+              originalVisitDate: item.originalVisitDate || item.date || "",
+              originalVisitTime: item.originalVisitTime || "",
+              originalStatus: "completed",
+              patientName: user?.name || "Patient",
+              patientRelationship: "Self",
+              advice: item.advice || "Follow-up consultation recommended.",
+              timeframe:
+                item.recommendedTimeframe || item.timeframe || "As Advised",
+              targetDate: item.recommendedTargetDate || item.targetDate,
+              status: item.status || "pending_booking",
+              statusLabel: item.statusLabel || "Follow-Up Advised",
+              statusVariant: item.statusVariant || "warning",
+              hasPrescription: Boolean(item.hasPrescription),
+              medicinesCount: item.medicinesCount || 0,
+              hasReports: Boolean(item.hasReports),
+              reportsCount: item.reportsCount || 0,
+              linkedAppointmentId: item.linkedAppointmentId,
+              linkedAppointmentDate: item.linkedAppointmentDate,
+              linkedAppointmentTime: item.linkedAppointmentTime,
+            }),
+          );
+          setFollowUps(mapped);
+        }
+      } catch (err) {
+        // Try fallback to medical history before showing error
+        try {
+          const history = await appointmentService.getPatientMedicalHistory();
+          const mapped: FollowUpOverviewItem[] = (history.followUps || []).map(
+            (item) => ({
+              id: item.id || `followup-${item.appointmentId}`,
+              appointmentId: item.appointmentId,
+              displayAppointmentId:
+                item.displayAppointmentId || item.appointmentId,
+              doctorId: item.doctorId || "",
+              doctorName: item.doctorName || "Doctor",
+              doctorSpecialty: item.doctorSpecialty || "Specialist",
+              hospitalName: item.hospitalName || "HealPoint Hospital",
+              department: item.department || item.doctorSpecialty || "General",
+              consultationType: item.consultationType || "clinic",
+              originalVisitDate: item.originalVisitDate || item.date || "",
+              originalVisitTime: item.originalVisitTime || "",
+              originalStatus: "completed",
+              patientName: user?.name || "Patient",
+              patientRelationship: "Self",
+              advice: item.advice || "Follow-up consultation recommended.",
+              timeframe:
+                item.recommendedTimeframe || item.timeframe || "As Advised",
+              targetDate: item.recommendedTargetDate || item.targetDate,
+              status: item.status || "pending_booking",
+              statusLabel: item.statusLabel || "Follow-Up Advised",
+              statusVariant: item.statusVariant || "warning",
+              hasPrescription: Boolean(item.hasPrescription),
+              medicinesCount: item.medicinesCount || 0,
+              hasReports: Boolean(item.hasReports),
+              reportsCount: item.reportsCount || 0,
+              linkedAppointmentId: item.linkedAppointmentId,
+              linkedAppointmentDate: item.linkedAppointmentDate,
+              linkedAppointmentTime: item.linkedAppointmentTime,
+            }),
+          );
+          setFollowUps(mapped);
+        } catch {
+          setError(
+            toErrorMessage(
+              err,
+              "Unable to load follow-up & care continuity plans.",
+            ),
+          );
+        }
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [selectedMemberId, activeTab, user?.name],
+  );
 
   useScreenFocus(loadFollowUps);
 
   useEffect(() => {
     loadFollowUps();
-  }, [userId, loadFollowUps]);
+  }, [userId, selectedMemberId, activeTab, loadFollowUps]);
+
+  // Load family members on initial render if user exists
+  useEffect(() => {
+    if (!userId) return;
+    familyService
+      .getFamilyMembers(userId)
+      .then((members) => {
+        if (Array.isArray(members) && members.length > 0) {
+          setFamilyMembers(members);
+        }
+      })
+      .catch(() => {});
+  }, [userId]);
 
   const onRefresh = () => {
     loadFollowUps(true);
@@ -114,6 +233,8 @@ export default function FollowUpsScreen() {
           (item.doctorSpecialty || "").toLowerCase().includes(q) ||
           (item.hospitalName || "").toLowerCase().includes(q) ||
           (item.advice || "").toLowerCase().includes(q) ||
+          (item.patientName || "").toLowerCase().includes(q) ||
+          (item.diagnosis || "").toLowerCase().includes(q) ||
           (item.displayAppointmentId &&
             item.displayAppointmentId.toLowerCase().includes(q)),
       );
@@ -131,7 +252,58 @@ export default function FollowUpsScreen() {
     return { total, pending, scheduled, completed };
   }, [followUps]);
 
-  const renderItem = ({ item }: { item: PatientFollowUpItem }) => {
+  const handleBookFollowUp = (item: FollowUpOverviewItem) => {
+    if (!item.doctorId) {
+      router.push("/(drawer)/doctors" as never);
+      return;
+    }
+
+    // Video consultation quota alert
+    if (item.consultationType === "video" && !item.videoQuotaAvailable) {
+      Alert.alert(
+        "Video Consultation Benefit",
+        "Video follow-ups require an active HealPoint Plus or Family subscription plan. You can book an In-Clinic visit or upgrade your plan.",
+        [
+          {
+            text: "Book Clinic Visit",
+            onPress: () => {
+              router.push({
+                pathname: "/booking/[doctorId]",
+                params: {
+                  doctorId: item.doctorId,
+                  type: "clinic",
+                  previousAppointmentId: item.appointmentId,
+                  memberId: item.familyMemberId || undefined,
+                  source: "rebook",
+                },
+              });
+            },
+          },
+          {
+            text: "View Plans",
+            onPress: () => {
+              router.push("/(drawer)/subscription");
+            },
+          },
+          { text: "Cancel", style: "cancel" },
+        ],
+      );
+      return;
+    }
+
+    router.push({
+      pathname: "/booking/[doctorId]",
+      params: {
+        doctorId: item.doctorId,
+        type: item.consultationType || "clinic",
+        previousAppointmentId: item.appointmentId,
+        memberId: item.familyMemberId || undefined,
+        source: "rebook",
+      },
+    });
+  };
+
+  const renderItem = ({ item }: { item: FollowUpOverviewItem }) => {
     const isDue = item.status === "pending_booking";
     const isScheduled = item.status === "scheduled";
     const doctorImg = getDoctorImage(
@@ -147,7 +319,10 @@ export default function FollowUpsScreen() {
             ? "primary"
             : "neutral";
 
-    const timeframe = item.recommendedTimeframe || item.timeframe;
+    const timeframe = item.timeframe;
+    const isFamily =
+      Boolean(item.familyMemberId) ||
+      (item.patientRelationship && item.patientRelationship !== "Self");
 
     return (
       <Card style={styles.card}>
@@ -184,6 +359,49 @@ export default function FollowUpsScreen() {
           <Badge label={item.statusLabel || "Plan"} variant={badgeVariant} />
         </View>
 
+        {/* Patient tag & Consultation Mode badge */}
+        <View style={styles.patientTagRow}>
+          <View
+            style={[
+              styles.patientChipTag,
+              isFamily && styles.patientChipTagFamily,
+            ]}
+          >
+            <Ionicons
+              name={isFamily ? "people-outline" : "person-outline"}
+              size={12}
+              color={isFamily ? "#7C3AED" : Palette.primary}
+            />
+            <Text
+              style={[
+                styles.patientChipTagText,
+                isFamily && { color: "#7C3AED" },
+              ]}
+              numberOfLines={1}
+            >
+              Patient: {item.patientName || "Self"}
+              {item.patientRelationship && item.patientRelationship !== "Self"
+                ? ` (${item.patientRelationship})`
+                : ""}
+            </Text>
+          </View>
+
+          <View style={styles.typeBadge}>
+            <Ionicons
+              name={
+                item.consultationType === "video"
+                  ? "videocam-outline"
+                  : "location-outline"
+              }
+              size={12}
+              color={Palette.textMuted}
+            />
+            <Text style={styles.typeBadgeText}>
+              {item.consultationType === "video" ? "Video" : "In-Clinic"}
+            </Text>
+          </View>
+        </View>
+
         {/* Clinical Advice Callout */}
         <View
           style={[
@@ -204,44 +422,61 @@ export default function FollowUpsScreen() {
                 { color: isDue ? "#92400E" : Palette.primaryDark },
               ]}
             >
-              {"Doctor's Care Instructions & Advice"}
+              {"Doctor's Follow-Up Advice & Plan"}
             </Text>
           </View>
           <Text style={styles.adviceText}>{item.advice}</Text>
 
-          {timeframe ? (
-            <View style={styles.timeframeRow}>
-              <Ionicons
-                name="time-outline"
-                size={14}
-                color={Palette.textMuted}
-              />
-              <Text style={styles.timeframeText}>
-                Advised timeframe:{" "}
-                <Text style={styles.timeframeBold}>{timeframe}</Text>
-              </Text>
-            </View>
-          ) : null}
+          <View style={styles.timeframeRow}>
+            {timeframe ? (
+              <View style={styles.timeframeSubItem}>
+                <Ionicons
+                  name="time-outline"
+                  size={13}
+                  color={Palette.textMuted}
+                />
+                <Text style={styles.timeframeText}>
+                  Advised timeframe:{" "}
+                  <Text style={styles.timeframeBold}>{timeframe}</Text>
+                </Text>
+              </View>
+            ) : null}
+
+            {item.targetDate ? (
+              <View style={styles.timeframeSubItem}>
+                <Ionicons
+                  name="calendar-outline"
+                  size={13}
+                  color={Palette.textMuted}
+                />
+                <Text style={styles.timeframeText}>
+                  Target review:{" "}
+                  <Text style={styles.timeframeBold}>
+                    {formatDDMMYYYY(item.targetDate)}
+                  </Text>
+                </Text>
+              </View>
+            ) : null}
+          </View>
         </View>
 
-        {/* Meta / Badges Row */}
+        {/* Meta / Details Row */}
         <View style={styles.metaRow}>
           <View style={styles.metaItem}>
             <Ionicons
               name="calendar-outline"
-              size={14}
+              size={13}
               color={Palette.textMuted}
             />
             <Text style={styles.metaText}>
-              Consultation:{" "}
-              {formatDDMMYYYY(item.originalVisitDate || item.date || "")}
+              Visit: {formatDDMMYYYY(item.originalVisitDate)}
             </Text>
           </View>
           {item.displayAppointmentId ? (
             <View style={styles.metaItem}>
               <Ionicons
                 name="receipt-outline"
-                size={14}
+                size={13}
                 color={Palette.textMuted}
               />
               <Text style={styles.metaText}>{item.displayAppointmentId}</Text>
@@ -249,7 +484,7 @@ export default function FollowUpsScreen() {
           ) : null}
         </View>
 
-        {/* Connected items: Prescription, Reports */}
+        {/* Connected items: Prescription, Reports, Diagnosis */}
         <View style={styles.pillsRow}>
           {item.hasPrescription ? (
             <Pressable
@@ -285,46 +520,70 @@ export default function FollowUpsScreen() {
               <Ionicons name="chevron-forward" size={12} color="#7C3AED" />
             </Pressable>
           ) : null}
+
+          {item.diagnosis ? (
+            <View style={[styles.pill, styles.pillDiagnosis]}>
+              <Ionicons
+                name="medkit-outline"
+                size={13}
+                color={Palette.textMuted}
+              />
+              <Text style={styles.pillDiagnosisText} numberOfLines={1}>
+                {item.diagnosis}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         {/* Scheduled appointment note if already booked */}
         {isScheduled && item.linkedAppointmentDate ? (
-          <View style={styles.scheduledBanner}>
+          <Pressable
+            style={styles.scheduledBanner}
+            onPress={() => {
+              if (item.linkedAppointmentId) {
+                router.push(`/appointment/${item.linkedAppointmentId}`);
+              }
+            }}
+          >
             <Ionicons name="checkmark-circle" size={18} color="#059669" />
             <View style={{ flex: 1, marginLeft: 8 }}>
               <Text style={styles.scheduledBannerTitle}>
-                Follow-up booked and confirmed
+                Follow-up visit confirmed & scheduled
               </Text>
               <Text style={styles.scheduledBannerSub}>
                 Slot: {item.linkedAppointmentDate}{" "}
                 {item.linkedAppointmentTime
                   ? `at ${item.linkedAppointmentTime}`
                   : ""}
+                {item.linkedDisplayAppointmentId
+                  ? ` • ${item.linkedDisplayAppointmentId}`
+                  : ""}
               </Text>
             </View>
-          </View>
+            <Ionicons name="chevron-forward" size={16} color="#059669" />
+          </Pressable>
         ) : null}
 
         {/* Action Buttons */}
         <View style={styles.actionRow}>
           <Button
-            title="View Visit"
+            title="Original Visit"
             variant="outline"
             style={styles.actionBtnOutline}
             onPress={() => router.push(`/appointment/${item.appointmentId}`)}
           />
 
-          {isDue && item.doctorId ? (
+          {isDue ? (
             <Button
-              title="Book Slot"
+              title="Book Follow-Up"
               variant="primary"
               icon="calendar"
               style={styles.actionBtnPrimary}
-              onPress={() => router.push(`/booking/${item.doctorId}`)}
+              onPress={() => handleBookFollowUp(item)}
             />
           ) : isScheduled && item.linkedAppointmentId ? (
             <Button
-              title="Next Visit"
+              title="View Next Visit"
               variant="primary"
               icon="arrow-forward"
               style={styles.actionBtnPrimary}
@@ -344,12 +603,131 @@ export default function FollowUpsScreen() {
       <View style={styles.header}>
         <DrawerToggleButton style={styles.menuBtn} />
         <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>Follow-Ups & Care Plans</Text>
+          <Text style={styles.headerTitle}>Care Continuity Center</Text>
           <Text style={styles.headerSubtitle}>
-            Doctor recommendations & continuous care
+            Doctor follow-up recommendations & continuous care
           </Text>
         </View>
       </View>
+
+      {/* Quick Access Vault Bar */}
+      <View style={styles.vaultBar}>
+        <Pressable
+          style={styles.vaultBarBtn}
+          onPress={() => router.push("/(drawer)/health-wallet" as never)}
+        >
+          <Ionicons name="wallet-outline" size={14} color={Palette.primary} />
+          <Text style={styles.vaultBarBtnText}>Health Wallet</Text>
+        </Pressable>
+        <View style={styles.vaultBarDivider} />
+        <Pressable
+          style={styles.vaultBarBtn}
+          onPress={() => router.push("/health/timeline")}
+        >
+          <Ionicons name="git-branch-outline" size={14} color="#7C3AED" />
+          <Text style={[styles.vaultBarBtnText, { color: "#7C3AED" }]}>
+            Timeline
+          </Text>
+        </Pressable>
+        <View style={styles.vaultBarDivider} />
+        <Pressable
+          style={styles.vaultBarBtn}
+          onPress={() => router.push("/health/records")}
+        >
+          <Ionicons name="folder-outline" size={14} color="#059669" />
+          <Text style={[styles.vaultBarBtnText, { color: "#059669" }]}>
+            Records
+          </Text>
+        </Pressable>
+      </View>
+
+      {/* Family Member Isolation Selector */}
+      {familyMembers.length > 0 ? (
+        <View style={styles.familySection}>
+          <Text style={styles.familySectionLabel}>Filter By Patient:</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.familyScrollContent}
+          >
+            <Pressable
+              style={[
+                styles.familyChip,
+                selectedMemberId === "all" && styles.familyChipActive,
+              ]}
+              onPress={() => setSelectedMemberId("all")}
+            >
+              <Ionicons
+                name="people"
+                size={13}
+                color={
+                  selectedMemberId === "all" ? Palette.white : Palette.primary
+                }
+              />
+              <Text
+                style={[
+                  styles.familyChipText,
+                  selectedMemberId === "all" && styles.familyChipTextActive,
+                ]}
+              >
+                All Patients
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.familyChip,
+                selectedMemberId === "self" && styles.familyChipActive,
+              ]}
+              onPress={() => setSelectedMemberId("self")}
+            >
+              <Ionicons
+                name="person"
+                size={13}
+                color={
+                  selectedMemberId === "self" ? Palette.white : Palette.primary
+                }
+              />
+              <Text
+                style={[
+                  styles.familyChipText,
+                  selectedMemberId === "self" && styles.familyChipTextActive,
+                ]}
+              >
+                Self ({user?.name || "Patient"})
+              </Text>
+            </Pressable>
+
+            {familyMembers.map((member) => {
+              const isSelected = selectedMemberId === member._id;
+              return (
+                <Pressable
+                  key={member._id}
+                  style={[
+                    styles.familyChip,
+                    isSelected && styles.familyChipActive,
+                  ]}
+                  onPress={() => setSelectedMemberId(member._id)}
+                >
+                  <Ionicons
+                    name="person-outline"
+                    size={13}
+                    color={isSelected ? Palette.white : Palette.text}
+                  />
+                  <Text
+                    style={[
+                      styles.familyChipText,
+                      isSelected && styles.familyChipTextActive,
+                    ]}
+                  >
+                    {member.name} ({member.relationship})
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
 
       {/* KPI Stats Strip */}
       <View style={styles.statsStrip}>
@@ -386,7 +764,7 @@ export default function FollowUpsScreen() {
           <Ionicons name="search" size={18} color={Palette.textMuted} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by doctor, hospital or advice..."
+            placeholder="Search by doctor, diagnosis, advice or patient..."
             placeholderTextColor={Palette.textMuted}
             value={search}
             onChangeText={setSearch}
@@ -432,7 +810,7 @@ export default function FollowUpsScreen() {
 
       {/* Body Content */}
       {loading ? (
-        <Loading label="Loading care plans & follow-up recommendations..." />
+        <Loading label="Loading care continuity & follow-up recommendations..." />
       ) : error ? (
         <ErrorState
           title="Couldn't load follow-up plans"
@@ -470,7 +848,7 @@ export default function FollowUpsScreen() {
                   ? "You have no outstanding follow-up visits requiring booking right now."
                   : activeTab === "scheduled"
                     ? "No follow-up visits are currently scheduled on your calendar."
-                    : "When your doctor recommends a follow-up visit or clinical care plan, it will appear here with instant booking and linked prescriptions."
+                    : "When your doctor recommends a follow-up visit or clinical care plan, it will appear here with instant one-tap booking and linked prescriptions."
               }
               action={
                 activeTab !== "all" ? (
@@ -517,6 +895,78 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Palette.textMuted,
     marginTop: 2,
+  },
+  vaultBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Palette.surfaceAlt,
+    paddingVertical: 8,
+    paddingHorizontal: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Palette.border,
+    justifyContent: "space-around",
+  },
+  vaultBarBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  vaultBarBtnText: {
+    ...Typography.caption,
+    fontWeight: "600",
+    color: Palette.primary,
+    fontSize: 12,
+  },
+  vaultBarDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: Palette.border,
+  },
+  familySection: {
+    backgroundColor: Palette.surface,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Palette.border,
+  },
+  familySectionLabel: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    fontSize: 11,
+    marginBottom: 4,
+    fontWeight: "600",
+  },
+  familyScrollContent: {
+    flexDirection: "row",
+    gap: Spacing.xs,
+    paddingBottom: 4,
+  },
+  familyChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.surfaceAlt,
+    borderWidth: 1,
+    borderColor: Palette.border,
+  },
+  familyChipActive: {
+    backgroundColor: Palette.primary,
+    borderColor: Palette.primary,
+  },
+  familyChipText: {
+    ...Typography.caption,
+    color: Palette.text,
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  familyChipTextActive: {
+    color: Palette.white,
+    fontWeight: "700",
   },
   statsStrip: {
     flexDirection: "row",
@@ -653,6 +1103,45 @@ const styles = StyleSheet.create({
     fontSize: 11,
     flex: 1,
   },
+  patientTagRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.xs,
+  },
+  patientChipTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Palette.surfaceAlt,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: Radius.pill,
+  },
+  patientChipTagFamily: {
+    backgroundColor: "#F3E8FF",
+  },
+  patientChipTagText: {
+    ...Typography.caption,
+    color: Palette.primary,
+    fontWeight: "600",
+    fontSize: 11,
+  },
+  typeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: Palette.surfaceAlt,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: Radius.pill,
+  },
+  typeBadgeText: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    fontSize: 11,
+  },
   adviceContainer: {
     backgroundColor: Palette.surfaceAlt,
     padding: Spacing.md,
@@ -689,11 +1178,17 @@ const styles = StyleSheet.create({
   timeframeRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    flexWrap: "wrap",
+    gap: Spacing.md,
     marginTop: Spacing.sm,
     paddingTop: Spacing.xs,
     borderTopWidth: 1,
     borderTopColor: "rgba(0,0,0,0.05)",
+  },
+  timeframeSubItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   timeframeText: {
     ...Typography.caption,
@@ -746,6 +1241,16 @@ const styles = StyleSheet.create({
     color: Palette.primary,
     fontWeight: "600",
     fontSize: 12,
+  },
+  pillDiagnosis: {
+    backgroundColor: Palette.surfaceAlt,
+    borderColor: Palette.border,
+  },
+  pillDiagnosisText: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    fontSize: 12,
+    maxWidth: 160,
   },
   scheduledBanner: {
     flexDirection: "row",

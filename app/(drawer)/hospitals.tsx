@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   FlatList,
@@ -12,17 +13,21 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { HospitalCard } from "@/components/HospitalCard";
+import { HospitalCompareTray } from "@/components/HospitalCompareTray";
 import { DrawerToggleButton } from "@/components/DrawerToggleButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Loading } from "@/components/ui/Loading";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { Palette, Radius, Spacing, Typography } from "@/constants/theme";
+import { useHospitalComparison } from "@/hooks/use-hospital-comparison";
 import { useHospitals } from "@/hooks/use-hospitals";
 
 type SortOption = "recommended" | "rating" | "doctors" | "name";
 
 export default function HospitalsScreen() {
+  const router = useRouter();
+  const { compareCount, canCompare, selectedIds } = useHospitalComparison();
   const [search, setSearch] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(
     null,
@@ -169,6 +174,32 @@ export default function HospitalsScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterPillsContainer}
         >
+          {/* Comparison Shortcut Pill */}
+          {compareCount > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`View comparison of ${compareCount} hospitals`}
+              onPress={() => {
+                if (canCompare) {
+                  router.push({
+                    pathname: "/hospital/compare" as never,
+                    params: { ids: selectedIds.join(",") },
+                  });
+                }
+              }}
+              style={({ pressed }) => [
+                styles.filterPill,
+                styles.filterPillCompare,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Ionicons name="git-compare" size={15} color={Palette.white} />
+              <Text style={styles.filterPillCompareText}>
+                Comparing ({compareCount})
+              </Text>
+            </Pressable>
+          ) : null}
+
           {/* Online OPD Filter */}
           <Pressable
             accessibilityRole="button"
@@ -409,9 +440,12 @@ export default function HospitalsScreen() {
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          ListFooterComponent={<View style={{ height: Spacing.xxl }} />}
+          ListFooterComponent={
+            <View style={{ height: compareCount > 0 ? 140 : Spacing.xxl }} />
+          }
         />
       )}
+      <HospitalCompareTray />
     </SafeAreaView>
   );
 }
@@ -470,6 +504,15 @@ const styles = StyleSheet.create({
   filterPillActive: {
     backgroundColor: Palette.primary,
     borderColor: Palette.primary,
+  },
+  filterPillCompare: {
+    backgroundColor: Palette.primaryDark,
+    borderColor: Palette.primaryDark,
+  },
+  filterPillCompareText: {
+    ...Typography.caption,
+    color: Palette.white,
+    fontWeight: "700",
   },
   filterPillText: {
     ...Typography.caption,

@@ -7,11 +7,12 @@
  */
 import * as SecureStore from "expo-secure-store";
 import { api } from "./api";
-import { getUserAppointments } from "./appointments";
-import type {
-  FamilyMember,
-  FamilyRelationship,
-} from "@/types";
+import {
+  getPatientFollowUps,
+  getPatientMedicalHistory,
+  getUserAppointments,
+} from "./appointments";
+import type { Appointment, FamilyMember, FamilyRelationship } from "@/types";
 
 const STORAGE_PREFIX = "healpoint_family_members_";
 
@@ -157,7 +158,10 @@ export async function addFamilyMember(
     if (res?.success && (res.familyMember || res.data)) {
       const serverMember = res.familyMember || res.data!;
       const existing = await loadLocalMembers(userId);
-      const updated = [serverMember, ...existing.filter((m) => m._id !== serverMember._id)];
+      const updated = [
+        serverMember,
+        ...existing.filter((m) => m._id !== serverMember._id),
+      ];
       await saveLocalMembers(userId, updated);
       return serverMember;
     }
@@ -200,11 +204,9 @@ export async function updateFamilyMember(
 
   // Attempt remote update
   try {
-    await api.patch(
-      `/user/family-members/${userId}/${memberId}`,
-      payload,
-      { auth: true },
-    );
+    await api.patch(`/user/family-members/${userId}/${memberId}`, payload, {
+      auth: true,
+    });
   } catch {
     // Continue with local update
   }
@@ -245,14 +247,19 @@ export async function removeFamilyMember(
   if (hasHistoricalRecords) {
     // Safe Archive
     const updated = existing.map((m) =>
-      m._id === memberId ? { ...m, isArchived: true, updatedAt: new Date().toISOString() } : m,
+      m._id === memberId
+        ? { ...m, isArchived: true, updatedAt: new Date().toISOString() }
+        : m,
     );
     await saveLocalMembers(userId, updated);
 
     try {
-      await api.delete(`/user/family-members/${userId}/${memberId}?archive=true`, {
-        auth: true,
-      });
+      await api.delete(
+        `/user/family-members/${userId}/${memberId}?archive=true`,
+        {
+          auth: true,
+        },
+      );
     } catch {
       // Ignored
     }
@@ -260,7 +267,8 @@ export async function removeFamilyMember(
     return {
       success: true,
       archived: true,
-      message: "Family member has historical health records and was safely archived.",
+      message:
+        "Family member has historical health records and was safely archived.",
     };
   }
 
@@ -283,3 +291,81 @@ export async function removeFamilyMember(
   };
 }
 
+export interface MemberCareMetrics {
+  appointmentsCount: number;
+  upcomingCount: number;
+  prescriptionsCount: number;
+  reportsCount: number;
+  followUpsCount: number;
+  nextAppointment: Appointment | null;
+}
+
+/**
+ * Derives factual care snapshot metrics for a single family member.
+ */
+export async function getMemberCareSnapshot(
+  userId: string,
+  memberId: string,
+): Promise<MemberCareMetrics> {
+  try {
+    const [appointmentsRes, historyRes, followUpsRes] =
+      await Promise.allSettled([
+        getUserAppointments(userId),
+        getPatientMedicalHistory(memberId),
+        getPatientFollowUps({ familyMemberId: memberId }),
+      ]);
+
+    const allAppointments =
+      appointmentsRes.status === "fulfilled"
+        ? appointmentsRes.value?.appoinmtent || []
+        : [];
+    const memberAppointments = allAppointments.filter((a) =>
+      memberId === "self"
+        ? !a.familyMemberId || a.familyRelationship === "Self"
+        : a.familyMemberId === memberId,
+    );
+
+    const now = new Date();
+    const upcoming = memberAppointments.filter((a) => {
+      if (
+        a.status === "completed" ||
+        a.status === "cancel" ||
+        a.status === "missed"
+      )
+        return false;
+      const dateStr = a.slotDate || a.date;
+      if (!dateStr) return true;
+      const apptDate = new Date(dateStr);
+      return isNaN(apptDate.getTime()) || apptDate >= now;
+    });
+
+    const nextAppointment = upcoming[0] || null;
+    const history = historyRes.status === "fulfilled" ? historyRes.value : null;
+    const followUps =
+      followUpsRes.status === "fulfilled"
+        ? followUpsRes.value?.followUps || []
+        : [];
+
+    return {
+      appointmentsCount: memberAppointments.length,
+      upcomingCount: upcoming.length,
+      prescriptionsCount:
+        history?.summary?.totalPrescriptions ??
+        history?.prescriptions?.length ??
+        0,
+      reportsCount:
+        history?.summary?.totalReports ?? history?.reports?.length ?? 0,
+      followUpsCount: followUps.length,
+      nextAppointment,
+    };
+  } catch {
+    return {
+      appointmentsCount: 0,
+      upcomingCount: 0,
+      prescriptionsCount: 0,
+      reportsCount: 0,
+      followUpsCount: 0,
+      nextAppointment: null,
+    };
+  }
+}

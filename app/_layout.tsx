@@ -21,6 +21,7 @@ import "react-native-reanimated";
 import { AuthProvider } from "@/hooks/use-auth";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { FavoritesProvider } from "@/hooks/use-favorites";
+import { HospitalComparisonProvider } from "@/hooks/use-hospital-comparison";
 
 export const unstable_settings = {
   anchor: "(drawer)",
@@ -38,98 +39,104 @@ export default function RootLayout() {
       <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
         <AuthProvider>
           <FavoritesProvider>
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                animation:
-                  Platform.OS === "android" ? "fade_from_bottom" : "default",
-              }}
-            >
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="(drawer)" />
-              <Stack.Screen name="(doctor)" />
-              <Stack.Screen name="(admin)" />
-              <Stack.Screen name="(super-admin)" />
-              <Stack.Screen name="doctor/[id]" />
-              <Stack.Screen name="hospital/[id]" />
-              <Stack.Screen name="appointment/[id]" />
-              <Stack.Screen
-                name="ai-assistant"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="payment/[appointmentId]"
-                options={{ title: "Secure payment" }}
-              />
-              <Stack.Screen
-                name="appointment/reschedule/[id]"
-                options={{
-                  presentation: "modal",
-                  title: "Reschedule appointment",
+            <HospitalComparisonProvider>
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  animation:
+                    Platform.OS === "android" ? "fade_from_bottom" : "default",
                 }}
-              />
-              <Stack.Screen
-                name="booking/[doctorId]"
-                options={{ presentation: "modal", title: "Book appointment" }}
-              />
-              <Stack.Screen
-                name="profile/edit"
-                options={{ presentation: "modal", title: "Edit profile" }}
-              />
-              <Stack.Screen
-                name="profile/change-password"
-                options={{ presentation: "modal", title: "Change password" }}
-              />
-              <Stack.Screen
-                name="notification/index"
-                options={{ presentation: "modal", title: "Notifications" }}
-              />
-              <Stack.Screen
-                name="settings/index"
-                options={{ presentation: "modal", title: "Settings" }}
-              />
-              <Stack.Screen name="doctor/appointments" />
-              <Stack.Screen name="doctor/patients" />
-              <Stack.Screen name="doctor/availability" />
-              <Stack.Screen name="doctor/profile" />
-              <Stack.Screen name="admin/doctors" />
-              <Stack.Screen name="admin/patients" />
-              <Stack.Screen name="admin/hospitals" />
-              <Stack.Screen name="admin/hospital-profile" />
-              <Stack.Screen name="admin/doctor-verification" />
-              <Stack.Screen name="admin/doctor-availability" />
-              <Stack.Screen name="admin/departments" />
-              <Stack.Screen name="admin/appointments" />
-              <Stack.Screen name="admin/slots" />
-              <Stack.Screen name="admin/payments" />
-              <Stack.Screen name="admin/earnings" />
-              <Stack.Screen name="admin/reviews" />
-              <Stack.Screen name="admin/notifications" />
-              <Stack.Screen name="admin/gallery" />
-              <Stack.Screen name="admin/video-guide" />
-              <Stack.Screen name="admin/subscription" />
-              <Stack.Screen name="admin/reports" />
-              <Stack.Screen name="super-admin/admins" />
-              <Stack.Screen name="super-admin/doctors" />
-              <Stack.Screen name="super-admin/patients" />
-              <Stack.Screen name="super-admin/hospitals" />
-              <Stack.Screen name="super-admin/specialties" />
-              <Stack.Screen name="super-admin/payments" />
-              <Stack.Screen name="super-admin/reports" />
-              <Stack.Screen name="super-admin/system-settings" />
-              <Stack.Screen name="super-admin/audit-logs" />
-              <Stack.Screen name="super-admin/notifications" />
-              <Stack.Screen name="super-admin/analytics" />
-              <Stack.Screen name="super-admin/subscriptions" />
-              <Stack.Screen name="super-admin/subscription/[id]" />
-              <Stack.Screen name="super-admin/hospital/[id]" />
-              <Stack.Screen name="super-admin/users" />
-              <Stack.Screen name="super-admin/reviews" />
-              <Stack.Screen name="super-admin/earnings" />
-              <Stack.Screen name="super-admin/plans" />
-              <Stack.Screen name="super-admin/messages" />
-            </Stack>
-            <StatusBar style="auto" />
+              >
+                <Stack.Screen name="(auth)" />
+                <Stack.Screen name="(drawer)" />
+                <Stack.Screen name="(doctor)" />
+                <Stack.Screen name="(admin)" />
+                <Stack.Screen name="(super-admin)" />
+                <Stack.Screen name="doctor/[id]" />
+                <Stack.Screen name="hospital/[id]" />
+                <Stack.Screen
+                  name="hospital/compare"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen name="appointment/[id]" />
+                <Stack.Screen
+                  name="ai-assistant"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="payment/[appointmentId]"
+                  options={{ title: "Secure payment" }}
+                />
+                <Stack.Screen
+                  name="appointment/reschedule/[id]"
+                  options={{
+                    presentation: "modal",
+                    title: "Reschedule appointment",
+                  }}
+                />
+                <Stack.Screen
+                  name="booking/[doctorId]"
+                  options={{ presentation: "modal", title: "Book appointment" }}
+                />
+                <Stack.Screen
+                  name="profile/edit"
+                  options={{ presentation: "modal", title: "Edit profile" }}
+                />
+                <Stack.Screen
+                  name="profile/change-password"
+                  options={{ presentation: "modal", title: "Change password" }}
+                />
+                <Stack.Screen
+                  name="notification/index"
+                  options={{ presentation: "modal", title: "Notifications" }}
+                />
+                <Stack.Screen
+                  name="settings/index"
+                  options={{ presentation: "modal", title: "Settings" }}
+                />
+                <Stack.Screen name="doctor/appointments" />
+                <Stack.Screen name="doctor/patients" />
+                <Stack.Screen name="doctor/availability" />
+                <Stack.Screen name="doctor/profile" />
+                <Stack.Screen name="admin/doctors" />
+                <Stack.Screen name="admin/patients" />
+                <Stack.Screen name="admin/hospitals" />
+                <Stack.Screen name="admin/hospital-profile" />
+                <Stack.Screen name="admin/doctor-verification" />
+                <Stack.Screen name="admin/doctor-availability" />
+                <Stack.Screen name="admin/departments" />
+                <Stack.Screen name="admin/appointments" />
+                <Stack.Screen name="admin/slots" />
+                <Stack.Screen name="admin/payments" />
+                <Stack.Screen name="admin/earnings" />
+                <Stack.Screen name="admin/reviews" />
+                <Stack.Screen name="admin/notifications" />
+                <Stack.Screen name="admin/gallery" />
+                <Stack.Screen name="admin/video-guide" />
+                <Stack.Screen name="admin/subscription" />
+                <Stack.Screen name="admin/reports" />
+                <Stack.Screen name="super-admin/admins" />
+                <Stack.Screen name="super-admin/doctors" />
+                <Stack.Screen name="super-admin/patients" />
+                <Stack.Screen name="super-admin/hospitals" />
+                <Stack.Screen name="super-admin/specialties" />
+                <Stack.Screen name="super-admin/payments" />
+                <Stack.Screen name="super-admin/reports" />
+                <Stack.Screen name="super-admin/system-settings" />
+                <Stack.Screen name="super-admin/audit-logs" />
+                <Stack.Screen name="super-admin/notifications" />
+                <Stack.Screen name="super-admin/analytics" />
+                <Stack.Screen name="super-admin/subscriptions" />
+                <Stack.Screen name="super-admin/subscription/[id]" />
+                <Stack.Screen name="super-admin/hospital/[id]" />
+                <Stack.Screen name="super-admin/users" />
+                <Stack.Screen name="super-admin/reviews" />
+                <Stack.Screen name="super-admin/earnings" />
+                <Stack.Screen name="super-admin/plans" />
+                <Stack.Screen name="super-admin/messages" />
+              </Stack>
+              <StatusBar style="auto" />
+            </HospitalComparisonProvider>
           </FavoritesProvider>
         </AuthProvider>
       </ThemeProvider>

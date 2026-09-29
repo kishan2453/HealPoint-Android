@@ -21,6 +21,10 @@ import {
 } from "@/constants/theme";
 import { formatDDMMYYYY, formatDoctorName, formatINR } from "@/lib/format";
 import { deriveAppointmentIntelligence } from "@/lib/appointment-intelligence";
+import {
+  isAppointmentEligibleForRebook,
+  navigateToRebook,
+} from "@/lib/rebooking";
 import { SmartCareJourney } from "@/components/SmartCareJourney";
 import type { Appointment, AppointmentStatus } from "@/types";
 
@@ -105,6 +109,7 @@ function AppointmentCardRaw({
   const specialty = doctorSpecialty(appointment);
   const amount = Number(appointment.amount || 0);
   const doctorId = extractDoctorId(appointment);
+  const isEligibleForRebook = isAppointmentEligibleForRebook(appointment);
 
   const open = () =>
     router.push({
@@ -153,6 +158,7 @@ function AppointmentCardRaw({
         } else {
           router.push("/doctors");
         }
+        navigateToRebook(router, appointment);
         break;
       case "VIEW_QUEUE":
       case "WAITING_DOCTOR":
@@ -353,20 +359,28 @@ function AppointmentCardRaw({
               }}
             />
           )}
-          {doctorId ? (
+          {isEligibleForRebook ? (
             <Button
               title="Book Again"
               variant="secondary"
-              icon="calendar-outline"
+              icon="repeat"
               style={styles.completedBtn}
-              onPress={() =>
-                router.push({
-                  pathname: "/booking/[doctorId]",
-                  params: { doctorId },
-                })
-              }
+              onPress={() => navigateToRebook(router, appointment)}
             />
           ) : null}
+        </View>
+      ) : null}
+
+      {/* ---- Secondary Actions for Cancelled / Past / Missed visits ---- */}
+      {!isCompleted && isEligibleForRebook ? (
+        <View style={styles.completedActionRow}>
+          <Button
+            title="Book Again"
+            variant="outline"
+            icon="repeat"
+            style={styles.completedBtn}
+            onPress={() => navigateToRebook(router, appointment)}
+          />
         </View>
       ) : null}
 

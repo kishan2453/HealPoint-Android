@@ -142,7 +142,7 @@ export default function HealthTimelineScreen() {
 
   const handleActionPress = (action: PatientTimelineAction) => {
     try {
-      if (action.route.includes("[id]") && action.params?.id) {
+      if (action.params && Object.keys(action.params).length > 0) {
         router.push({
           pathname: action.route as never,
           params: action.params,

@@ -63,6 +63,13 @@ import {
 } from "@/lib/format";
 import { getDoctorImage, getUserImage } from "@/lib/image";
 import { deriveAppointmentIntelligence } from "@/lib/appointment-intelligence";
+import {
+  getRebookDoctorName,
+  getRebookDoctorSpecialty,
+  getRebookHospitalName,
+  isAppointmentEligibleForRebook,
+  navigateToRebook,
+} from "@/lib/rebooking";
 import { toErrorMessage } from "@/services/api";
 import * as appointmentService from "@/services/appointments";
 import type {
@@ -147,6 +154,14 @@ interface QuickAction {
 
 const QUICK_ACTIONS: QuickAction[] = [
   {
+    key: "command_center",
+    label: "Care Cockpit",
+    subLabel: "Command Center",
+    icon: "pulse",
+    tint: "#0D9488",
+    path: "/command-center" as never,
+  },
+  {
     key: "emergency",
     label: "Emergency",
     subLabel: "24/7 Help",
@@ -195,6 +210,14 @@ const QUICK_ACTIONS: QuickAction[] = [
     path: "/favorites",
   },
   {
+    key: "wallet",
+    label: "Health Wallet",
+    subLabel: "Vault & Rx",
+    icon: "wallet",
+    tint: "#0D9488",
+    path: "/health-wallet" as any,
+  },
+  {
     key: "consult",
     label: "Online Meet",
     subLabel: "Telehealth",
@@ -225,6 +248,14 @@ const QUICK_ACTIONS: QuickAction[] = [
     icon: "bar-chart",
     tint: "#0284C7",
     path: "/health/reports",
+  },
+  {
+    key: "goals",
+    label: "Health Goals",
+    subLabel: "Progress",
+    icon: "trophy",
+    tint: "#2F80ED",
+    path: "/health/goals" as never,
   },
   {
     key: "notifications",
@@ -307,9 +338,19 @@ export default function HomeScreen() {
   const {
     today,
     upcoming,
+    completed,
+    past,
     loading: appointmentsLoading,
     refetch: refetchAppointments,
   } = useAppointments();
+
+  const latestRebookableAppointment = useMemo(() => {
+    return (
+      completed.find(isAppointmentEligibleForRebook) ||
+      past.find(isAppointmentEligibleForRebook) ||
+      null
+    );
+  }, [completed, past]);
   const {
     doctors,
     loading: doctorsLoading,
@@ -1070,6 +1111,86 @@ export default function HomeScreen() {
           </Pressable>
         </Animated.View>
 
+        {/* ---------------- Smart Care Command Center Cockpit Banner ---------------- */}
+        <Animated.View
+          style={[
+            styles.emergencyAccessWrap,
+            {
+              marginTop: Spacing.sm,
+              opacity: entranceAnim,
+              transform: [
+                {
+                  translateY: entranceAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [13, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Care Command Center: Real-time patient operations cockpit"
+            onPress={() => router.push("/command-center" as never)}
+            style={({ pressed }) => [
+              styles.commandCenterBanner,
+              pressed && styles.pressed,
+            ]}
+          >
+            <View style={styles.emergencyStripLeft}>
+              <View
+                style={[
+                  styles.emergencyStripIcon,
+                  { backgroundColor: "#F0FDF4" },
+                ]}
+              >
+                <Ionicons name="pulse" size={20} color={Palette.primary} />
+              </View>
+              <View style={styles.emergencyStripTextWrap}>
+                <View style={styles.emergencyStripTitleRow}>
+                  <Text
+                    style={[
+                      styles.emergencyStripTitle,
+                      { color: Palette.primaryDark },
+                    ]}
+                  >
+                    Care Command Center
+                  </Text>
+                  <View
+                    style={[
+                      styles.emergencyStripPill,
+                      { backgroundColor: Palette.primaryLight },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.emergencyStripPillText,
+                        { color: Palette.primaryDark },
+                      ]}
+                    >
+                      LIVE COCKPIT
+                    </Text>
+                  </View>
+                </View>
+                <Text
+                  style={[
+                    styles.emergencyStripSub,
+                    { color: Palette.textMuted },
+                  ]}
+                >
+                  Today's care status, live queue, reminders & instant actions
+                </Text>
+              </View>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={Palette.primary}
+            />
+          </Pressable>
+        </Animated.View>
+
         {/* ---------------- Quick actions ---------------- */}
         <Animated.View
           style={[
@@ -1374,6 +1495,28 @@ export default function HomeScreen() {
               <Text style={styles.overviewLabel}>Reviews</Text>
               <Text style={styles.overviewSub}>Submitted</Text>
             </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Health Goals & Wellness"
+              onPress={() => router.push("/health/goals" as never)}
+              style={({ pressed }) => [
+                styles.overviewCard,
+                pressed && styles.pressed,
+              ]}
+            >
+              <View
+                style={[
+                  styles.overviewIconCircle,
+                  { backgroundColor: "#EFF6FF" },
+                ]}
+              >
+                <Ionicons name="trophy" size={18} color="#2F80ED" />
+              </View>
+              <Text style={styles.overviewCount}>Goals</Text>
+              <Text style={styles.overviewLabel}>Wellness</Text>
+              <Text style={styles.overviewSub}>Track Progress</Text>
+            </Pressable>
           </ScrollView>
         </View>
 
@@ -1626,6 +1769,61 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
+
+        {/* ---------------- Quick Re-Book / Repeat Consultation ---------------- */}
+        {latestRebookableAppointment && (
+          <View style={styles.section}>
+            <SectionHeader
+              title="Repeat Consultation"
+              subtitle="Quick one-tap booking with your previous doctor"
+              actionLabel="All Bookings"
+              onAction={() => router.push("/appointments")}
+            />
+            <View style={styles.rebookCard}>
+              <View style={styles.rebookCardTop}>
+                <View style={styles.rebookDoctorAvatarWrap}>
+                  <Ionicons name="medical" size={20} color={Palette.primary} />
+                </View>
+                <View style={styles.rebookDoctorMeta}>
+                  <Text style={styles.rebookDoctorName}>
+                    {getRebookDoctorName(latestRebookableAppointment)}
+                  </Text>
+                  <Text style={styles.rebookDoctorSpecialty}>
+                    {getRebookDoctorSpecialty(latestRebookableAppointment)}
+                    {getRebookHospitalName(latestRebookableAppointment)
+                      ? ` • ${getRebookHospitalName(latestRebookableAppointment)}`
+                      : ""}
+                  </Text>
+                  <Text style={styles.rebookLastVisit}>
+                    Last visit:{" "}
+                    {formatDDMMYYYY(
+                      latestRebookableAppointment.slotDate ||
+                        latestRebookableAppointment.date ||
+                        latestRebookableAppointment.appointmentDate,
+                    )}{" "}
+                    (
+                    {latestRebookableAppointment.consultationType === "video"
+                      ? "Video Consult"
+                      : "Clinic Visit"}
+                    )
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.rebookActions}>
+                <Button
+                  title="Book Again"
+                  icon="repeat"
+                  variant="primary"
+                  onPress={() =>
+                    navigateToRebook(router, latestRebookableAppointment)
+                  }
+                  style={styles.rebookPrimaryBtn}
+                />
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* ---------------- Recent Health Insights ---------------- */}
 
@@ -3051,6 +3249,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#FCA5A5",
   },
+  commandCenterBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderWidth: 1,
+    borderColor: `${Palette.primary}35`,
+    ...Shadows.card,
+  },
   emergencyStripLeft: {
     flexDirection: "row",
     alignItems: "center",
@@ -3094,5 +3304,53 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: "#7F1D1D",
     marginTop: 1,
+  },
+  rebookCard: {
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: `${Palette.primary}30`,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+    ...Shadows.card,
+  },
+  rebookCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  rebookDoctorAvatarWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: `${Palette.primary}15`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rebookDoctorMeta: {
+    flex: 1,
+    gap: 2,
+  },
+  rebookDoctorName: {
+    ...Typography.label,
+    fontSize: 15,
+    color: Palette.text,
+  },
+  rebookDoctorSpecialty: {
+    ...Typography.caption,
+    color: Palette.primaryDark,
+    fontWeight: "600",
+  },
+  rebookLastVisit: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    marginTop: 2,
+  },
+  rebookActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  rebookPrimaryBtn: {
+    flex: 1,
   },
 });

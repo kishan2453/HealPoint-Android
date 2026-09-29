@@ -77,6 +77,18 @@ import type {
   HospitalConsultationStats,
   HospitalDepartment,
 } from "@/types";
+import {
+  evaluateHospitalOperationalStatus,
+  detectDelayedAppointments,
+  buildOperationalAlerts,
+  computeDepartmentWorkload,
+  extractRecentOperationalActivity,
+  type HospitalOperationalState,
+  type OperationalAlert,
+  type DelayedAppointmentItem,
+  type OperationalActivityItem,
+  type DepartmentOperationalSummary,
+} from "@/lib/hospital-command-center";
 
 export type OperationalTab =
   | "all"
@@ -86,7 +98,8 @@ export type OperationalTab =
   | "confirmed"
   | "pending"
   | "completed"
-  | "cancelled";
+  | "cancelled"
+  | "delayed";
 
 interface DoctorOperationalView {
   doctor: Doctor;
@@ -100,16 +113,6 @@ interface DoctorOperationalView {
   activePatient?: Appointment;
   waitingCount: number;
   nextPatient?: Appointment;
-}
-
-interface SmartAlertItem {
-  id: string;
-  type: "warning" | "error" | "info";
-  title: string;
-  message: string;
-  count?: number;
-  actionRoute?: string;
-  actionLabel?: string;
 }
 
 export function OperationsCenter() {

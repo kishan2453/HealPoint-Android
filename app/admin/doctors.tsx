@@ -1011,6 +1011,7 @@ export default function AdminDoctorsScreen() {
                                 <Text style={styles.patientName}>
                                   {appt.patientName ||
                                     appt.patientId?.name ||
+                                    (typeof appt.patientId === "object" && appt.patientId !== null ? appt.patientId.name : undefined) ||
                                     "Patient"}
                                 </Text>
                                 <Text style={styles.apptTime}>

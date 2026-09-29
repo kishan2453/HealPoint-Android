@@ -19,6 +19,7 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -60,6 +61,10 @@ import * as consultationService from "@/services/consultations";
 import * as subscriptionService from "@/services/subscriptions";
 import type { AppointmentDetails } from "@/types";
 import { deriveAppointmentIntelligence } from "@/lib/appointment-intelligence";
+import {
+  isAppointmentEligibleForRebook,
+  navigateToRebook,
+} from "@/lib/rebooking";
 
 const CANCELABLE = ["pending", "confirmed", "rescheduled"];
 
@@ -269,6 +274,49 @@ export default function AppointmentDetailScreen() {
 
   const openCancel = () => {
     setCancelVisible(true);
+  };
+
+  const handleShareReceipt = async () => {
+    if (!appointment) return;
+    try {
+      const billing = appointment.billing;
+      const feeLines = [
+        `Consultation Fee: ${formatINR(billing?.consultationFee ?? appointment.amount ?? 0)}`,
+      ];
+      if (billing?.serviceFee && billing.serviceFee > 0) {
+        feeLines.push(`Platform Service Fee: ${formatINR(billing.serviceFee)}`);
+      }
+      if (billing?.subscriptionBenefit && billing.subscriptionBenefit > 0) {
+        feeLines.push(
+          `${billing.planName || "Subscription"} Plan Benefit: -${formatINR(billing.subscriptionBenefit)}`,
+        );
+      }
+      if (billing?.discount && billing.discount > 0) {
+        feeLines.push(`Discount: -${formatINR(billing.discount)}`);
+      }
+      feeLines.push(
+        `Total Amount: ${formatINR(billing?.totalAmount ?? appointment.amount ?? 0)}`,
+      );
+
+      await Share.share({
+        title: "HealPoint Verified Payment Receipt",
+        message:
+          `HealPoint Healthcare - Verified Payment Receipt\n` +
+          `----------------------------------------\n` +
+          `Appointment: ${appointment.displayAppointmentId || appointment.appointmentId || appointment._id}\n` +
+          `Patient: ${appointment.patientName || "Patient"}\n` +
+          `Doctor: ${appointment.doctorName || "Doctor"}\n` +
+          `Hospital: ${appointment.hospitalName || "HealPoint Hospital"}\n` +
+          `Date & Time: ${formatDDMMYYYY(appointment.slotDate || appointment.date)} at ${appointment.slotTime || appointment.time}\n` +
+          `Payment Mode: ${appointment.paymentMethod === "online" ? "Online (Razorpay)" : "Hospital Cash Counter"}\n` +
+          `Status: ${isPaid ? "PAID & VERIFIED" : "PAYMENT PENDING"}\n` +
+          (appointment.razorpayPaymentId
+            ? `Payment ID: ${appointment.razorpayPaymentId}\n`
+            : "") +
+          `----------------------------------------\n` +
+          feeLines.join("\n"),
+      });
+    } catch {}
   };
 
   const confirmCancel = async () => {
@@ -688,6 +736,90 @@ export default function AppointmentDetailScreen() {
           }}
         />
 
+        {/* ---------------- Smart Appointment Preparation & Pre-Consultation Card ---------------- */}
+        <Card padded style={styles.preparationCard}>
+          <View style={styles.preparationHeaderRow}>
+            <View style={styles.preparationIconBox}>
+              <Ionicons
+                name="clipboard-outline"
+                size={24}
+                color={Palette.primary}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={styles.preparationBadgeRow}>
+                <Text style={styles.preparationTitle}>
+                  Pre-Consultation Center
+                </Text>
+                <Badge
+                  label={
+                    appointment.preparation?.instructionsAcknowledged
+                      ? "Guidelines Ready"
+                      : "Action Advised"
+                  }
+                  variant={
+                    appointment.preparation?.instructionsAcknowledged
+                      ? "success"
+                      : "primary"
+                  }
+                />
+              </View>
+              <Text style={styles.preparationSubtitle}>
+                Review guidelines, attach lab reports, and prepare symptoms &
+                questions for Dr. {appointment.doctorName || "your doctor"}.
+              </Text>
+            </View>
+          </View>
+
+          {/* Quick Stats Pill */}
+          <View style={styles.prepStatsRow}>
+            <View style={styles.prepStatPill}>
+              <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={14}
+                color={Palette.primary}
+              />
+              <Text style={styles.prepStatText}>
+                {appointment.preparation?.patientQuestions?.length || 0}{" "}
+                Questions Prepared
+              </Text>
+            </View>
+            <View style={styles.prepStatPill}>
+              <Ionicons
+                name={
+                  appointment.preparation?.instructionsAcknowledged
+                    ? "checkmark-circle-outline"
+                    : "alert-circle-outline"
+                }
+                size={14}
+                color={
+                  appointment.preparation?.instructionsAcknowledged
+                    ? Palette.success
+                    : Palette.textMuted
+                }
+              />
+              <Text style={styles.prepStatText}>
+                {appointment.preparation?.instructionsAcknowledged
+                  ? "Instructions Ready"
+                  : "Guidelines Pending"}
+              </Text>
+            </View>
+          </View>
+
+          <Button
+            title="Prepare for Appointment"
+            variant="primary"
+            icon="shield-checkmark-outline"
+            onPress={() =>
+              router.push({
+                pathname: "/appointment/prepare/[id]" as any,
+                params: { id: String(appointment._id || id) },
+              })
+            }
+            style={{ marginTop: Spacing.sm }}
+          />
+        </Card>
+
         {/* ---------------- Smart QR Check-In & Live Queue Section ---------------- */}
         {appointment.checkedIn ? (
           <Card padded style={styles.queueCard}>
@@ -965,22 +1097,105 @@ export default function AppointmentDetailScreen() {
         <Card padded style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <Ionicons name="wallet-outline" size={20} color={Palette.primary} />
-            <Text style={styles.sectionTitle}>Billing & Payment</Text>
+            <Text style={styles.sectionTitle}>Cost & Billing Summary</Text>
           </View>
 
           <View style={styles.billingRow}>
-            <Text style={styles.billingLabel}>Consultation Fee</Text>
+            <Text style={styles.billingLabel}>Doctor Consultation Fee</Text>
             <Text style={styles.billingAmount}>
-              {formatINR(appointment.amount)}
+              {formatINR(
+                appointment.billing?.consultationFee ?? appointment.amount,
+              )}
+            </Text>
+          </View>
+
+          {appointment.billing?.serviceFee &&
+          appointment.billing.serviceFee > 0 ? (
+            <View style={styles.billingRow}>
+              <Text style={styles.billingLabel}>Platform Service Fee</Text>
+              <Text style={styles.billingAmount}>
+                {formatINR(appointment.billing.serviceFee)}
+              </Text>
+            </View>
+          ) : null}
+
+          {appointment.billing?.subscriptionBenefit &&
+          appointment.billing.subscriptionBenefit > 0 ? (
+            <View style={styles.billingRow}>
+              <Text style={[styles.billingLabel, { color: Palette.success }]}>
+                {appointment.billing.planName || "Subscription"} Plan Benefit
+              </Text>
+              <Text
+                style={[
+                  styles.billingAmount,
+                  { color: Palette.success, fontWeight: "700" },
+                ]}
+              >
+                -{formatINR(appointment.billing.subscriptionBenefit)}
+              </Text>
+            </View>
+          ) : null}
+
+          {appointment.billing?.discount && appointment.billing.discount > 0 ? (
+            <View style={styles.billingRow}>
+              <Text style={[styles.billingLabel, { color: Palette.success }]}>
+                Special Discount
+              </Text>
+              <Text
+                style={[
+                  styles.billingAmount,
+                  { color: Palette.success, fontWeight: "700" },
+                ]}
+              >
+                -{formatINR(appointment.billing.discount)}
+              </Text>
+            </View>
+          ) : null}
+
+          <View
+            style={[
+              styles.billingRow,
+              {
+                paddingTop: Spacing.xs,
+                borderTopWidth: 1,
+                borderTopColor: Palette.divider,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.billingLabel,
+                { fontWeight: "700", color: Palette.text },
+              ]}
+            >
+              Total Amount
+            </Text>
+            <Text
+              style={[
+                styles.billingAmount,
+                {
+                  fontSize: 18,
+                  color: Palette.primaryDark,
+                  fontWeight: "800",
+                },
+              ]}
+            >
+              {appointment.billing?.totalAmount === 0
+                ? "₹0 (Plan Covered)"
+                : formatINR(
+                    appointment.billing?.totalAmount ?? appointment.amount,
+                  )}
             </Text>
           </View>
 
           <View style={styles.billingRow}>
             <Text style={styles.billingLabel}>Payment Mode</Text>
             <Text style={styles.billingValue}>
-              {appointment.paymentMethod === "online"
-                ? "Online (Razorpay)"
-                : "Pay at Clinic (Cash / UPI)"}
+              {appointment.billing?.totalAmount === 0
+                ? `Covered by ${appointment.billing.planName || "Subscription"} Plan`
+                : appointment.paymentMethod === "online"
+                  ? "Online (Razorpay)"
+                  : "Pay at Clinic (Cash / UPI)"}
             </Text>
           </View>
 
@@ -1004,6 +1219,17 @@ export default function AppointmentDetailScreen() {
               <Text style={styles.billingCode}>
                 {appointment.razorpayPaymentId}
               </Text>
+            </View>
+          ) : null}
+
+          {isPaid ? (
+            <View style={styles.payActionWrap}>
+              <Button
+                title="Share Payment Receipt"
+                icon="share-outline"
+                variant="outline"
+                onPress={handleShareReceipt}
+              />
             </View>
           ) : null}
 
@@ -1107,6 +1333,98 @@ export default function AppointmentDetailScreen() {
                 style={{ flex: 1 }}
                 onPress={() => router.push("/(drawer)/health/records")}
               />
+            </View>
+          </Card>
+        ) : null}
+
+        {/* ---------------- Follow-Up & Care Continuity Section ---------------- */}
+        {Boolean(
+          status === "completed" ||
+          appointment.bookingStatus === "completed" ||
+          appointment.followUpAdvice ||
+          appointment.followUp?.required,
+        ) ? (
+          <Card padded style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Ionicons
+                name="calendar-clear-outline"
+                size={20}
+                color={Palette.primary}
+              />
+              <Text style={styles.sectionTitle}>
+                Follow-Up & Care Continuity
+              </Text>
+              <Badge
+                label={
+                  appointment.followUp?.status === "scheduled"
+                    ? "Visit Scheduled"
+                    : appointment.followUp?.status === "completed"
+                      ? "Completed"
+                      : "Action Advised"
+                }
+                variant={
+                  appointment.followUp?.status === "scheduled"
+                    ? "primary"
+                    : appointment.followUp?.status === "completed"
+                      ? "success"
+                      : "warning"
+                }
+              />
+            </View>
+
+            <View style={styles.clinicalBox}>
+              <Text style={styles.clinicalLabel}>
+                Doctor Follow-Up Instructions
+              </Text>
+              <Text style={styles.clinicalValue}>
+                {appointment.followUpAdvice ||
+                  appointment.followUp?.notes ||
+                  "Follow-up visit recommended for continuous patient care and recovery review."}
+              </Text>
+              {appointment.followUp?.timeframe ? (
+                <Text style={[styles.medMeta, { marginTop: Spacing.xs }]}>
+                  Advised timeframe:{" "}
+                  <Text style={{ fontWeight: "700", color: Palette.text }}>
+                    {appointment.followUp.timeframe}
+                  </Text>
+                </Text>
+              ) : null}
+            </View>
+
+            <View
+              style={{
+                flexDirection: "row",
+                gap: Spacing.sm,
+                marginTop: Spacing.sm,
+              }}
+            >
+              <Button
+                title="Care Continuity Center"
+                variant="outline"
+                icon="list-outline"
+                style={{ flex: 1 }}
+                onPress={() => router.push("/(drawer)/health/follow-ups")}
+              />
+              {resolvedDoctorId ? (
+                <Button
+                  title="Book Follow-Up"
+                  variant="primary"
+                  icon="calendar"
+                  style={{ flex: 1 }}
+                  onPress={() => {
+                    router.push({
+                      pathname: "/booking/[doctorId]",
+                      params: {
+                        doctorId: resolvedDoctorId,
+                        type: appointment.consultationType || "clinic",
+                        previousAppointmentId: String(appointment._id || id),
+                        memberId: appointment.familyMemberId || undefined,
+                        source: "rebook",
+                      },
+                    });
+                  }}
+                />
+              ) : null}
             </View>
           </Card>
         ) : null}
@@ -1266,18 +1584,13 @@ export default function AppointmentDetailScreen() {
               onPress={() => setCancelVisible(true)}
             />
           </View>
-        ) : status === "completed" && resolvedDoctorId ? (
+        ) : isAppointmentEligibleForRebook(appointment) ? (
           <View style={styles.actionButtonsWrap}>
             <Button
-              title={`Book Follow-up with ${formatDoctorName(appointment.doctorName, "Doctor")}`}
+              title={`Book Again with ${formatDoctorName(appointment.doctorName, "Doctor")}`}
               variant="primary"
-              icon="calendar"
-              onPress={() =>
-                router.push({
-                  pathname: "/booking/[doctorId]",
-                  params: { doctorId: resolvedDoctorId },
-                })
-              }
+              icon="repeat"
+              onPress={() => navigateToRebook(router, appointment)}
             />
           </View>
         ) : null}
@@ -2095,5 +2408,63 @@ const styles = StyleSheet.create({
     color: Palette.textMuted,
     textAlign: "center",
     lineHeight: 14,
+  },
+  preparationCard: {
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Palette.primaryLight,
+    ...Shadows.sm,
+  },
+  preparationHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.sm,
+  },
+  preparationIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.md,
+    backgroundColor: Palette.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  preparationBadgeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  preparationTitle: {
+    ...Typography.body,
+    fontWeight: "700",
+    color: Palette.text,
+  },
+  preparationSubtitle: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    marginTop: 3,
+    lineHeight: 18,
+  },
+  prepStatsRow: {
+    flexDirection: "row",
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+    flexWrap: "wrap",
+  },
+  prepStatPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Palette.background,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+    borderColor: Palette.border,
+  },
+  prepStatText: {
+    fontSize: 11,
+    color: Palette.text,
+    fontWeight: "500",
   },
 });

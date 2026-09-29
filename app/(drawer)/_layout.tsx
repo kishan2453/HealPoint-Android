@@ -43,6 +43,10 @@ export default function DrawerLayout() {
             the custom drawer content renders them (patient menu). */}
         <Drawer.Screen name="index" options={{ title: "Home", ...hidden }} />
         <Drawer.Screen
+          name="command-center"
+          options={{ title: "Care Command Center", ...hidden }}
+        />
+        <Drawer.Screen
           name="doctors"
           options={{ title: "Find Doctors", ...hidden }}
         />
@@ -81,6 +85,10 @@ export default function DrawerLayout() {
           options={{ title: "Favorites", ...hidden }}
         />
         <Drawer.Screen
+          name="health-wallet"
+          options={{ title: "Digital Health Wallet", ...hidden }}
+        />
+        <Drawer.Screen
           name="health/timeline"
           options={{ title: "Health Timeline", ...hidden }}
         />
@@ -90,11 +98,15 @@ export default function DrawerLayout() {
         />
         <Drawer.Screen
           name="health/prescriptions"
-          options={{ title: "Prescriptions", ...hidden }}
+          options={{ title: "Prescriptions & Reminders", ...hidden }}
         />
         <Drawer.Screen
           name="health/reports"
           options={{ title: "Reports", ...hidden }}
+        />
+        <Drawer.Screen
+          name="health/goals"
+          options={{ title: "Health Goals", ...hidden }}
         />
         <Drawer.Screen
           name="health/family"

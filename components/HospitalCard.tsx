@@ -16,6 +16,7 @@ import {
   Spacing,
   Typography,
 } from "@/constants/theme";
+import { useHospitalComparison } from "@/hooks/use-hospital-comparison";
 import type { Hospital } from "@/types";
 
 interface HospitalCardProps {
@@ -33,6 +34,8 @@ function hospitalAddress(hospital: Hospital): string {
 function HospitalCardRaw({ hospital }: HospitalCardProps) {
   const router = useRouter();
   const id = String(hospital._id);
+  const { isInComparison, toggleHospital } = useHospitalComparison();
+  const inCompare = isInComparison(id);
 
   return (
     <Pressable
@@ -41,7 +44,11 @@ function HospitalCardRaw({ hospital }: HospitalCardProps) {
       onPress={() =>
         router.push({ pathname: "/hospital/[id]", params: { id } })
       }
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.card,
+        inCompare && styles.cardComparing,
+        pressed && styles.pressed,
+      ]}
     >
       <View style={styles.coverWrap}>
         <HospitalImage
@@ -128,16 +135,51 @@ function HospitalCardRaw({ hospital }: HospitalCardProps) {
           ) : null}
         </View>
 
-        <View style={styles.viewRow}>
-          <View style={styles.viewIconWrap}>
-            <Ionicons name="business" size={16} color={Palette.primaryDark} />
+        <View style={styles.actionFooter}>
+          <View style={styles.viewRow}>
+            <View style={styles.viewIconWrap}>
+              <Ionicons name="business" size={16} color={Palette.primaryDark} />
+            </View>
+            <Text style={styles.viewLabel}>View Profile</Text>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={Palette.primaryDark}
+            />
           </View>
-          <Text style={styles.viewLabel}>View Hospital Profile</Text>
-          <Ionicons
-            name="chevron-forward"
-            size={18}
-            color={Palette.primaryDark}
-          />
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              inCompare
+                ? `Remove ${hospital.name} from comparison`
+                : `Add ${hospital.name} to comparison`
+            }
+            onPress={(e) => {
+              e.stopPropagation?.();
+              toggleHospital(hospital);
+            }}
+            hitSlop={6}
+            style={({ pressed }) => [
+              styles.compareBtn,
+              inCompare && styles.compareBtnActive,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name={inCompare ? "checkmark-circle" : "git-compare-outline"}
+              size={15}
+              color={inCompare ? Palette.white : Palette.primary}
+            />
+            <Text
+              style={[
+                styles.compareBtnText,
+                inCompare && styles.compareBtnTextActive,
+              ]}
+            >
+              {inCompare ? "Comparing" : "Compare"}
+            </Text>
+          </Pressable>
         </View>
       </View>
     </Pressable>
@@ -216,6 +258,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.xs,
   },
+  cardComparing: {
+    borderColor: Palette.primary,
+    borderWidth: 2,
+  },
   metaText: {
     ...Typography.bodySmall,
     color: Palette.textMuted,
@@ -225,15 +271,44 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: Spacing.sm,
   },
-  viewRow: {
+  actionFooter: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
     marginTop: Spacing.xs,
+  },
+  viewRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
     backgroundColor: Palette.primaryLight,
     borderRadius: Radius.md,
     paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+  },
+  compareBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Palette.surfaceAlt,
+    borderWidth: 1.5,
+    borderColor: Palette.primary,
+    borderRadius: Radius.md,
+    paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
+  },
+  compareBtnActive: {
+    backgroundColor: Palette.primary,
+    borderColor: Palette.primary,
+  },
+  compareBtnText: {
+    ...Typography.caption,
+    fontWeight: "700",
+    color: Palette.primary,
+  },
+  compareBtnTextActive: {
+    color: Palette.white,
   },
   viewIconWrap: {
     width: 28,

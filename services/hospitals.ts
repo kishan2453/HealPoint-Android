@@ -48,6 +48,25 @@ export async function getPublicHospitalDetails(
 }
 
 /**
+ * Public Smart Hospital Comparison — fetches side-by-side comparison data
+ * for up to 3 selected hospitals including doctors, departments, fees, and reviews.
+ */
+export async function compareHospitals(
+  hospitalIds: string[],
+  options?: { signal?: AbortSignal | null },
+): Promise<{ success: boolean; message: string; hospitals: Hospital[] }> {
+  const idsParam = hospitalIds.join(",");
+  return api.get<{
+    success: boolean;
+    message: string;
+    hospitals: Hospital[];
+  }>(`/hospital/compare?ids=${encodeURIComponent(idsParam)}`, {
+    timeout: API_TIMEOUT_MS,
+    ...(options?.signal ? { signal: options.signal } : {}),
+  });
+}
+
+/**
  * Super Admin platform hospital directory. Includes active AND inactive
  * hospitals plus real doctor/patient/appointment counts and subscription
  * fields — sanitised server-side (no secrets).

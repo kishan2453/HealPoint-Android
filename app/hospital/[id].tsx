@@ -29,6 +29,7 @@ import {
   Spacing,
   Typography,
 } from "@/constants/theme";
+import { useHospitalComparison } from "@/hooks/use-hospital-comparison";
 import { formatDoctorName, formatINR, formatISODate } from "@/lib/format";
 import { getDoctorImage } from "@/lib/image";
 import { toErrorMessage } from "@/services/api";
@@ -38,6 +39,9 @@ import type { Doctor, Hospital } from "@/types";
 export default function HospitalDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
+  const { isInComparison, toggleHospital, canCompare, selectedIds } =
+    useHospitalComparison();
+  const inCompare = id ? isInComparison(String(id)) : false;
   const [hospital, setHospital] = useState<Hospital | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -249,6 +253,27 @@ export default function HospitalDetailScreen() {
               color={Palette.text}
             />
           </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              inCompare
+                ? `Remove ${hospital.name} from comparison`
+                : `Add ${hospital.name} to comparison`
+            }
+            onPress={() => hospital && toggleHospital(hospital)}
+            style={({ pressed }) => [
+              styles.iconBtn,
+              inCompare && styles.iconBtnActive,
+              pressed && styles.pressed,
+            ]}
+            hitSlop={8}
+          >
+            <Ionicons
+              name={inCompare ? "git-compare" : "git-compare-outline"}
+              size={20}
+              color={inCompare ? Palette.primary : Palette.text}
+            />
+          </Pressable>
           {id ? (
             <FavoriteButton
               hospitalId={String(id)}
@@ -398,7 +423,76 @@ export default function HospitalDetailScreen() {
               <Text style={styles.quickActionLabel}>Website</Text>
             </Pressable>
           ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              inCompare
+                ? `Remove ${hospital.name} from comparison`
+                : `Add ${hospital.name} to comparison`
+            }
+            onPress={() => hospital && toggleHospital(hospital)}
+            style={({ pressed }) => [
+              styles.quickActionBtn,
+              inCompare && styles.quickActionBtnActive,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name={inCompare ? "checkmark-circle" : "git-compare-outline"}
+              size={16}
+              color={inCompare ? Palette.primaryDark : Palette.primary}
+            />
+            <Text
+              style={[
+                styles.quickActionLabel,
+                inCompare && styles.quickActionLabelActive,
+              ]}
+            >
+              {inCompare ? "Comparing" : "Compare"}
+            </Text>
+          </Pressable>
         </View>
+
+        {/* ---------------- Comparison Banner ---------------- */}
+        {inCompare ? (
+          <View style={styles.comparisonBanner}>
+            <View style={styles.comparisonBannerLeft}>
+              <Ionicons
+                name="git-compare"
+                size={18}
+                color={Palette.primaryDark}
+              />
+              <Text style={styles.comparisonBannerText}>
+                {canCompare
+                  ? `Comparing with ${selectedIds.length - 1} other hospital${selectedIds.length > 2 ? "s" : ""}`
+                  : "Added to comparison. Select 1 more hospital."}
+              </Text>
+            </View>
+            {canCompare ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="View hospital comparison"
+                onPress={() =>
+                  router.push({
+                    pathname: "/hospital/compare" as never,
+                    params: { ids: selectedIds.join(",") },
+                  })
+                }
+                style={({ pressed }) => [
+                  styles.comparisonBannerCta,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.comparisonBannerCtaText}>View</Text>
+                <Ionicons
+                  name="arrow-forward"
+                  size={14}
+                  color={Palette.white}
+                />
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
 
         {/* ---------------- Consultation & Timings ---------------- */}
         <Card padded style={styles.sectionCard}>
@@ -1100,6 +1194,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Palette.border,
   },
+  iconBtnActive: {
+    backgroundColor: Palette.primaryLight,
+    borderColor: Palette.primary,
+  },
   container: {
     paddingBottom: Spacing.xxxl,
     gap: Spacing.lg,
@@ -1222,10 +1320,56 @@ const styles = StyleSheet.create({
     borderColor: Palette.border,
     ...Shadows.card,
   },
+  quickActionBtnActive: {
+    backgroundColor: Palette.primaryLight,
+    borderColor: Palette.primary,
+  },
   quickActionLabel: {
     ...Typography.caption,
     fontWeight: "700",
     color: Palette.primaryDark,
+  },
+  quickActionLabelActive: {
+    color: Palette.primaryDark,
+  },
+  comparisonBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Palette.primaryLight,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Palette.primary,
+  },
+  comparisonBannerLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginRight: Spacing.sm,
+  },
+  comparisonBannerText: {
+    ...Typography.caption,
+    color: Palette.primaryDark,
+    fontWeight: "600",
+    flex: 1,
+  },
+  comparisonBannerCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Palette.primary,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: Radius.pill,
+  },
+  comparisonBannerCtaText: {
+    ...Typography.caption,
+    fontWeight: "700",
+    color: Palette.white,
   },
   sectionCard: {
     marginHorizontal: Spacing.lg,

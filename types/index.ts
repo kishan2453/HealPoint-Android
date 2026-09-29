@@ -392,6 +392,29 @@ export interface PopulatedAppointmentDoctor {
   hospitalName?: string;
 }
 
+export interface AppointmentBillingBreakdownItem {
+  key: string;
+  label: string;
+  amount: number;
+  type: "fee" | "charge" | "discount" | "benefit" | "total";
+}
+
+export interface AppointmentBilling {
+  consultationFee: number;
+  serviceFee?: number;
+  platformFee?: number;
+  discount?: number;
+  subscriptionBenefit?: number;
+  planApplied?: string;
+  planName?: string;
+  subtotal: number;
+  totalAmount: number;
+  currency?: string;
+  calculatedAt?: string;
+  notes?: string;
+  breakdown?: AppointmentBillingBreakdownItem[];
+}
+
 export interface Appointment {
   _id: string;
   appointmentId?: string;
@@ -407,11 +430,13 @@ export interface Appointment {
   appointmentDate?: string;
   patientName?: string;
   patientId?: any;
+  patientId?: string | User;
   patientPhone?: string;
   familyMemberId?: string;
   familyRelationship?: FamilyRelationship;
   isFamilyBooking?: boolean;
   amount?: number;
+  billing?: AppointmentBilling;
   consultationType?: ConsultationType;
   consultationMode?: ConsultationMode;
   meetingUrl?: string;
@@ -475,6 +500,17 @@ export interface Appointment {
     | "completed"
     | "cancelled";
   calledAt?: string;
+  preparation?: AppointmentPreparationState;
+  originalAppointmentId?: string;
+  followUp?: {
+    required?: boolean;
+    recommendedDate?: string;
+    timeframe?: string;
+    notes?: string;
+    linkedFollowUpAppointmentId?: string;
+    status?: "none" | "recommended" | "scheduled" | "completed" | "overdue";
+    updatedAt?: string;
+  };
 }
 
 /** Shape returned by GET /appointment/get-user-appointments/:id. */
@@ -490,6 +526,137 @@ export interface AppointmentDetailsResponse {
   success: boolean;
   message?: string;
   appointmentDetails: AppointmentDetails;
+}
+
+export interface PatientQuestionItem {
+  _id?: string;
+  question: string;
+  sharedWithDoctor: boolean;
+  createdAt?: string;
+}
+
+export interface AppointmentPreparationState {
+  patientQuestions: PatientQuestionItem[];
+  checklistCompleted: string[];
+  instructionsAcknowledged: boolean;
+  symptomsNotes: string;
+  updatedAt?: string | null;
+}
+
+export interface PreparationChecklistItem {
+  key: string;
+  title: string;
+  description: string;
+  isCompleted: boolean;
+  isAutoVerified: boolean;
+  actionType:
+    | "profile"
+    | "instructions"
+    | "documents"
+    | "questions"
+    | "pass"
+    | "video";
+}
+
+export interface PreparationInstructionDetails {
+  type: "clinic" | "video";
+  title: string;
+  guidelines: string[];
+  isAcknowledged: boolean;
+}
+
+export interface PreparationReadinessSummary {
+  overallReady: boolean;
+  progressPercentage: number;
+  completedSteps: number;
+  totalSteps: number;
+  badge: string;
+}
+
+export interface PreparationDocumentItem {
+  _id: string;
+  title: string;
+  category: string;
+  documentDate?: string;
+  notes?: string;
+  url: string;
+  mimeType?: string;
+  size?: number;
+  isSharedWithDoctor: boolean;
+  sharedAt?: string | null;
+}
+
+export interface PreparationHistoryItem {
+  _id: string;
+  slotDate?: string;
+  slotTime?: string;
+  consultationType?: ConsultationType;
+  diagnosis?: string;
+  prescription?: string;
+  medicines?: AppointmentMedicineItem[];
+  medicalReports?: AppointmentMedicalReportItem[];
+}
+
+export interface AppointmentPreparationResponse {
+  success: boolean;
+  message?: string;
+  appointment: {
+    _id: string;
+    appointmentId?: string;
+    slotDate?: string;
+    slotTime?: string;
+    status: AppointmentStatus;
+    statusLabel?: string;
+    paymentStatus?: string;
+    consultationType: ConsultationType;
+    meetingUrl?: string;
+    meetingStatus?: MeetingStatus;
+    consultationStatus?: ConsultationStatus;
+    queueToken?: string;
+    checkedIn?: boolean;
+    hospitalId?: string;
+    doctorId?: string;
+  };
+  patient: {
+    name: string;
+    phone: string;
+    isFamilyMember: boolean;
+    relationship: string;
+    familyMemberId?: string | null;
+    age?: number;
+    gender?: string;
+  };
+  doctor: {
+    _id: string;
+    name: string;
+    speciality?: string;
+    department?: string;
+    hospitalName?: string;
+    image?: string;
+    phone?: string;
+    email?: string;
+  };
+  hospital: {
+    _id: string;
+    name: string;
+    address?: string;
+    city?: string;
+    phone?: string;
+    emergency?: string;
+  };
+  preparation: AppointmentPreparationState;
+  checklist: PreparationChecklistItem[];
+  readiness: PreparationReadinessSummary;
+  instructions: PreparationInstructionDetails;
+  documents: PreparationDocumentItem[];
+  previousHistory: PreparationHistoryItem[];
+  videoEntitlement?: {
+    planKey: string;
+    planName: string;
+    isEligibleForVideoConsultation: boolean;
+    remainingQuota: number;
+    message?: string;
+  } | null;
 }
 
 export interface AppointmentStatusHistoryItem {
@@ -589,6 +756,205 @@ export interface PatientFollowUpItem {
   };
 }
 
+export interface FollowUpOverviewItem {
+  id: string;
+  appointmentId: string;
+  displayAppointmentId: string;
+  doctorId: string;
+  doctorName: string;
+  doctorSpecialty: string;
+  doctorImage?: string;
+  doctorFees?: number;
+  doctorAvailable?: boolean;
+  doctorConsultationTypes?: ConsultationType[];
+  hospitalId?: string;
+  hospitalName: string;
+  department: string;
+  consultationType: ConsultationType;
+  originalVisitDate: string;
+  originalVisitTime: string;
+  originalStatus: string;
+  originalBookingStatus?: string;
+  patientName: string;
+  patientRelationship: string;
+  familyMemberId?: string | null;
+  advice: string;
+  timeframe: string;
+  targetDate?: string;
+  status: "pending_booking" | "scheduled" | "completed" | "cancelled";
+  statusLabel: string;
+  statusVariant: "warning" | "primary" | "success" | "neutral";
+  hasPrescription: boolean;
+  medicinesCount: number;
+  hasReports: boolean;
+  reportsCount: number;
+  diagnosis?: string;
+  prescriptionInstructions?: {
+    followUpInstructions?: string;
+    specialDietaryAdvice?: string;
+    activityRestrictions?: string;
+  } | null;
+  medicalNotes?: string;
+  linkedAppointmentId?: string;
+  linkedAppointmentDate?: string;
+  linkedAppointmentTime?: string;
+  linkedAppointmentStatus?: string;
+  linkedDisplayAppointmentId?: string;
+  videoQuotaAvailable?: boolean;
+}
+
+export interface FollowUpCenterResponse {
+  success: boolean;
+  message?: string;
+  followUps: FollowUpOverviewItem[];
+  stats: {
+    total: number;
+    pendingBooking: number;
+    scheduled: number;
+    completed: number;
+  };
+  patient: {
+    _id: string;
+    name: string;
+    familyMembers?: FamilyMember[];
+  };
+}
+
+export interface FollowUpOverviewParams {
+  familyMemberId?: string;
+  status?: "all" | "pending_booking" | "scheduled" | "completed" | "cancelled";
+  search?: string;
+}
+
+// ---------------------------------------------------------------------------
+// SMART MEDICATION & PRESCRIPTION REMINDER CENTER
+// ---------------------------------------------------------------------------
+
+export interface MedicationReminderLog {
+  _id?: string;
+  scheduledTime: string;
+  scheduledDate: string;
+  status: "taken" | "skipped" | "snoozed" | "pending";
+  actionTime?: string | null;
+  snoozeUntil?: string | null;
+  notes?: string;
+}
+
+export interface MedicationReminder {
+  _id: string;
+  userId: string;
+  familyMemberId?: string | null;
+  patientName?: string;
+  patientRelationship?: string;
+  appointmentId: string;
+  medicineName: string;
+  dosage?: string;
+  frequency?: string;
+  duration?: string;
+  instructions?: string;
+  timing?: string;
+  doctorId?: string;
+  doctorName?: string;
+  hospitalId?: string;
+  hospitalName?: string;
+  reminderTimes: string[];
+  frequencyType: "daily" | "twice_daily" | "thrice_daily" | "custom";
+  startDate?: string;
+  endDate?: string;
+  isActive: boolean;
+  logs?: MedicationReminderLog[];
+  lastAction?: "taken" | "skipped" | "snoozed" | "none";
+  lastActionAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TodayMedicationDose {
+  reminderId: string;
+  appointmentId: string;
+  medicineName: string;
+  dosage: string;
+  timing: string;
+  instructions: string;
+  doctorName: string;
+  hospitalName: string;
+  scheduledTime: string;
+  scheduledDate: string;
+  status: "taken" | "skipped" | "snoozed" | "pending";
+  actionTime?: string | null;
+  snoozeUntil?: string | null;
+  patientName?: string;
+  patientRelationship?: string;
+  familyMemberId?: string | null;
+}
+
+export interface AvailablePrescriptionMedicine {
+  name: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  timing: string;
+  instructions: string;
+  hasActiveReminder: boolean;
+}
+
+export interface AvailablePrescriptionItem {
+  appointmentId: string;
+  displayAppointmentId: string;
+  date: string;
+  doctorName: string;
+  doctorSpecialty: string;
+  hospitalName: string;
+  patientName: string;
+  patientRelationship: string;
+  familyMemberId?: string | null;
+  diagnosis: string;
+  medicines: AvailablePrescriptionMedicine[];
+}
+
+export interface MedicationRemindersResponse {
+  success: boolean;
+  message?: string;
+  reminders: MedicationReminder[];
+  todayReminders: TodayMedicationDose[];
+  stats: {
+    activeReminders: number;
+    todayTotal: number;
+    todayTaken: number;
+    todaySkipped: number;
+    todayPending: number;
+  };
+  availablePrescriptions: AvailablePrescriptionItem[];
+  patient: {
+    _id: string;
+    name: string;
+    familyMembers?: FamilyMember[];
+  };
+}
+
+export interface CreateMedicationReminderPayload {
+  appointmentId: string;
+  medicineName: string;
+  reminderTimes: string[];
+  frequencyType?: "daily" | "twice_daily" | "thrice_daily" | "custom";
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface RecordMedicationActionPayload {
+  action: "taken" | "skipped" | "snoozed";
+  scheduledTime?: string;
+  scheduledDate?: string;
+  snoozeMinutes?: number;
+  notes?: string;
+}
+
+export interface MedicationRemindersParams {
+  familyMemberId?: string;
+  status?: "active" | "all";
+  date?: string;
+}
+
 export interface PatientMedicalHistoryResponse {
   success: boolean;
   message?: string;
@@ -603,6 +969,75 @@ export interface PatientMedicalHistoryResponse {
   reports: PatientReportItem[];
   diagnoses: PatientDiagnosisItem[];
   followUps: PatientFollowUpItem[];
+}
+
+// ---------------------------------------------------------------------------
+// SMART HEALTH GOALS & WELLNESS PROGRESS CENTER
+// ---------------------------------------------------------------------------
+
+export type HealthGoalType =
+  | "appointment_adherence"
+  | "medication_adherence"
+  | "followup_completion"
+  | "record_organization";
+
+export type HealthGoalStatus = "active" | "paused" | "completed" | "cancelled";
+
+export interface HealthGoal {
+  _id: string;
+  userId: string;
+  familyMemberId?: string | null;
+  title: string;
+  goalType: HealthGoalType;
+  target: number;
+  current: number;
+  startDate: string;
+  endDate?: string | null;
+  status: HealthGoalStatus;
+  completedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface HealthGoalProgress {
+  current: number;
+  target: number;
+  percentage: number;
+  hasEnoughData: boolean;
+  label: string;
+}
+
+export interface HealthGoalsResponse {
+  success: boolean;
+  message?: string;
+  goals: HealthGoal[];
+  stats: {
+    total: number;
+    active: number;
+    completed: number;
+    paused: number;
+  };
+  patient?: {
+    _id: string;
+    name: string;
+    familyMembers?: FamilyMember[];
+  };
+}
+
+export interface CreateHealthGoalPayload {
+  title: string;
+  goalType: HealthGoalType;
+  target: number;
+  startDate: string;
+  endDate?: string;
+  familyMemberId?: string;
+}
+
+export interface UpdateHealthGoalPayload {
+  title?: string;
+  target?: number;
+  endDate?: string | null;
+  status?: HealthGoalStatus;
 }
 
 export type TimelineFilterType =
@@ -781,6 +1216,7 @@ export interface AppointmentDetails {
   /** Mongo ObjectId — same as mongoAppointmentId (backend may omit one). */
   _id?: string;
   appointmentId: string;
+  displayAppointmentId?: string;
   mongoAppointmentId: string;
   doctorId?: string;
   doctorName?: string;
@@ -800,7 +1236,12 @@ export interface AppointmentDetails {
   doctorSignatureImage?: string;
   bookingDate?: string;
   bookingTime?: string;
+  slotDate?: string;
+  slotTime?: string;
+  date?: string;
+  time?: string;
   amount?: number;
+  billing?: AppointmentBilling;
   bookingStatus?: string;
   bookingStatusLabel?: string;
   patientName?: string;
@@ -842,6 +1283,17 @@ export interface AppointmentDetails {
     | "completed"
     | "cancelled";
   calledAt?: string;
+  preparation?: AppointmentPreparationState;
+  originalAppointmentId?: string;
+  followUp?: {
+    required?: boolean;
+    recommendedDate?: string;
+    timeframe?: string;
+    notes?: string;
+    linkedFollowUpAppointmentId?: string;
+    status?: "none" | "recommended" | "scheduled" | "completed" | "overdue";
+    updatedAt?: string;
+  };
   createdAt?: string;
 }
 
@@ -866,6 +1318,7 @@ export interface BookAppointmentPayload {
   patientPhone?: string;
   patientGender?: string;
   patientDob?: string;
+  originalAppointmentId?: string;
 }
 
 export interface BookAppointmentResponse {
@@ -1629,3 +2082,160 @@ export interface SuperAdminConsultationStats {
     statusBreakdown: Record<string, number>;
   };
 }
+
+// ---------------------------------------------------------------------------
+// Doctor Clinical Workspace 2.0
+// ---------------------------------------------------------------------------
+
+export interface ClinicalVitals {
+  bloodPressure?: string;
+  heartRate?: number;
+  temperature?: number;
+  respiratoryRate?: number;
+  spO2?: number;
+  weight?: number;
+  height?: number;
+  bmi?: number;
+}
+
+export interface ClinicalNotes {
+  chiefComplaint?: string;
+  symptoms?: string;
+  historyOfPresentIllness?: string;
+  examination?: string;
+  clinicalFindings?: string;
+  assessment?: string;
+  treatmentPlan?: string;
+  additionalNotes?: string;
+}
+
+export interface StructuredMedicineItem {
+  name: string;
+  dosage?: string;
+  frequency?: string;
+  duration?: string;
+  route?: string;
+  timing?: string;
+  instructions?: string;
+}
+
+export interface PrescriptionInstructions {
+  dietInstructions?: string;
+  generalInstructions?: string;
+  followUpInstructions?: string;
+  additionalNotes?: string;
+  labTestsAdvised?: string;
+}
+
+export interface HistoricalVitalsEntry {
+  appointmentId: string;
+  date?: string;
+  time?: string;
+  vitals: ClinicalVitals;
+}
+
+export interface HistoricalPrescriptionEntry {
+  date?: string;
+  prescription: string;
+  diagnosis?: string;
+}
+
+export interface PreviousConsultationSummary {
+  date?: string;
+  diagnosis?: string;
+  notes?: string;
+  prescription?: string;
+  followUpAdvice?: string;
+}
+
+export interface DoctorConsultationContextResponse {
+  success: boolean;
+  appointment: Appointment;
+  patient: User;
+  previousVitals: HistoricalVitalsEntry[];
+  previousDiagnoses: string[];
+  previousPrescriptions: HistoricalPrescriptionEntry[];
+  previousConsultationSummary: PreviousConsultationSummary | null;
+  totalVisits: number;
+}
+
+export interface SaveDoctorConsultationPayload {
+  vitals?: ClinicalVitals;
+  clinicalNotes?: ClinicalNotes;
+  diagnosis?: string;
+  prescription?: string;
+  medicines?: StructuredMedicineItem[];
+  prescriptionInstructions?: PrescriptionInstructions;
+  followUpAdvice?: string;
+  medicalNotes?: string;
+  allergies?: string[];
+  chronicConditions?: string[];
+  bloodGroup?: string;
+}
+
+export interface CompleteDoctorConsultationPayload extends SaveDoctorConsultationPayload {
+  // At least diagnosis or notes are validated on backend
+}
+
+export interface SaveDoctorPrescriptionPayload {
+  diagnosis?: string;
+  prescription?: string;
+  medicines?: StructuredMedicineItem[];
+  prescriptionInstructions?: PrescriptionInstructions;
+  medicalNotes?: string;
+  followUpAdvice?: string;
+  reports?: AppointmentMedicalReportItem[];
+}
+
+export interface DoctorQueueItem extends Appointment {
+  queueStage?: "in_consultation" | "checked_in" | "waiting" | "completed" | "cancelled";
+  queueToken?: string;
+  estimatedWaitMinutes?: number;
+}
+
+export interface DoctorPatientQueueSummary {
+  todayDate: string;
+  doctorName: string;
+  hospitalName: string;
+  department: string;
+  totalToday: number;
+  waitingCount: number;
+  checkedInCount: number;
+  inConsultationCount: number;
+  completedCount: number;
+  cancelledCount: number;
+  currentConsultation: DoctorQueueItem | null;
+}
+
+export interface DoctorPatientQueueResponse {
+  success: boolean;
+  summary: DoctorPatientQueueSummary;
+  queue: DoctorQueueItem[];
+  sections: {
+    inConsultation: DoctorQueueItem[];
+    checkedIn: DoctorQueueItem[];
+    waiting: DoctorQueueItem[];
+    completed: DoctorQueueItem[];
+    cancelled: DoctorQueueItem[];
+  };
+}
+
+export interface DoctorAppointmentsListResponse {
+  success: boolean;
+  appointments: Appointment[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+  counts: {
+    all: number;
+    today: number;
+    upcoming: number;
+    pending: number;
+    completed: number;
+    cancelled: number;
+  };
+}
+

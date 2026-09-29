@@ -47,6 +47,11 @@ import {
 
 const QUICK_PROMPTS = [
   {
+    label: "Care Cockpit",
+    query: "Open Care Command Center",
+    icon: "pulse" as const,
+  },
+  {
     label: "Health Timeline",
     query: "Show my personal health timeline",
     icon: "time" as const,
@@ -65,6 +70,11 @@ const QUICK_PROMPTS = [
     label: "Recent Rx",
     query: "Show my recent prescriptions",
     icon: "document-text" as const,
+  },
+  {
+    label: "Med Reminders",
+    query: "Show today's medication reminders",
+    icon: "alarm" as const,
   },
   {
     label: "Latest Report",
@@ -90,6 +100,31 @@ const QUICK_PROMPTS = [
     label: "Find Hospitals",
     query: "Find hospitals near me",
     icon: "business" as const,
+  },
+  {
+    label: "Family Care",
+    query: "Show my family's upcoming appointments",
+    icon: "people" as const,
+  },
+  {
+    label: "Health Goals",
+    query: "Show my health goals",
+    icon: "trophy" as const,
+  },
+  {
+    label: "Upcoming Follow-up",
+    query: "Show my upcoming follow-up",
+    icon: "refresh" as const,
+  },
+  {
+    label: "Medication Reminders",
+    query: "Show today's medication reminders",
+    icon: "alarm" as const,
+  },
+  {
+    label: "My Prescriptions",
+    query: "Show my prescriptions",
+    icon: "document-text" as const,
   },
   {
     label: "Video Consult",
@@ -215,6 +250,151 @@ export default function AiAssistantScreen() {
       };
       setMessages((prev) => [...prev, aiMessage]);
     } catch (error) {
+      const q = query.toLowerCase();
+      if (
+        q.includes("family") ||
+        q.includes("daughter") ||
+        q.includes("son") ||
+        q.includes("father") ||
+        q.includes("mother") ||
+        q.includes("spouse") ||
+        q.includes("dependent")
+      ) {
+        const familyFallbackMsg: AiChatMessage = {
+          id: `ai-${Date.now()}`,
+          sender: "ai",
+          text: "You can manage your family profiles, monitor upcoming care across dependents, and view separated health records in the Family Health Dashboard.",
+          actions: [
+            {
+              label: "Open Family Health",
+              route: "/(drawer)/health/family",
+              icon: "people",
+              variant: "primary",
+            },
+          ],
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        };
+        setMessages((prev) => [...prev, familyFallbackMsg]);
+        return;
+      }
+      if (
+        q.includes("health goal") ||
+        q.includes("goal") ||
+        q.includes("wellness progress")
+      ) {
+        const goalFallbackMsg: AiChatMessage = {
+          id: `ai-${Date.now()}`,
+          sender: "ai",
+          text: "You can view and manage your personal health goals, track adherence, and monitor wellness milestones in the Health Goals & Wellness Progress Center.",
+          disclaimer: "Factual milestone progress • Not a medical diagnosis.",
+          actions: [
+            {
+              label: "Open Health Goals",
+              route: "/health/goals",
+              icon: "trophy",
+              variant: "primary",
+            },
+          ],
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        };
+        setMessages((prev) => [...prev, goalFallbackMsg]);
+        return;
+      }
+      if (
+        q.includes("command") ||
+        q.includes("cockpit") ||
+        q.includes("care status")
+      ) {
+        const commandCenterMsg: AiChatMessage = {
+          id: `ai-${Date.now()}`,
+          sender: "ai",
+          text: "You can monitor your live healthcare situation, today's appointments, queue status, medication reminders, and instant actions in the Care Command Center.",
+          actions: [
+            {
+              label: "Open Care Command Center",
+              route: "/command-center",
+              icon: "pulse",
+              variant: "primary",
+            },
+          ],
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        };
+        setMessages((prev) => [...prev, commandCenterMsg]);
+        return;
+      }
+      if (q.includes("follow-up") || q.includes("follow up")) {
+        const fuFallbackMsg: AiChatMessage = {
+          id: `ai-${Date.now()}`,
+          sender: "ai",
+          text: "You can track your recommended doctor follow-ups, scheduled recovery visits, and care continuity plans in the Follow-Ups Center.",
+          actions: [
+            {
+              label: "Open Follow-Ups",
+              route: "/health/follow-ups",
+              icon: "refresh",
+              variant: "primary",
+            },
+          ],
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        };
+        setMessages((prev) => [...prev, fuFallbackMsg]);
+        return;
+      }
+      if (q.includes("reminder") || q.includes("medicine")) {
+        const medFallbackMsg: AiChatMessage = {
+          id: `ai-${Date.now()}`,
+          sender: "ai",
+          text: "You can view today's medication doses and manage your prescription reminder times in the Medication Reminder Center.",
+          actions: [
+            {
+              label: "Medication Reminders",
+              route: "/health/prescriptions",
+              icon: "alarm",
+              variant: "primary",
+            },
+          ],
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        };
+        setMessages((prev) => [...prev, medFallbackMsg]);
+        return;
+      }
+      if (q.includes("activity") || q.includes("timeline")) {
+        const timelineFallbackMsg: AiChatMessage = {
+          id: `ai-${Date.now()}`,
+          sender: "ai",
+          text: "You can review your chronological health milestones, consultation history, and medical records in your Personal Health Timeline.",
+          actions: [
+            {
+              label: "Health Timeline",
+              route: "/health/timeline",
+              icon: "time",
+              variant: "primary",
+            },
+          ],
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        };
+        setMessages((prev) => [...prev, timelineFallbackMsg]);
+        return;
+      }
+
       const errorMsg: AiChatMessage = {
         id: `err-${Date.now()}`,
         sender: "ai",

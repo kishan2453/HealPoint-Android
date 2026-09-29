@@ -11,6 +11,7 @@ import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Pressable,
@@ -53,6 +54,7 @@ import { getDoctorDetails } from "@/services/doctors";
 import * as familyService from "@/services/family";
 import * as subscriptionService from "@/services/subscriptions";
 import type {
+  AppointmentBilling,
   ConsultationType,
   Doctor,
   FamilyMember,
@@ -98,6 +100,8 @@ function BookingConfirmationView({
   consultationType,
   patientName,
   patientRelationship,
+  billing,
+  paymentMethod = "cash",
   successAppointmentId,
   successReference,
   onViewPass,
@@ -113,6 +117,8 @@ function BookingConfirmationView({
   consultationType: ConsultationType;
   patientName?: string;
   patientRelationship?: string;
+  billing?: AppointmentBilling | null;
+  paymentMethod?: PaymentMethod;
   successAppointmentId: string;
   successReference: string;
   onViewPass: () => void;
@@ -273,12 +279,41 @@ function BookingConfirmationView({
             <ConfirmRow
               icon="wallet"
               label="Consultation Fee"
-              value={formatINR(doctor.fees)}
+              value={formatINR(billing?.consultationFee ?? doctor.fees)}
+            />
+            {billing?.subscriptionBenefit && billing.subscriptionBenefit > 0 ? (
+              <ConfirmRow
+                icon="checkmark-circle"
+                label={`${billing.planName || "Plan"} Benefit`}
+                value={`-${formatINR(billing.subscriptionBenefit)}`}
+              />
+            ) : null}
+            {billing?.serviceFee && billing.serviceFee > 0 ? (
+              <ConfirmRow
+                icon="receipt"
+                label="Service Fee"
+                value={formatINR(billing.serviceFee)}
+              />
+            ) : null}
+            <ConfirmRow
+              icon="cash"
+              label="Total Payable"
+              value={
+                billing?.totalAmount === 0
+                  ? "₹0 (Covered by Plan)"
+                  : formatINR(billing?.totalAmount ?? doctor.fees)
+              }
             />
             <ConfirmRow
               icon="card"
               label="Payment Mode"
-              value="Pay at Clinic (Cash / UPI on arrival)"
+              value={
+                billing?.totalAmount === 0
+                  ? `Covered by ${billing.planName || "Subscription"} Plan`
+                  : paymentMethod === "online"
+                    ? "Paid Online (Razorpay)"
+                    : "Pay at Clinic (Cash / UPI on arrival)"
+              }
             />
           </Card>
 
@@ -312,11 +347,22 @@ function BookingConfirmationView({
 
 export default function BookingScreen() {
   const router = useRouter();
-  const { doctorId, type, mode, memberId } = useLocalSearchParams<{
+  const {
+    doctorId,
+    type,
+    mode,
+    memberId,
+    hospitalId,
+    previousAppointmentId,
+    source,
+  } = useLocalSearchParams<{
     doctorId?: string;
     type?: string;
     mode?: string;
     memberId?: string;
+    hospitalId?: string;
+    previousAppointmentId?: string;
+    source?: string;
   }>();
   const { user } = useAuth();
 
@@ -379,6 +425,9 @@ export default function BookingScreen() {
   );
   const [entitlement, setEntitlement] =
     useState<UserSubscriptionEntitlement | null>(null);
+  const [billingBreakdown, setBillingBreakdown] =
+    useState<AppointmentBilling | null>(null);
+  const [calculatingCost, setCalculatingCost] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [bookingError, setBookingError] = useState("");
   const [successAppointmentId, setSuccessAppointmentId] = useState("");
@@ -405,6 +454,65 @@ export default function BookingScreen() {
       active = false;
     };
   }, [requestedType, router]);
+
+  // Real-time server-side appointment cost calculation (Single source of truth)
+  useEffect(() => {
+    if (!doctorId) return;
+    let active = true;
+    setCalculatingCost(true);
+    appointmentService
+      .calculateAppointmentCost({
+        doctorId,
+        consultationType,
+        patientRelationship,
+        familyMemberId: selectedMember ? selectedMember._id : undefined,
+      })
+      .then((res) => {
+        if (!active) return;
+        if (res.success && res.billing) {
+          setBillingBreakdown(res.billing);
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        // Graceful fallback to doctor's base fee
+        if (doctor) {
+          const baseFee = Number(doctor.fees) || 0;
+          setBillingBreakdown({
+            consultationFee: baseFee,
+            subtotal: baseFee,
+            totalAmount: baseFee,
+            currency: "INR",
+            planApplied: "free",
+            planName: "Free",
+            breakdown: [
+              {
+                key: "consultation_fee",
+                label:
+                  consultationType === "video"
+                    ? "Online Consultation Fee"
+                    : "Doctor Consultation Fee",
+                amount: baseFee,
+                type: "fee",
+              },
+              {
+                key: "total",
+                label: "Total Payable",
+                amount: baseFee,
+                type: "total",
+              },
+            ],
+          });
+        }
+      })
+      .finally(() => {
+        if (active) setCalculatingCost(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [doctorId, consultationType, patientRelationship, selectedMember, doctor]);
 
   const handleSelectVideoConsultation = async () => {
     try {
@@ -584,6 +692,7 @@ export default function BookingScreen() {
         patientPhone: activePhone,
         patientGender: selectedMember?.gender || user?.gender,
         patientDob: selectedMember?.dob || user?.dob,
+        originalAppointmentId: previousAppointmentId || undefined,
       });
 
       const booked = res.appointment as unknown as
@@ -595,8 +704,14 @@ export default function BookingScreen() {
         | undefined;
       const bookedId = String(booked?._id || "");
 
-      // For online payment, route immediately to the secure Razorpay payment flow
-      if (paymentMethod === "online") {
+      const bookedAmount = Number(res.appointment?.amount);
+      const isAlreadyPaid =
+        res.appointment?.payment === true ||
+        bookedAmount === 0 ||
+        res.appointment?.paymentStatus === "paid";
+
+      // For online payment with pending amount > 0, route immediately to the secure Razorpay payment flow
+      if (paymentMethod === "online" && !isAlreadyPaid) {
         if (!bookedId) {
           setBookingError(
             'Your appointment was created. Please locate it under "My Appointments" to complete payment.',
@@ -668,10 +783,61 @@ export default function BookingScreen() {
     );
   }
 
-  if (loadError || !doctor) {
+  const isDoctorUnavailable =
+    !doctor || doctor.isActive === false || doctor.available === false;
+
+  if (loadError || isDoctorUnavailable) {
+    const docName = doctor?.name
+      ? formatDoctorName(doctor.name)
+      : "The selected doctor";
+    const dept =
+      doctor?.speciality ||
+      doctor?.specialization ||
+      doctor?.department ||
+      "this specialty";
+
     return (
-      <SafeAreaView style={styles.safe}>
-        <ErrorState message={loadError || "Doctor profile not found."} />
+      <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+        <View style={styles.unavailableContainer}>
+          <View style={styles.unavailableIconCircle}>
+            <Ionicons name="person-remove-outline" size={38} color="#D97706" />
+          </View>
+          <Text style={styles.unavailableTitle}>
+            Doctor is currently unavailable
+          </Text>
+          <Text style={styles.unavailableMessage}>
+            {doctor
+              ? `${docName} is currently not accepting new appointments. You can view other available specialists in ${dept} or explore affiliated hospitals.`
+              : loadError || "Doctor profile not found."}
+          </Text>
+
+          <View style={styles.unavailableActions}>
+            <Button
+              title="View Available Doctors"
+              variant="primary"
+              icon="search"
+              onPress={() => router.push("/(drawer)/doctors" as never)}
+            />
+            {doctor?.hospitalId ? (
+              <Button
+                title="View Hospital Doctors"
+                variant="outline"
+                icon="business-outline"
+                onPress={() =>
+                  router.push({
+                    pathname: "/hospital/[id]",
+                    params: { id: String(doctor.hospitalId) },
+                  })
+                }
+              />
+            ) : null}
+            <Button
+              title="Return to Home"
+              variant="ghost"
+              onPress={() => router.push("/(drawer)" as never)}
+            />
+          </View>
+        </View>
       </SafeAreaView>
     );
   }
@@ -707,6 +873,8 @@ export default function BookingScreen() {
         consultationType={consultationType}
         patientName={patientName}
         patientRelationship={patientRelationship}
+        billing={billingBreakdown}
+        paymentMethod={paymentMethod}
         successAppointmentId={successAppointmentId}
         successReference={successReference}
         onViewPass={() =>
@@ -754,11 +922,32 @@ export default function BookingScreen() {
           </Pressable>
           <View style={styles.headerTitles}>
             <Text style={styles.headerTitle}>Book Appointment</Text>
+            <Text style={styles.headerTitle}>
+              {source === "rebook" ? "Repeat Consultation" : "Book Appointment"}
+            </Text>
             <Text style={styles.headerSubtitle}>
               Reserve your visit with {stripDoctorTitle(doctor.name)}
+              {source === "rebook"
+                ? `Re-booking care with ${stripDoctorTitle(doctor.name)}`
+                : `Reserve your visit with ${stripDoctorTitle(doctor.name)}`}
             </Text>
           </View>
         </View>
+
+        {source === "rebook" && (
+          <View style={styles.rebookBanner}>
+            <View style={styles.rebookBannerIconWrap}>
+              <Ionicons name="repeat" size={18} color={Palette.primary} />
+            </View>
+            <View style={styles.rebookBannerTexts}>
+              <Text style={styles.rebookBannerTitle}>Smart Re-Booking</Text>
+              <Text style={styles.rebookBannerDesc}>
+                Care context prefilled for {patientName}. Please select a fresh
+                date & slot.
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* Doctor Summary Banner */}
         <Card padded style={styles.doctorCard}>
@@ -1469,12 +1658,111 @@ export default function BookingScreen() {
             />
           </View>
 
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total Consultation Fee</Text>
-            <Text style={styles.totalValue}>
-              {formatINR(doctor.fees)}
-              {paymentMethod === "cash" ? " · on arrival" : ""}
-            </Text>
+          {/* Charges & Cost Breakdown (Server-side Verified) */}
+          <View style={styles.costBreakdownCard}>
+            <View style={styles.costHeaderRow}>
+              <View style={styles.costHeaderLeft}>
+                <Ionicons
+                  name="shield-checkmark"
+                  size={18}
+                  color={Palette.primary}
+                />
+                <Text style={styles.costHeaderTitle}>
+                  Cost & Billing Breakdown
+                </Text>
+              </View>
+              {calculatingCost ? (
+                <ActivityIndicator size="small" color={Palette.primary} />
+              ) : (
+                <Badge
+                  label={
+                    billingBreakdown?.subscriptionBenefit &&
+                    billingBreakdown.subscriptionBenefit > 0
+                      ? `${billingBreakdown.planName || "Plan"} Covered`
+                      : "Transparent Pricing"
+                  }
+                  variant={
+                    billingBreakdown?.subscriptionBenefit &&
+                    billingBreakdown.subscriptionBenefit > 0
+                      ? "success"
+                      : "neutral"
+                  }
+                />
+              )}
+            </View>
+
+            <View style={styles.costLineRow}>
+              <Text style={styles.costLineLabel}>Doctor Consultation Fee</Text>
+              <Text style={styles.costLineVal}>
+                {formatINR(billingBreakdown?.consultationFee ?? doctor.fees)}
+              </Text>
+            </View>
+
+            {billingBreakdown?.serviceFee && billingBreakdown.serviceFee > 0 ? (
+              <View style={styles.costLineRow}>
+                <Text style={styles.costLineLabel}>Platform Service Fee</Text>
+                <Text style={styles.costLineVal}>
+                  {formatINR(billingBreakdown.serviceFee)}
+                </Text>
+              </View>
+            ) : null}
+
+            {billingBreakdown?.subscriptionBenefit &&
+            billingBreakdown.subscriptionBenefit > 0 ? (
+              <View style={styles.costLineRow}>
+                <Text
+                  style={[styles.costLineLabel, { color: Palette.success }]}
+                >
+                  {billingBreakdown.planName || "Subscription"} Plan Benefit
+                </Text>
+                <Text
+                  style={[
+                    styles.costLineVal,
+                    { color: Palette.success, fontWeight: "700" },
+                  ]}
+                >
+                  -{formatINR(billingBreakdown.subscriptionBenefit)}
+                </Text>
+              </View>
+            ) : null}
+
+            {billingBreakdown?.discount && billingBreakdown.discount > 0 ? (
+              <View style={styles.costLineRow}>
+                <Text
+                  style={[styles.costLineLabel, { color: Palette.success }]}
+                >
+                  Special Discount
+                </Text>
+                <Text
+                  style={[
+                    styles.costLineVal,
+                    { color: Palette.success, fontWeight: "700" },
+                  ]}
+                >
+                  -{formatINR(billingBreakdown.discount)}
+                </Text>
+              </View>
+            ) : null}
+
+            <View style={[styles.divider, { marginVertical: Spacing.xs }]} />
+
+            <View style={styles.costTotalRow}>
+              <View style={{ flex: 1, paddingRight: Spacing.sm }}>
+                <Text style={styles.costTotalLabel}>Total Payable Amount</Text>
+                <Text style={styles.costTotalSub}>
+                  {billingBreakdown?.totalAmount === 0
+                    ? "Covered 100% by Subscription Plan"
+                    : paymentMethod === "cash"
+                      ? "Pay at clinic cash desk on arrival"
+                      : "Pay securely via online Razorpay"}
+                </Text>
+              </View>
+              <Text style={styles.costTotalVal}>
+                {billingBreakdown?.totalAmount === 0
+                  ? "₹0"
+                  : formatINR(billingBreakdown?.totalAmount ?? doctor.fees)}
+              </Text>
+            </View>
           </View>
 
           <Button
@@ -2057,6 +2345,71 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     textAlign: "right",
   },
+  divider: {
+    height: 1,
+    backgroundColor: Palette.divider,
+    marginVertical: Spacing.sm,
+  },
+  costBreakdownCard: {
+    backgroundColor: Palette.surfaceAlt,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    marginTop: Spacing.md,
+    borderWidth: 1,
+    borderColor: Palette.border,
+  },
+  costHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
+  costHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  costHeaderTitle: {
+    ...Typography.bodySmall,
+    fontWeight: "700",
+    color: Palette.text,
+  },
+  costLineRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 3,
+  },
+  costLineLabel: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+  },
+  costLineVal: {
+    ...Typography.bodySmall,
+    color: Palette.text,
+    fontWeight: "600",
+  },
+  costTotalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: Spacing.xs,
+  },
+  costTotalLabel: {
+    ...Typography.bodyMedium,
+    fontWeight: "800",
+    color: Palette.text,
+  },
+  costTotalSub: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    marginTop: 2,
+  },
+  costTotalVal: {
+    ...Typography.h3,
+    color: Palette.primaryDark,
+    fontWeight: "800",
+  },
   totalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -2180,5 +2533,71 @@ const styles = StyleSheet.create({
   confirmActions: {
     gap: Spacing.sm,
     marginTop: Spacing.md,
+  },
+  unavailableContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing.xl,
+    gap: Spacing.md,
+  },
+  unavailableIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#FEF3C7",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.sm,
+  },
+  unavailableTitle: {
+    ...Typography.h3,
+    color: Palette.text,
+    textAlign: "center",
+  },
+  unavailableMessage: {
+    ...Typography.body,
+    color: Palette.textMuted,
+    textAlign: "center",
+    lineHeight: 22,
+    maxWidth: 320,
+    marginBottom: Spacing.md,
+  },
+  unavailableActions: {
+    width: "100%",
+    gap: Spacing.sm,
+  },
+  rebookBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    backgroundColor: `${Palette.primary}12`,
+    borderWidth: 1,
+    borderColor: `${Palette.primary}30`,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  rebookBannerIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: `${Palette.primary}20`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rebookBannerTexts: {
+    flex: 1,
+    gap: 2,
+  },
+  rebookBannerTitle: {
+    ...Typography.label,
+    fontSize: 13,
+    color: Palette.primaryDark,
+    fontWeight: "700",
+  },
+  rebookBannerDesc: {
+    ...Typography.caption,
+    color: Palette.textMuted,
   },
 });

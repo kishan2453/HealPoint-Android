@@ -1,41 +1,59 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { Loading } from '@/components/ui/Loading';
-import { Palette, Radius, Spacing, Typography } from '@/constants/theme';
-import { useAuth } from '@/hooks/use-auth';
-import { useScreenFocus } from '@/hooks/use-screen-focus';
-import { RAZORPAY_KEY_ID } from '@/lib/env';
-import { formatDDMMYYYY, formatINR } from '@/lib/format';
-import { isPaymentCancelled, openRazorpayCheckout } from '@/lib/razorpay';
-import { ApiClientError, toErrorMessage } from '@/services/api';
-import * as appointmentService from '@/services/appointments';
-import { createPaymentOrder, verifyAppointmentPayment } from '@/services/payments';
-import type { AppointmentDetails, PaymentStatus } from '@/types';
-import type { RazorpayCheckoutOptions } from '@/types/razorpay';
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Loading } from "@/components/ui/Loading";
+import { Palette, Radius, Spacing, Typography } from "@/constants/theme";
+import { useAuth } from "@/hooks/use-auth";
+import { useScreenFocus } from "@/hooks/use-screen-focus";
+import { RAZORPAY_KEY_ID } from "@/lib/env";
+import { formatDDMMYYYY, formatINR } from "@/lib/format";
+import { isPaymentCancelled, openRazorpayCheckout } from "@/lib/razorpay";
+import { ApiClientError, toErrorMessage } from "@/services/api";
+import * as appointmentService from "@/services/appointments";
+import {
+  createPaymentOrder,
+  verifyAppointmentPayment,
+} from "@/services/payments";
+import type { AppointmentDetails, PaymentStatus } from "@/types";
+import type { RazorpayCheckoutOptions } from "@/types/razorpay";
 
 /** UI state machine for one payment attempt. */
 type PaymentPhase =
-  | 'idle' // summary + "Pay Online"
-  | 'creating-order' // order is being created on the backend
-  | 'opening-checkout' // native Razorpay checkout is launching
-  | 'verifying' // checkout returned; backend is verifying the signature
-  | 'success' // backend VERIFIED the signature - payment is really paid
-  | 'failed' // checkout failed / verification failed
-  | 'cancelled'; // user dismissed the checkout
+  | "idle" // summary + "Pay Online"
+  | "creating-order" // order is being created on the backend
+  | "opening-checkout" // native Razorpay checkout is launching
+  | "verifying" // checkout returned; backend is verifying the signature
+  | "success" // backend VERIFIED the signature - payment is really paid
+  | "failed" // checkout failed / verification failed
+  | "cancelled"; // user dismissed the checkout
 
-const PROCESSING_PHASES: PaymentPhase[] = ['creating-order', 'opening-checkout', 'verifying'];
+const PROCESSING_PHASES: PaymentPhase[] = [
+  "creating-order",
+  "opening-checkout",
+  "verifying",
+];
 
-const PROCESSING_LABEL: Record<Exclude<PaymentPhase, 'idle' | 'success' | 'failed' | 'cancelled'>, string> = {
-  'creating-order': 'Creating a secure payment...',
-  'opening-checkout': 'Opening secure payment window...',
-  verifying: 'Verifying your payment...',
+const PROCESSING_LABEL: Record<
+  Exclude<PaymentPhase, "idle" | "success" | "failed" | "cancelled">,
+  string
+> = {
+  "creating-order": "Creating a secure payment...",
+  "opening-checkout": "Opening secure payment window...",
+  verifying: "Verifying your payment...",
 };
 
 /**
@@ -43,76 +61,100 @@ const PROCESSING_LABEL: Record<Exclude<PaymentPhase, 'idle' | 'success' | 'faile
  * (PENDING / SUCCESS / FAILED / CANCELLED / REFUNDED).
  */
 function normalizePaymentStatus(value?: string): PaymentStatus | undefined {
-  const key = String(value || '').trim().toLowerCase();
+  const key = String(value || "")
+    .trim()
+    .toLowerCase();
   if (!key) return undefined;
-  if (key === 'success' || key === 'paid' || key === 'succeeded' || key === 'captured') return 'SUCCESS';
-  if (key === 'failed' || key === 'failed_retryable' || key === 'authorization_failed') return 'FAILED';
-  if (key === 'cancelled' || key === 'cancel' || key === 'cancelled_order') return 'CANCELLED';
-  if (key === 'refunded' || key === 'refund') return 'REFUNDED';
-  return 'PENDING';
+  if (
+    key === "success" ||
+    key === "paid" ||
+    key === "succeeded" ||
+    key === "captured"
+  )
+    return "SUCCESS";
+  if (
+    key === "failed" ||
+    key === "failed_retryable" ||
+    key === "authorization_failed"
+  )
+    return "FAILED";
+  if (key === "cancelled" || key === "cancel" || key === "cancelled_order")
+    return "CANCELLED";
+  if (key === "refunded" || key === "refund") return "REFUNDED";
+  return "PENDING";
 }
 
 function paymentBadge(status?: PaymentStatus) {
   switch (status) {
-    case 'SUCCESS':
-      return { label: 'Paid', variant: 'success' as const };
-    case 'FAILED':
-      return { label: 'Payment failed', variant: 'error' as const };
-    case 'CANCELLED':
-      return { label: 'Payment cancelled', variant: 'neutral' as const };
-    case 'REFUNDED':
-      return { label: 'Refunded', variant: 'neutral' as const };
-    case 'PENDING':
-      return { label: 'Payment pending', variant: 'warning' as const };
+    case "SUCCESS":
+      return { label: "Paid", variant: "success" as const };
+    case "FAILED":
+      return { label: "Payment failed", variant: "error" as const };
+    case "CANCELLED":
+      return { label: "Payment cancelled", variant: "neutral" as const };
+    case "REFUNDED":
+      return { label: "Refunded", variant: "neutral" as const };
+    case "PENDING":
+      return { label: "Payment pending", variant: "warning" as const };
     default:
-      return { label: 'Not paid', variant: 'neutral' as const };
+      return { label: "Not paid", variant: "neutral" as const };
   }
 }
 
 function describePaymentError(error: unknown): string {
   if (error instanceof ApiClientError) {
-    const server = error.serverMessage || '';
+    const server = error.serverMessage || "";
     // Network/timeout — the API client already produces a clear message.
-    if (error.category === 'NETWORK' || error.category === 'TIMEOUT') {
+    if (error.category === "NETWORK" || error.category === "TIMEOUT") {
       return toErrorMessage(error);
     }
     // Backend says Razorpay is not configured / temporarily down.
-    if (error.status === 503 && /online payment|razorpay|not configured/i.test(server)) {
-      return 'Online payment is temporarily unavailable. Please try again shortly or pay at the clinic.';
+    if (
+      error.status === 503 &&
+      /online payment|razorpay|not configured/i.test(server)
+    ) {
+      return "Online payment is temporarily unavailable. Please try again shortly or pay at the clinic.";
     }
     // Backend could not create the Razorpay order.
     if (error.status === 502 && /payment order/i.test(server)) {
-      return 'Unable to create the payment order. Please try again in a moment.';
+      return "Unable to create the payment order. Please try again in a moment.";
     }
     if (/already paid|no further payment/i.test(server)) {
-      return 'This appointment is already paid. You do not need to pay again.';
+      return "This appointment is already paid. You do not need to pay again.";
     }
-    if (/verification failed|could not be confirmed|not captured/i.test(server)) {
-      return 'Payment verification failed. No money has been deducted. Please try again.';
+    if (
+      /verification failed|could not be confirmed|not captured/i.test(server)
+    ) {
+      return "Payment verification failed. No money has been deducted. Please try again.";
     }
     if (/no longer open for payment/i.test(server)) {
-      return 'This appointment is no longer open for payment. Please contact the clinic.';
+      return "This appointment is no longer open for payment. Please contact the clinic.";
     }
     if (/cash payment at the clinic/i.test(server)) {
-      return 'This appointment is booked for cash payment at the clinic.';
+      return "This appointment is booked for cash payment at the clinic.";
     }
     // A 404 with no server message (e.g. an older backend without the order
     // route) — give the user something actionable instead of "resource not found".
-    if (error.category === 'NOT_FOUND' && !server) {
-      return 'Unable to start the payment. Please make sure the booking is eligible for online payment and try again.';
+    if (error.category === "NOT_FOUND" && !server) {
+      return "Unable to start the payment. Please make sure the booking is eligible for online payment and try again.";
     }
-    return toErrorMessage(error, 'We could not verify the payment. Please try again.');
+    return toErrorMessage(
+      error,
+      "We could not verify the payment. Please try again.",
+    );
   }
-  if (error && typeof error === 'object' && 'description' in error) {
-    const description = String((error as { description: unknown }).description || '').trim();
+  if (error && typeof error === "object" && "description" in error) {
+    const description = String(
+      (error as { description: unknown }).description || "",
+    ).trim();
     if (description) return description;
   }
   if (error instanceof Error && error.message) return error.message;
-  return 'The payment could not be completed. Please try again.';
+  return "The payment could not be completed. Please try again.";
 }
 
 function razorpayContact(value?: string): string | undefined {
-  const digits = String(value || '').replace(/\D/g, '');
+  const digits = String(value || "").replace(/\D/g, "");
   if (/^[6-9]\d{9}$/.test(digits)) return `+91${digits}`;
   if (/^91[6-9]\d{9}$/.test(digits)) return `+${digits}`;
   return undefined;
@@ -123,25 +165,28 @@ export default function PaymentScreen() {
   const { appointmentId } = useLocalSearchParams<{ appointmentId?: string }>();
   const { user } = useAuth();
 
-  const [appointment, setAppointment] = useState<AppointmentDetails | null>(null);
+  const [appointment, setAppointment] = useState<AppointmentDetails | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
+  const [loadError, setLoadError] = useState("");
 
-  const [phase, setPhase] = useState<PaymentPhase>('idle');
-  const [errorText, setErrorText] = useState('');
-  const [lastPaymentId, setLastPaymentId] = useState('');
+  const [phase, setPhase] = useState<PaymentPhase>("idle");
+  const [errorText, setErrorText] = useState("");
+  const [lastPaymentId, setLastPaymentId] = useState("");
 
   const payingRef = useRef(false);
 
   const load = useCallback(async () => {
     if (!appointmentId) return;
     setLoading(true);
-    setLoadError('');
+    setLoadError("");
     try {
-      const res = await appointmentService.getUserAppointmentDetails(appointmentId);
+      const res =
+        await appointmentService.getUserAppointmentDetails(appointmentId);
       setAppointment(res.appointmentDetails);
     } catch (err) {
-      setLoadError(toErrorMessage(err, 'Unable to load payment details.'));
+      setLoadError(toErrorMessage(err, "Unable to load payment details."));
     } finally {
       setLoading(false);
     }
@@ -158,13 +203,14 @@ export default function PaymentScreen() {
   });
 
   const normalizedStatus = normalizePaymentStatus(appointment?.paymentStatus);
-  const alreadyPaid = normalizedStatus === 'SUCCESS' || appointment?.payment === true;
+  const alreadyPaid =
+    normalizedStatus === "SUCCESS" || appointment?.payment === true;
 
   const goBack = () => {
     if (router.canGoBack()) {
       router.back();
     } else {
-      router.replace('/(drawer)' as never);
+      router.replace("/(drawer)" as never);
     }
   };
 
@@ -174,10 +220,10 @@ export default function PaymentScreen() {
   ): RazorpayCheckoutOptions => ({
     key,
     amount: order.amount,
-    currency: order.currency || 'INR',
+    currency: order.currency || "INR",
     order_id: order.id,
-    name: 'HealPoint',
-    description: `Consultation fee · ${appointment?.doctorName || 'Doctor'}`,
+    name: "HealPoint",
+    description: `Consultation fee · ${appointment?.doctorName || "Doctor"}`,
     prefill: {
       name: user?.name,
       email: user?.email,
@@ -185,52 +231,55 @@ export default function PaymentScreen() {
     },
     theme: { color: Palette.primary },
     modal: { confirm_close: true },
-    notes: { appointmentId: appointment?._id || appointmentId || '' },
+    notes: { appointmentId: appointment?._id || appointmentId || "" },
     remember_customer: true,
   });
 
   const handlePay = async () => {
     if (!appointmentId || payingRef.current) return;
     payingRef.current = true;
-    setErrorText('');
-    setPhase('creating-order');
+    setErrorText("");
+    setPhase("creating-order");
     try {
       const orderRes = await createPaymentOrder(appointmentId);
       const order = orderRes.razorpayOrder;
       const key = orderRes.razorpayKey || RAZORPAY_KEY_ID;
       if (!order?.id || !order.amount || !key) {
         throw new Error(
-          'Online payment is not configured for this booking yet. Please try again shortly or pay at the clinic.',
+          "Online payment is not configured for this booking yet. Please try again shortly or pay at the clinic.",
         );
       }
 
-      setPhase('opening-checkout');
-      const payment = await openRazorpayCheckout(buildCheckoutOptions(order, key));
+      setPhase("opening-checkout");
+      const payment = await openRazorpayCheckout(
+        buildCheckoutOptions(order, key),
+      );
 
       // The mobile callback alone is NOT trusted - the backend must verify the
       // Razorpay signature before the booking is marked paid.
-      setPhase('verifying');
+      setPhase("verifying");
       await verifyAppointmentPayment({
         appointmentId,
         razorpay_order_id: payment.razorpay_order_id || order.id,
         razorpay_payment_id: payment.razorpay_payment_id,
-        razorpay_signature: payment.razorpay_signature || '',
+        razorpay_signature: payment.razorpay_signature || "",
       });
 
       setLastPaymentId(payment.razorpay_payment_id);
       try {
-        const fresh = await appointmentService.getUserAppointmentDetails(appointmentId);
+        const fresh =
+          await appointmentService.getUserAppointmentDetails(appointmentId);
         setAppointment(fresh.appointmentDetails);
       } catch {
         // Verified already; the fresh fetch is only cosmetic.
       }
-      setPhase('success');
+      setPhase("success");
     } catch (error) {
       if (isPaymentCancelled(error)) {
-        setPhase('cancelled');
+        setPhase("cancelled");
       } else {
         setErrorText(describePaymentError(error));
-        setPhase('failed');
+        setPhase("failed");
       }
     } finally {
       payingRef.current = false;
@@ -253,8 +302,8 @@ export default function PaymentScreen() {
           icon="cloud-offline-outline"
           tone="error"
           title="Unable to load payment"
-          message={loadError || 'Unable to load the appointment.'}
-          action={primaryButton('Try again', load)}
+          message={loadError || "Unable to load the appointment."}
+          action={primaryButton("Try again", load)}
         />
       </SafeAreaView>
     );
@@ -262,17 +311,20 @@ export default function PaymentScreen() {
 
   const amount = appointment.amount || 0;
   const badge = paymentBadge(normalizedStatus);
-  const bookingClosed = ['cancel', 'missed'].includes(appointment.bookingStatus || '');
+  const bookingClosed = ["cancel", "missed"].includes(
+    appointment.bookingStatus || "",
+  );
   // A booking that was made for cash / UPI at the clinic should never be shown
   // as an online-payment failure. Show an informational state instead.
-  const cashAppointment = (appointment.paymentMethod || '').toLocaleLowerCase() === 'cash';
+  const cashAppointment =
+    (appointment.paymentMethod || "").toLocaleLowerCase() === "cash";
 
   if (alreadyPaid) {
     return renderSuccessState();
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <Header onBack={goBack} title="Secure payment" />
 
       {bookingClosed ? (
@@ -281,7 +333,7 @@ export default function PaymentScreen() {
           tone="error"
           title="Payment unavailable"
           message="This appointment is no longer open for payment. Please contact the clinic for assistance."
-          action={primaryButton('Back', goBack)}
+          action={primaryButton("Back", goBack)}
         />
       ) : cashAppointment ? (
         <StateView
@@ -289,11 +341,11 @@ export default function PaymentScreen() {
           tone="warning"
           title="Cash payment booking"
           message="This appointment was booked for cash / UPI payment at the clinic. It is not an online (Razorpay) booking, so there is nothing to pay here."
-          action={primaryButton('Back', goBack)}
+          action={primaryButton("Back", goBack)}
         />
-      ) : phase === 'failed' ? (
+      ) : phase === "failed" ? (
         renderFailedState()
-      ) : phase === 'cancelled' ? (
+      ) : phase === "cancelled" ? (
         renderCancelledState()
       ) : (
         renderPaymentForm(badge)
@@ -305,31 +357,55 @@ export default function PaymentScreen() {
 
   function renderSuccessState() {
     return (
-      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
         <View style={styles.stateWrap}>
           <View style={[styles.stateIcon, styles.stateIconSuccess]}>
             <Ionicons name="checkmark" size={40} color={Palette.white} />
           </View>
           <Text style={styles.stateTitle}>Payment Successful</Text>
-          <Text style={styles.stateBody}>Your payment is verified and your appointment is confirmed.</Text>
+          <Text style={styles.stateBody}>
+            Your payment is verified and your appointment is confirmed.
+          </Text>
 
           <Card padded style={styles.stateCard}>
-            {detailRow('Doctor', appointment?.doctorName || 'Doctor')}
-            {detailRow('Date', formatDDMMYYYY(appointment?.bookingDate))}
-            {detailRow('Time', appointment?.bookingTime || '-')}
-            {detailRow('Amount paid', formatINR(amount))}
-            {lastPaymentId ? detailRow('Payment ID', lastPaymentId) : null}
-            {detailRow('Status', 'Paid & confirmed')}
+            {detailRow("Doctor", appointment?.doctorName || "Doctor")}
+            {detailRow("Date", formatDDMMYYYY(appointment?.bookingDate))}
+            {detailRow("Time", appointment?.bookingTime || "-")}
+            {detailRow("Patient", appointment?.patientName || "Patient")}
+            {appointment?.billing?.consultationFee
+              ? detailRow(
+                  "Consultation fee",
+                  formatINR(appointment.billing.consultationFee),
+                )
+              : null}
+            {appointment?.billing?.subscriptionBenefit
+              ? detailRow(
+                  `${appointment.billing.planName || "Plan"} benefit`,
+                  `-${formatINR(appointment.billing.subscriptionBenefit)}`,
+                )
+              : null}
+            {detailRow("Amount paid", formatINR(amount))}
+            {lastPaymentId ? detailRow("Payment ID", lastPaymentId) : null}
+            {detailRow("Status", "Paid & confirmed")}
           </Card>
 
           <View style={styles.stateActions}>
             <Button
               title="View Appointment"
               onPress={() =>
-                router.replace({ pathname: '/appointment/[id]', params: { id: appointment?._id || '' } })
+                router.replace({
+                  pathname: "/appointment/[id]",
+                  params: { id: appointment?._id || "" },
+                })
               }
             />
-            <Button title="Done" variant="outline" onPress={goBack} />
+            <Button
+              title="Open Digital Health Wallet"
+              variant="outline"
+              icon="wallet-outline"
+              onPress={() => router.push("/(drawer)/health-wallet" as never)}
+            />
+            <Button title="Done" variant="ghost" onPress={goBack} />
           </View>
         </View>
       </SafeAreaView>
@@ -342,7 +418,10 @@ export default function PaymentScreen() {
         icon="close-circle-outline"
         tone="error"
         title="Payment failed"
-        message={errorText || 'Your appointment has not been confirmed as paid. You can retry the payment or pay at the clinic.'}
+        message={
+          errorText ||
+          "Your appointment has not been confirmed as paid. You can retry the payment or pay at the clinic."
+        }
         action={
           <View style={styles.stateActions}>
             <Button title="Retry Payment" onPress={handlePay} />
@@ -371,23 +450,18 @@ export default function PaymentScreen() {
   }
 
   function renderPaymentForm(_badge: ReturnType<typeof paymentBadge>) {
-    const extra = appointment as unknown as Record<string, unknown>;
-    const taxAmount =
-      typeof extra.taxAmount === 'number'
-        ? extra.taxAmount
-        : typeof extra.taxes === 'number'
-          ? extra.taxes
-          : undefined;
-    const otherCharges =
-      typeof extra.otherCharges === 'number'
-        ? extra.otherCharges
-        : typeof extra.charges === 'number'
-          ? extra.charges
-          : undefined;
-    const total = amount + (taxAmount || 0) + (otherCharges || 0);
+    const billing = appointment?.billing;
+    const consultationFee = billing?.consultationFee ?? amount;
+    const serviceFee = billing?.serviceFee || 0;
+    const subscriptionBenefit = billing?.subscriptionBenefit || 0;
+    const discount = billing?.discount || 0;
+    const total = billing?.totalAmount ?? amount;
 
     return (
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.statusHead}>
           <View style={styles.statusHeadText}>
             <Text style={styles.statusLabel}>Payment status</Text>
@@ -404,35 +478,54 @@ export default function PaymentScreen() {
               <Ionicons name="person" size={22} color={Palette.primary} />
             </View>
             <View style={styles.doctorInfo}>
-              <Text style={styles.doctorName}>{appointment?.doctorName || 'Doctor'}</Text>
-              <Text style={styles.doctorMeta}>{appointment?.hospitalName || 'HealPoint clinic'}</Text>
+              <Text style={styles.doctorName}>
+                {appointment?.doctorName || "Doctor"}
+              </Text>
+              <Text style={styles.doctorMeta}>
+                {appointment?.hospitalName || "HealPoint clinic"}
+              </Text>
             </View>
           </View>
           <View style={styles.divider} />
-          {detailRow('Date', formatDDMMYYYY(appointment?.bookingDate))}
-          {detailRow('Time', appointment?.bookingTime || '-')}
+          {detailRow("Patient", appointment?.patientName || "Patient")}
+          {detailRow("Date", formatDDMMYYYY(appointment?.bookingDate))}
+          {detailRow("Time", appointment?.bookingTime || "-")}
         </Card>
 
         <Card padded>
           <Text style={styles.cardTitle}>Payment summary</Text>
-          {detailRow('Consultation fee', formatINR(amount))}
-          {taxAmount ? detailRow('Taxes & charges', formatINR(taxAmount)) : null}
-          {otherCharges ? detailRow('Other charges', formatINR(otherCharges)) : null}
+          {detailRow("Doctor consultation fee", formatINR(consultationFee))}
+          {serviceFee > 0
+            ? detailRow("Platform service fee", formatINR(serviceFee))
+            : null}
+          {subscriptionBenefit > 0
+            ? detailRow(
+                `${billing?.planName || "Plan"} benefit`,
+                `-${formatINR(subscriptionBenefit)}`,
+              )
+            : null}
+          {discount > 0
+            ? detailRow("Special discount", `-${formatINR(discount)}`)
+            : null}
           <View style={styles.divider} />
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total amount</Text>
+            <Text style={styles.totalLabel}>Total payable amount</Text>
             <Text style={styles.totalValue}>{formatINR(total)}</Text>
           </View>
         </Card>
 
         <Card padded>
           <View style={styles.securityRow}>
-            <Ionicons name="shield-checkmark" size={22} color={Palette.success} />
+            <Ionicons
+              name="shield-checkmark"
+              size={22}
+              color={Palette.success}
+            />
             <View style={styles.securityText}>
               <Text style={styles.securityTitle}>Secured by Razorpay</Text>
               <Text style={styles.securityBody}>
-                You will be taken to a secure Razorpay window to complete the payment using UPI, card or
-                netbanking.
+                You will be taken to a secure Razorpay window to complete the
+                payment using UPI, card or netbanking.
               </Text>
             </View>
           </View>
@@ -442,7 +535,7 @@ export default function PaymentScreen() {
           <Button
             title={`Pay Online · ${formatINR(total)}`}
             onPress={handlePay}
-            loading={phase === 'creating-order' || phase === 'opening-checkout'}
+            loading={phase === "creating-order" || phase === "opening-checkout"}
             disabled={total <= 0}
           />
           <Text style={styles.secureNote}>
@@ -458,7 +551,7 @@ export default function PaymentScreen() {
 // Small presentational helpers
 // ---------------------------------------------------------------------------
 
-type StateTone = 'success' | 'error' | 'warning';
+type StateTone = "success" | "error" | "warning";
 
 function Header({ onBack, title }: { onBack: () => void; title: string }) {
   return (
@@ -506,9 +599,9 @@ function StateView({
   action?: React.ReactNode;
 }) {
   const toneStyles = {
-    success: { bg: '#E2F5E9', color: Palette.success },
-    error: { bg: '#FDE8E8', color: Palette.error },
-    warning: { bg: '#FDF0DC', color: Palette.warning },
+    success: { bg: "#E2F5E9", color: Palette.success },
+    error: { bg: "#FDE8E8", color: Palette.error },
+    warning: { bg: "#FDF0DC", color: Palette.warning },
   }[tone];
   return (
     <View style={styles.stateWrap}>
@@ -526,13 +619,20 @@ function ProcessingOverlay({ phase }: { phase: PaymentPhase }) {
   if (!PROCESSING_PHASES.includes(phase)) return null;
   const label = PROCESSING_LABEL[phase as keyof typeof PROCESSING_LABEL];
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={() => undefined}>
+    <Modal
+      visible
+      transparent
+      animationType="fade"
+      onRequestClose={() => undefined}
+    >
       <View style={styles.overlay}>
         <View style={styles.overlayCard}>
           <ActivityIndicator size="large" color={Palette.primary} />
           <Text style={styles.overlayText}>{label}</Text>
-          {phase === 'verifying' ? (
-            <Text style={styles.overlaySub}>Please don&apos;t close the app.</Text>
+          {phase === "verifying" ? (
+            <Text style={styles.overlaySub}>
+              Please don&apos;t close the app.
+            </Text>
           ) : null}
         </View>
       </View>
@@ -551,8 +651,8 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
@@ -562,8 +662,8 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: Palette.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     ...Typography.h4,
@@ -573,9 +673,9 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   statusHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: Spacing.sm,
   },
   statusHeadText: {
@@ -591,8 +691,8 @@ const styles = StyleSheet.create({
     color: Palette.primaryDark,
   },
   doctorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
   },
   doctorIcon: {
@@ -600,8 +700,8 @@ const styles = StyleSheet.create({
     height: 46,
     borderRadius: 23,
     backgroundColor: Palette.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   doctorInfo: {
     flex: 1,
@@ -626,9 +726,9 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.sm,
   },
   detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: Spacing.sm,
     paddingVertical: Spacing.xs,
   },
@@ -639,14 +739,14 @@ const styles = StyleSheet.create({
   detailValue: {
     ...Typography.bodySmall,
     color: Palette.text,
-    fontWeight: '600',
+    fontWeight: "600",
     flexShrink: 1,
-    textAlign: 'right',
+    textAlign: "right",
   },
   totalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   totalLabel: {
     ...Typography.label,
@@ -657,8 +757,8 @@ const styles = StyleSheet.create({
     color: Palette.primaryDark,
   },
   securityRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: Spacing.md,
   },
   securityText: {
@@ -679,12 +779,12 @@ const styles = StyleSheet.create({
   secureNote: {
     ...Typography.caption,
     color: Palette.textMuted,
-    textAlign: 'center',
+    textAlign: "center",
   },
   stateWrap: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     padding: Spacing.xxl,
     gap: Spacing.sm,
   },
@@ -692,8 +792,8 @@ const styles = StyleSheet.create({
     width: 76,
     height: 76,
     borderRadius: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: Spacing.xs,
   },
   stateIconSuccess: {
@@ -702,32 +802,32 @@ const styles = StyleSheet.create({
   stateTitle: {
     ...Typography.h3,
     color: Palette.text,
-    textAlign: 'center',
+    textAlign: "center",
   },
   stateBody: {
     ...Typography.bodyMedium,
     color: Palette.textMuted,
-    textAlign: 'center',
+    textAlign: "center",
   },
   stateCard: {
-    width: '100%',
+    width: "100%",
     marginTop: Spacing.sm,
   },
   stateActions: {
-    width: '100%',
+    width: "100%",
     gap: Spacing.sm,
     marginTop: Spacing.sm,
   },
   overlay: {
     flex: 1,
     backgroundColor: Palette.overlay,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     padding: Spacing.xxl,
   },
   overlayCard: {
     minWidth: 220,
-    alignItems: 'center',
+    alignItems: "center",
     gap: Spacing.md,
     backgroundColor: Palette.surface,
     borderRadius: Radius.lg,
@@ -736,11 +836,11 @@ const styles = StyleSheet.create({
   overlayText: {
     ...Typography.label,
     color: Palette.text,
-    textAlign: 'center',
+    textAlign: "center",
   },
   overlaySub: {
     ...Typography.caption,
     color: Palette.textMuted,
-    textAlign: 'center',
+    textAlign: "center",
   },
 });
