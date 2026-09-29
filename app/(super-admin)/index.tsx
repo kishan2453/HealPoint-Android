@@ -7,34 +7,171 @@
  * section is simply omitted (or the whole screen shows a retry state) so the
  * dashboard never fakes data.
  */
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
-import { StatCard } from '@/components/admin/StatCard';
-import { DrawerToggleButton } from '@/components/DrawerToggleButton';
-import { RoleRoute } from '@/components/RoleRoute';
-import { Card } from '@/components/ui/Card';
-import { ErrorState } from '@/components/ui/ErrorState';
-import { Loading } from '@/components/ui/Loading';
-import { Palette, Radius, Spacing, Typography } from '@/constants/theme';
-import { useAuth } from '@/hooks/use-auth';
-import { useNotificationBadge } from '@/hooks/use-notifications';
-import { formatINR } from '@/lib/format';
-import { canonicalRole } from '@/lib/roles';
-import { toErrorMessage } from '@/services/api';
-import * as subscriptionService from '@/services/subscriptions';
-import * as userService from '@/services/users';
-import type { PlatformAnalytics, PlatformStats, SubscriptionOverview } from '@/types';
+import { StatCard } from "@/components/admin/StatCard";
+import { DrawerToggleButton } from "@/components/DrawerToggleButton";
+import { RoleRoute } from "@/components/RoleRoute";
+import { Card } from "@/components/ui/Card";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { Loading } from "@/components/ui/Loading";
+import { Palette, Radius, Spacing, Typography } from "@/constants/theme";
+import { useAuth } from "@/hooks/use-auth";
+import { useNotificationBadge } from "@/hooks/use-notifications";
+import { formatINR } from "@/lib/format";
+import { canonicalRole } from "@/lib/roles";
+import { toErrorMessage } from "@/services/api";
+import * as subscriptionService from "@/services/subscriptions";
+import * as userService from "@/services/users";
+import type {
+  PlatformAnalytics,
+  PlatformStats,
+  SubscriptionOverview,
+} from "@/types";
 
 const QUICK_LINKS = [
-  { label: 'Hospitals', icon: 'business-outline', href: '/super-admin/hospitals', accent: '#0E9F8E' },
-  { label: 'Users', icon: 'people-outline', href: '/super-admin/users', accent: '#2F80ED' },
-  { label: 'Doctors', icon: 'medkit-outline', href: '/super-admin/doctors', accent: '#7B61FF' },
-  { label: 'Hospital Admins', icon: 'person-circle-outline', href: '/super-admin/admins', accent: '#E89A3C' },
-  { label: 'Appointments', icon: 'calendar-outline', href: '/super-admin/appointments', accent: '#D9435B' },
-  { label: 'Subscriptions', icon: 'card-outline', href: '/super-admin/subscriptions', accent: '#2E9E5B' },
+  {
+    label: "Hospitals",
+    icon: "business-outline",
+    href: "/super-admin/hospitals",
+    accent: "#0E9F8E",
+  },
+  {
+    label: "Users",
+    icon: "people-outline",
+    href: "/super-admin/users",
+    accent: "#2F80ED",
+  },
+  {
+    label: "Doctors",
+    icon: "medkit-outline",
+    href: "/super-admin/doctors",
+    accent: "#7B61FF",
+  },
+  {
+    label: "Hospital Admins",
+    icon: "person-circle-outline",
+    href: "/super-admin/admins",
+    accent: "#E89A3C",
+  },
+  {
+    label: "Appointments",
+    icon: "calendar-outline",
+    href: "/super-admin/appointments",
+    accent: "#D9435B",
+  },
+  {
+    label: "Subscriptions",
+    icon: "card-outline",
+    href: "/super-admin/subscriptions",
+    accent: "#2E9E5B",
+  },
+  {
+    label: "Revenue Protection",
+    icon: "shield-checkmark-outline",
+    href: "/super-admin/subscription-lifecycle",
+    accent: "#0E9F8E",
+  },
+  {
+    label: "Subscription Analytics",
+    icon: "analytics-outline",
+    href: "/super-admin/subscription-analytics",
+    accent: "#0E9F8E",
+  },
+  {
+    label: "Benefits & Entitlements",
+    icon: "key-outline",
+    href: "/super-admin/subscription-entitlements",
+    accent: "#4F46E5",
+  },
+  {
+    label: "Billing & Invoices",
+    icon: "receipt-outline",
+    href: "/super-admin/billing",
+    accent: "#10B981",
+  },
+  {
+    label: "Offers & Coupons",
+    icon: "pricetags-outline",
+    href: "/super-admin/promotions",
+    accent: "#F59E0B",
+  },
+  {
+    label: "Cases & Incidents",
+    icon: "file-tray-full-outline",
+    href: "/super-admin/cases",
+    accent: "#EF4444",
+  },
+  {
+    label: "Patient Service SLAs",
+    icon: "timer-outline",
+    href: "/super-admin/sla",
+    accent: "#3B82F6",
+  },
+  {
+    label: "Service Recovery",
+    icon: "bandage-outline",
+    href: "/super-admin/recovery",
+    accent: "#10B981",
+  },
+  {
+    label: "Service Desk",
+    icon: "headset-outline",
+    href: "/super-admin/service-desk",
+    accent: "#6366F1",
+  },
+  {
+    label: "Reliability",
+    icon: "pulse-outline",
+    href: "/super-admin/reliability",
+    accent: "#0E9F8E",
+  },
+  {
+    label: "Backup & Recovery",
+    icon: "shield-checkmark-outline",
+    href: "/super-admin/backup-recovery",
+    accent: "#2F80ED",
+  },
+  {
+    label: "Environment",
+    icon: "git-branch-outline",
+    href: "/super-admin/environment",
+    accent: "#7B61FF",
+  },
+  {
+    label: "Interoperability",
+    icon: "swap-horizontal-outline",
+    href: "/super-admin/interoperability",
+    accent: "#0284C7",
+  },
+  {
+    label: "Export Monitor",
+    icon: "cloud-download-outline",
+    href: "/super-admin/export-monitor",
+    accent: "#0E9F8E",
+  },
+  {
+    label: "Data Integrity",
+    icon: "shield-checkmark-outline",
+    href: "/super-admin/data-integrity",
+    accent: "#F59E0B",
+  },
+  {
+    label: "Policy & Rules",
+    icon: "options-outline",
+    href: "/super-admin/policies",
+    accent: "#6366F1",
+  },
 ] as const;
 
 export default function SuperAdminDashboardScreen() {
@@ -45,12 +182,12 @@ export default function SuperAdminDashboardScreen() {
   const [overview, setOverview] = useState<SubscriptionOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const load = useCallback(async (asRefresh = false) => {
     if (asRefresh) setRefreshing(true);
     else setLoading(true);
-    setError('');
+    setError("");
     try {
       const [statsRes, analyticsRes, overviewRes] = await Promise.all([
         userService.getPlatformStats(),
@@ -61,7 +198,7 @@ export default function SuperAdminDashboardScreen() {
       setAnalytics(analyticsRes?.analytics || null);
       setOverview(overviewRes?.overview || null);
     } catch (err) {
-      setError(toErrorMessage(err, 'Unable to load the dashboard.'));
+      setError(toErrorMessage(err, "Unable to load the dashboard."));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -73,37 +210,48 @@ export default function SuperAdminDashboardScreen() {
   }, [load]);
 
   function statusCount(status: string): number | undefined {
-    return (analytics?.appointmentStatusCounts || []).find((item) => String(item._id).toLowerCase() === status.toLowerCase())?.count;
+    return (analytics?.appointmentStatusCounts || []).find(
+      (item) => String(item._id).toLowerCase() === status.toLowerCase(),
+    )?.count;
   }
 
   const role = canonicalRole(user?.role);
   const activeHospitals = analytics?.activeHospitals;
   const { unreadCount } = useNotificationBadge({ intervalMs: 30000 });
-  
+
   return (
-    <RoleRoute allowedRoles={['super_admin']}>
+    <RoleRoute allowedRoles={["super_admin"]}>
       <View style={styles.safe}>
         <View style={styles.headerRow}>
-          <View style={[styles.iconCircle, { backgroundColor: '#0E9F8E1F' }]}>
+          <View style={[styles.iconCircle, { backgroundColor: "#0E9F8E1F" }]}>
             <Ionicons name="planet" size={26} color="#0E9F8E" />
           </View>
           <View style={styles.headerTexts}>
             <Text style={styles.title}>Super Admin Dashboard</Text>
             <Text style={styles.subtitle}>
-              {user?.name || 'Admin'} · {role.replace('_', ' ')}
+              {user?.name || "Admin"} · {role.replace("_", " ")}
             </Text>
           </View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Notifications and alerts"
-            onPress={() => router.push('/super-admin/notifications' as never)}
+            onPress={() => router.push("/super-admin/notifications" as never)}
             hitSlop={8}
-            style={({ pressed }) => [styles.bellButton, pressed && styles.pressed]}
+            style={({ pressed }) => [
+              styles.bellButton,
+              pressed && styles.pressed,
+            ]}
           >
-            <Ionicons name="notifications-outline" size={22} color={Palette.text} />
+            <Ionicons
+              name="notifications-outline"
+              size={22}
+              color={Palette.text}
+            />
             {unreadCount > 0 ? (
               <View style={styles.badgeDot}>
-                <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                <Text style={styles.badgeText}>
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </Text>
               </View>
             ) : null}
           </Pressable>
@@ -118,7 +266,12 @@ export default function SuperAdminDashboardScreen() {
           <ScrollView
             contentContainerStyle={styles.content}
             showsVerticalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => load(true)}
+              />
+            }
           >
             <Card style={styles.summaryRow}>
               <View style={styles.summaryTexts}>
@@ -131,34 +284,125 @@ export default function SuperAdminDashboardScreen() {
               </View>
               <View style={styles.summaryAmount}>
                 <Text style={styles.summaryAmountLabel}>Platform revenue</Text>
-                <Text style={styles.summaryAmountValue}>{formatINR(stats?.earnings)}</Text>
+                <Text style={styles.summaryAmountValue}>
+                  {formatINR(stats?.earnings)}
+                </Text>
               </View>
             </Card>
 
             <View style={styles.grid}>
-              <StatCard label="Total Hospitals" value={stats?.totalHospitals ?? 0} icon="business-outline" accent="#0E9F8E" hint={activeHospitals !== undefined ? `${activeHospitals} active` : undefined} />
-              <StatCard label="Active Hospitals" value={activeHospitals ?? '—'} icon="checkmark-circle-outline" accent="#2E9E5B" />
-              <StatCard label="Total Doctors" value={stats?.totalDoctors ?? 0} icon="medkit-outline" accent="#2F80ED" />
-              <StatCard label="Total Patients" value={stats?.totalPatients ?? 0} icon="people-outline" accent="#E89A3C" />
-              <StatCard label="Total Appointments" value={stats?.totalAppointments ?? 0} icon="calendar-outline" accent="#7B61FF" />
-              <StatCard label="Pending Appointments" value={statusCount('pending') ?? '—'} icon="time-outline" accent="#E89A3C" />
-              <StatCard label="Completed Appointments" value={statusCount('completed') ?? '—'} icon="checkmark-done-outline" accent="#2E9E5B" />
-              <StatCard label="Cancelled Appointments" value={statusCount('cancel') ?? '—'} icon="close-circle-outline" accent="#D9435B" />
-              <StatCard label="Total Revenue" value={formatINR(stats?.earnings)} icon="wallet-outline" accent="#2E9E5B" hint="Live platform earnings" />
-              <StatCard label="Active Subscriptions" value={overview?.activeSubscriptions ?? '—'} icon="card-outline" accent="#0E9F8E" />
-              <StatCard label="Expiring Soon" value={overview?.expiringCount ?? '—'} icon="alarm-outline" accent="#E89A3C" hint={overview?.expiringCount ? `within 30 days` : undefined} />
-              <StatCard label="Trial Subscriptions" value={overview?.trialCount ?? '—'} icon="flask-outline" accent="#2F80ED" />
-              <StatCard label="Expired Subscriptions" value={overview?.expiredCount ?? '—'} icon="time-outline" accent="#D9435B" />
-              <StatCard label="Cancelled Subscriptions" value={overview?.cancelledCount ?? '—'} icon="close-circle-outline" accent="#D9435B" />
+              <StatCard
+                label="Total Hospitals"
+                value={stats?.totalHospitals ?? 0}
+                icon="business-outline"
+                accent="#0E9F8E"
+                hint={
+                  activeHospitals !== undefined
+                    ? `${activeHospitals} active`
+                    : undefined
+                }
+              />
+              <StatCard
+                label="Active Hospitals"
+                value={activeHospitals ?? "—"}
+                icon="checkmark-circle-outline"
+                accent="#2E9E5B"
+              />
+              <StatCard
+                label="Total Doctors"
+                value={stats?.totalDoctors ?? 0}
+                icon="medkit-outline"
+                accent="#2F80ED"
+              />
+              <StatCard
+                label="Total Patients"
+                value={stats?.totalPatients ?? 0}
+                icon="people-outline"
+                accent="#E89A3C"
+              />
+              <StatCard
+                label="Total Appointments"
+                value={stats?.totalAppointments ?? 0}
+                icon="calendar-outline"
+                accent="#7B61FF"
+              />
+              <StatCard
+                label="Pending Appointments"
+                value={statusCount("pending") ?? "—"}
+                icon="time-outline"
+                accent="#E89A3C"
+              />
+              <StatCard
+                label="Completed Appointments"
+                value={statusCount("completed") ?? "—"}
+                icon="checkmark-done-outline"
+                accent="#2E9E5B"
+              />
+              <StatCard
+                label="Cancelled Appointments"
+                value={statusCount("cancel") ?? "—"}
+                icon="close-circle-outline"
+                accent="#D9435B"
+              />
+              <StatCard
+                label="Total Revenue"
+                value={formatINR(stats?.earnings)}
+                icon="wallet-outline"
+                accent="#2E9E5B"
+                hint="Live platform earnings"
+              />
+              <StatCard
+                label="Active Subscriptions"
+                value={overview?.activeSubscriptions ?? "—"}
+                icon="card-outline"
+                accent="#0E9F8E"
+              />
+              <StatCard
+                label="Expiring Soon"
+                value={overview?.expiringCount ?? "—"}
+                icon="alarm-outline"
+                accent="#E89A3C"
+                hint={overview?.expiringCount ? `within 30 days` : undefined}
+              />
+              <StatCard
+                label="Trial Subscriptions"
+                value={overview?.trialCount ?? "—"}
+                icon="flask-outline"
+                accent="#2F80ED"
+              />
+              <StatCard
+                label="Expired Subscriptions"
+                value={overview?.expiredCount ?? "—"}
+                icon="time-outline"
+                accent="#D9435B"
+              />
+              <StatCard
+                label="Cancelled Subscriptions"
+                value={overview?.cancelledCount ?? "—"}
+                icon="close-circle-outline"
+                accent="#D9435B"
+              />
             </View>
 
             <Text style={styles.sectionTitle}>Quick access</Text>
             <View style={styles.grid}>
               {QUICK_LINKS.map((link) => (
-                <Pressable key={link.label} onPress={() => router.push(link.href as never)}>
+                <Pressable
+                  key={link.label}
+                  onPress={() => router.push(link.href as never)}
+                >
                   <Card style={styles.quickCard}>
-                    <View style={[styles.quickIcon, { backgroundColor: `${link.accent}1F` }]}>
-                      <Ionicons name={link.icon} size={22} color={link.accent} />
+                    <View
+                      style={[
+                        styles.quickIcon,
+                        { backgroundColor: `${link.accent}1F` },
+                      ]}
+                    >
+                      <Ionicons
+                        name={link.icon}
+                        size={22}
+                        color={link.accent}
+                      />
                     </View>
                     <Text style={styles.quickLabel}>{link.label}</Text>
                   </Card>
@@ -174,27 +418,39 @@ export default function SuperAdminDashboardScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Palette.background },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
-  iconCircle: { width: 48, height: 48, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  iconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: Radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   bellButton: {
     width: 40,
-    height:   40,
+    height: 40,
     borderRadius: Radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: Palette.surface,
   },
   badgeDot: {
-    position: 'absolute',
-    top:  -2,
+    position: "absolute",
+    top: -2,
     right: -2,
-    minWidth:  18,
+    minWidth: 18,
     height: 18,
     borderRadius: 9,
     paddingHorizontal: Spacing.xxs,
     backgroundColor: Palette.error,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 2,
     borderColor: Palette.background,
   },
@@ -203,23 +459,61 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 12,
     color: Palette.white,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   pressed: { opacity: 0.6 },
   headerTexts: { flex: 1 },
   title: { ...Typography.h2, color: Palette.text },
-  subtitle: { ...Typography.bodySmall, color: Palette.textMuted, textTransform: 'capitalize' },
-  content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xxxl, gap: Spacing.md },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md },
-  summaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.md, flexWrap: 'wrap' },
+  subtitle: {
+    ...Typography.bodySmall,
+    color: Palette.textMuted,
+    textTransform: "capitalize",
+  },
+  content: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.xxxl,
+    gap: Spacing.md,
+  },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.md },
+  summaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.md,
+    flexWrap: "wrap",
+  },
   summaryTexts: { flex: 1, gap: 2 },
   summaryTitle: { ...Typography.h4, color: Palette.text },
   summarySubtitle: { ...Typography.bodySmall, color: Palette.textMuted },
-  summaryAmount: { alignItems: 'flex-end' },
-  summaryAmountLabel: { ...Typography.caption, color: Palette.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
+  summaryAmount: { alignItems: "flex-end" },
+  summaryAmountLabel: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
   summaryAmountValue: { ...Typography.h3, color: Palette.primaryDark },
-  sectionTitle: { ...Typography.label, color: Palette.text, marginTop: Spacing.xs },
-  quickCard: { alignItems: 'flex-start', gap: Spacing.sm, minWidth: 150, flex: 1 },
-  quickIcon: { width: 40, height: 40, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
-  quickLabel: { ...Typography.bodySmall, fontWeight: '600', color: Palette.text },
+  sectionTitle: {
+    ...Typography.label,
+    color: Palette.text,
+    marginTop: Spacing.xs,
+  },
+  quickCard: {
+    alignItems: "flex-start",
+    gap: Spacing.sm,
+    minWidth: 150,
+    flex: 1,
+  },
+  quickIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickLabel: {
+    ...Typography.bodySmall,
+    fontWeight: "600",
+    color: Palette.text,
+  },
 });

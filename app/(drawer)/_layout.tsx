@@ -113,6 +113,14 @@ export default function DrawerLayout() {
           options={{ title: "Family Members", ...hidden }}
         />
         <Drawer.Screen
+          name="health/export"
+          options={{ title: "Health Data & Export", ...hidden }}
+        />
+        <Drawer.Screen
+          name="health-export"
+          options={{ title: "Health Data & Export", ...hidden }}
+        />
+        <Drawer.Screen
           name="payments/history"
           options={{ title: "Payment History", ...hidden }}
         />

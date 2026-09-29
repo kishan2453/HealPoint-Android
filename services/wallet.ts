@@ -12,7 +12,13 @@
  * References existing appointments and clinical documents without duplicating records.
  */
 import { api } from "./api";
-import type { AppointmentBilling, AppointmentMedicineItem } from "@/types";
+import type {
+  AppointmentBilling,
+  AppointmentMedicineItem,
+  DocumentExtractedMetadata,
+  DocumentProcessingStatus,
+  DocumentUserCorrections,
+} from "@/types";
 
 export interface HealthWalletCounts {
   prescriptions: number;
@@ -101,6 +107,16 @@ export interface WalletItem {
   mimeType?: string;
   size?: number;
   uploadedAt?: string;
+
+  // Document Intelligence & OCR fields
+  processingStatus?: DocumentProcessingStatus;
+  ocrProvider?: string;
+  confidence?: number;
+  extractedMetadata?: DocumentExtractedMetadata;
+  extractedText?: string;
+  userCorrections?: DocumentUserCorrections;
+  doctorSummary?: string;
+  contentHash?: string;
 
   // Billing & Receipt fields
   amount?: number;

@@ -140,3 +140,25 @@ export function subscribeToQueueSync(
     socketInstance?.off("queue:sync", handler);
   };
 }
+
+/**
+ * Subscribe to real-time notification events. Returns unsubscribe function.
+ */
+export function subscribeToNotificationSync(
+  callback: (payload: any) => void,
+): () => void {
+  if (!socketInstance) return () => {};
+
+  const handler = (data: any) => {
+    try {
+      callback(data);
+    } catch (e) {
+      console.error("[Socket.IO] Error handling notification:new:", e);
+    }
+  };
+
+  socketInstance.on("notification:new", handler);
+  return () => {
+    socketInstance?.off("notification:new", handler);
+  };
+}

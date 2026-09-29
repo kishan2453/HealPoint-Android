@@ -17,8 +17,25 @@ import type {
   SubscriptionListSort,
   SubscriptionOverview,
   SubscriptionPlansResponse,
+  SubscriptionReceipt,
+  SubscriptionReconciliationIssue,
+  SubscriptionReconciliationOverview,
+  SubscriptionAnalyticsResponse,
   UserAppointmentsResponse,
   UserSubscriptionEntitlement,
+  FeatureCatalogItem,
+  PlanFeatureMatrixItem,
+  PlanValidationResponse,
+  EntitlementOverride,
+  SubscriptionInvoice,
+  SubscriptionTaxConfig,
+  BillingOverview,
+  InvoiceListResponse,
+  SubscriptionPromotion,
+  PromotionValidationResponse,
+  PromotionAnalyticsOverview,
+  PromotionListResponse,
+  PromotionRedemptionsResponse,
 } from "@/types";
 
 export async function getSubscriptionOverview(): Promise<{
@@ -244,9 +261,19 @@ export interface CreateSubscriptionOrderResponse {
     name: string;
     monthlyPrice: number;
     yearlyPrice: number;
+    price?: number;
+    discountAmount?: number;
+    finalPrice?: number;
   };
   billingCycle?: string;
   subscription?: Subscription;
+  promotion?: {
+    code: string;
+    name: string;
+    discountType: string;
+    discountValue: number;
+    discountAmount: number;
+  } | null;
 }
 
 export interface VerifySubscriptionPaymentPayload {
@@ -256,12 +283,18 @@ export interface VerifySubscriptionPaymentPayload {
   planId?: string;
   planKey?: string;
   billingCycle?: string;
+  promoCode?: string;
+  promoId?: string;
+  discountAmount?: number;
 }
 
 export async function createSubscriptionOrder(payload: {
   planId?: string;
   planKey?: string;
   billingCycle?: string;
+  amount?: number;
+  promoCode?: string;
+  couponCode?: string;
 }): Promise<CreateSubscriptionOrderResponse> {
   return api.post<CreateSubscriptionOrderResponse>(
     "/subscription/create-order",
@@ -332,4 +365,515 @@ export async function getPatientSubscriptionEntitlement(): Promise<UserSubscript
       appointments: [],
     });
   }
+}
+
+/**
+ * Retrieves the official tamper-proof digital receipt for a verified payment.
+ */
+export async function getSubscriptionReceipt(
+  paymentId: string,
+): Promise<{ success: boolean; receipt: SubscriptionReceipt }> {
+  return api.get<{ success: boolean; receipt: SubscriptionReceipt }>(
+    `/subscription/receipt/${paymentId}`,
+    { auth: true },
+  );
+}
+
+/**
+ * Schedules a downgrade to a lower plan tier, preserving current access until billing cycle conclusion.
+ */
+export async function schedulePlanDowngrade(
+  targetPlanKey: string,
+): Promise<{ success: boolean; message: string; subscription: Subscription }> {
+  return api.post<{
+    success: boolean;
+    message: string;
+    subscription: Subscription;
+  }>("/subscription/downgrade", { targetPlanKey }, { auth: true });
+}
+
+/**
+ * Fetches the Super Admin Revenue Protection & Reconciliation Overview with detected mismatches.
+ */
+export async function getReconciliationOverview(
+  filters: { status?: string; severity?: string; type?: string } = {},
+): Promise<{
+  success: boolean;
+  overview: SubscriptionReconciliationOverview;
+  issues: SubscriptionReconciliationIssue[];
+}> {
+  const query = new URLSearchParams();
+  if (filters.status) query.set("status", filters.status);
+  if (filters.severity) query.set("severity", filters.severity);
+  if (filters.type) query.set("type", filters.type);
+  const qs = query.toString();
+  return api.get<{
+    success: boolean;
+    overview: SubscriptionReconciliationOverview;
+    issues: SubscriptionReconciliationIssue[];
+  }>("/subscription/reconciliation/overview" + (qs ? "?" + qs : ""), {
+    auth: true,
+  });
+}
+
+/**
+ * Triggers an on-demand reconciliation scan across all subscriptions and payments.
+ */
+export async function runReconciliationScan(): Promise<{
+  success: boolean;
+  message: string;
+  scanResults: {
+    totalSubscriptionsScanned: number;
+    totalIssuesFound: number;
+    criticalCount: number;
+    highCount: number;
+    mediumCount: number;
+    lowCount: number;
+    autoRepairEligibleCount: number;
+    issues: SubscriptionReconciliationIssue[];
+  };
+}> {
+  return api.post<{
+    success: boolean;
+    message: string;
+    scanResults: any;
+  }>("/subscription/reconciliation/scan", {}, { auth: true });
+}
+
+/**
+ * Executes a deterministic safe auto-repair on an eligible reconciliation issue.
+ */
+export async function executeSafeAutoRepair(issueId: string): Promise<{
+  success: boolean;
+  message: string;
+  issue: SubscriptionReconciliationIssue;
+  repairAction: string;
+  repairNote: string;
+}> {
+  return api.post<{
+    success: boolean;
+    message: string;
+    issue: SubscriptionReconciliationIssue;
+    repairAction: string;
+    repairNote: string;
+  }>("/subscription/reconciliation/auto-repair", { issueId }, { auth: true });
+}
+
+/**
+ * Manually resolves a high-risk reconciliation discrepancy with Super Admin authorization.
+ */
+export async function resolveReconciliationIssue(
+  issueId: string,
+  action: string,
+  notes?: string,
+): Promise<{
+  success: boolean;
+  message: string;
+  issue: SubscriptionReconciliationIssue;
+}> {
+  return api.post<{
+    success: boolean;
+    message: string;
+    issue: SubscriptionReconciliationIssue;
+  }>(
+    `/subscription/reconciliation/resolve/${issueId}`,
+    { action, notes },
+    {
+      auth: true,
+    },
+  );
+}
+
+/**
+ * Super Admin: Retrieves real-time subscription analytics, conversion, and cohort intelligence.
+ */
+export async function getSubscriptionAnalytics(params?: {
+  timeframe?: string;
+  startDate?: string;
+  endDate?: string;
+  planKey?: string;
+  billingCycle?: string;
+  refresh?: boolean;
+}): Promise<SubscriptionAnalyticsResponse> {
+  const query = new URLSearchParams();
+  if (params?.timeframe) query.set("timeframe", params.timeframe);
+  if (params?.startDate) query.set("startDate", params.startDate);
+  if (params?.endDate) query.set("endDate", params.endDate);
+  if (params?.planKey) query.set("planKey", params.planKey);
+  if (params?.billingCycle) query.set("billingCycle", params.billingCycle);
+  if (params?.refresh) query.set("refresh", "true");
+
+  const qs = query.toString();
+  return api.get<SubscriptionAnalyticsResponse>(
+    "/subscription/analytics" + (qs ? "?" + qs : ""),
+    { auth: true },
+  );
+}
+
+/**
+ * Super Admin: Exports subscription analytics and cohort intelligence as CSV.
+ */
+export async function exportSubscriptionAnalyticsCSV(params?: {
+  timeframe?: string;
+  startDate?: string;
+  endDate?: string;
+  planKey?: string;
+  billingCycle?: string;
+}): Promise<string> {
+  const query = new URLSearchParams();
+  if (params?.timeframe) query.set("timeframe", params.timeframe);
+  if (params?.startDate) query.set("startDate", params.startDate);
+  if (params?.endDate) query.set("endDate", params.endDate);
+  if (params?.planKey) query.set("planKey", params.planKey);
+  if (params?.billingCycle) query.set("billingCycle", params.billingCycle);
+
+  const qs = query.toString();
+  return api.get<string>(
+    "/subscription/analytics/export" + (qs ? "?" + qs : ""),
+    { auth: true },
+  );
+}
+
+/**
+ * Retrieves the platform's controlled feature catalog.
+ */
+export async function getFeatureCatalog(): Promise<{
+  success: boolean;
+  catalog: FeatureCatalogItem[];
+  total: number;
+}> {
+  return api.get<{
+    success: boolean;
+    catalog: FeatureCatalogItem[];
+    total: number;
+  }>("/subscription/entitlements/catalog", { auth: true });
+}
+
+/**
+ * Retrieves the full plan-by-feature entitlement matrix across all active plans.
+ */
+export async function getPlanFeatureMatrix(): Promise<{
+  success: boolean;
+  matrix: PlanFeatureMatrixItem[];
+  totalPlans: number;
+}> {
+  return api.get<{
+    success: boolean;
+    matrix: PlanFeatureMatrixItem[];
+    totalPlans: number;
+  }>("/subscription/entitlements/matrix", { auth: true });
+}
+
+/**
+ * Super Admin: Validates a proposed plan configuration against platform rules.
+ */
+export async function validatePlanEntitlements(
+  planData: any,
+): Promise<PlanValidationResponse> {
+  return api.post<PlanValidationResponse>(
+    "/subscription/entitlements/validate",
+    planData,
+    { auth: true },
+  );
+}
+
+/**
+ * Super Admin: Grants an explicit, audited manual entitlement override.
+ */
+export async function createEntitlementOverride(payload: {
+  userId: string;
+  featureKey: string;
+  overrideValue: any;
+  reason: string;
+  validUntil?: string | null;
+}): Promise<{
+  success: boolean;
+  message: string;
+  override: EntitlementOverride;
+}> {
+  return api.post<{
+    success: boolean;
+    message: string;
+    override: EntitlementOverride;
+  }>("/subscription/entitlements/override", payload, { auth: true });
+}
+
+/**
+ * Super Admin: Revokes an active manual entitlement override.
+ */
+export async function revokeEntitlementOverride(
+  overrideId: string,
+  payload: { userId: string; reason?: string },
+): Promise<{ success: boolean; message: string }> {
+  return api.delete<{ success: boolean; message: string }>(
+    `/subscription/entitlements/override/${overrideId}`,
+    { auth: true, body: payload },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Smart Subscription Billing, Invoices & Tax API Clients
+// ---------------------------------------------------------------------------
+
+/**
+ * Retrieves the authenticated patient's subscription invoices.
+ */
+export async function getMySubscriptionInvoices(params?: {
+  page?: number;
+  limit?: number;
+}): Promise<InvoiceListResponse> {
+  const query = new URLSearchParams();
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+  const qs = query.toString();
+  return api.get<InvoiceListResponse>(
+    `/subscription/invoices/my${qs ? `?${qs}` : ""}`,
+    { auth: true },
+  );
+}
+
+/**
+ * Retrieves a single subscription invoice by its document ID.
+ */
+export async function getSubscriptionInvoiceById(
+  invoiceId: string,
+): Promise<{ success: boolean; invoice: SubscriptionInvoice }> {
+  return api.get<{ success: boolean; invoice: SubscriptionInvoice }>(
+    `/subscription/invoices/${invoiceId}`,
+    { auth: true },
+  );
+}
+
+/**
+ * Super Admin: Retrieves platform billing overview & KPI metrics.
+ */
+export async function getAdminBillingOverview(params?: {
+  startDate?: string;
+  endDate?: string;
+}): Promise<{ success: boolean } & BillingOverview> {
+  const query = new URLSearchParams();
+  if (params?.startDate) query.set("startDate", params.startDate);
+  if (params?.endDate) query.set("endDate", params.endDate);
+  const qs = query.toString();
+  return api.get<{ success: boolean } & BillingOverview>(
+    `/subscription/admin/billing/overview${qs ? `?${qs}` : ""}`,
+    { auth: true },
+  );
+}
+
+/**
+ * Super Admin: Retrieves paginated platform invoice directory with filters.
+ */
+export async function getAdminInvoices(params?: {
+  search?: string;
+  status?: string;
+  billingCycle?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+}): Promise<InvoiceListResponse> {
+  const query = new URLSearchParams();
+  if (params?.search) query.set("search", params.search);
+  if (params?.status) query.set("status", params.status);
+  if (params?.billingCycle) query.set("billingCycle", params.billingCycle);
+  if (params?.startDate) query.set("startDate", params.startDate);
+  if (params?.endDate) query.set("endDate", params.endDate);
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+  const qs = query.toString();
+  return api.get<InvoiceListResponse>(
+    `/subscription/admin/billing/invoices${qs ? `?${qs}` : ""}`,
+    { auth: true },
+  );
+}
+
+/**
+ * Super Admin: Fetches active platform tax rules.
+ */
+export async function getSubscriptionTaxConfig(): Promise<{
+  success: boolean;
+  taxConfig: SubscriptionTaxConfig;
+}> {
+  return api.get<{ success: boolean; taxConfig: SubscriptionTaxConfig }>(
+    "/subscription/admin/billing/tax-config",
+    { auth: true },
+  );
+}
+
+/**
+ * Super Admin: Updates platform tax rules with versioning.
+ */
+export async function updateSubscriptionTaxConfig(
+  payload: Partial<SubscriptionTaxConfig> & { reason?: string },
+): Promise<{
+  success: boolean;
+  message: string;
+  taxConfig: SubscriptionTaxConfig;
+}> {
+  return api.post<{
+    success: boolean;
+    message: string;
+    taxConfig: SubscriptionTaxConfig;
+  }>("/subscription/admin/billing/tax-config", payload, { auth: true });
+}
+
+/**
+ * Super Admin: Scans subscriptions and reconciles billing invoices.
+ */
+export async function reconcileSubscriptionBilling(): Promise<{
+  success: boolean;
+  totalVerifiedPaymentsChecked: number;
+  invoicesBackfilled: number;
+  discrepanciesFound: number;
+  discrepancies: Array<{
+    paymentId: string;
+    subscriptionId: string;
+    error: string;
+  }>;
+  status: string;
+}> {
+  return api.post<{
+    success: boolean;
+    totalVerifiedPaymentsChecked: number;
+    invoicesBackfilled: number;
+    discrepanciesFound: number;
+    discrepancies: Array<{
+      paymentId: string;
+      subscriptionId: string;
+      error: string;
+    }>;
+    status: string;
+  }>("/subscription/admin/billing/reconcile", {}, { auth: true });
+}
+
+// ---------------------------------------------------------------------------
+// Smart Subscription Offers, Coupons & Promotion Engine
+// ---------------------------------------------------------------------------
+
+/**
+ * Validates a coupon code during checkout preview.
+ */
+export async function validateSubscriptionCoupon(payload: {
+  code: string;
+  planKey?: string;
+  planId?: string;
+  billingCycle?: string;
+}): Promise<PromotionValidationResponse> {
+  return api.post<PromotionValidationResponse>(
+    "/subscription/promotions/validate",
+    payload,
+    { auth: true },
+  );
+}
+
+/**
+ * Super Admin: Lists promotion codes with filters and pagination.
+ */
+export async function getAdminPromotions(params?: {
+  status?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}): Promise<PromotionListResponse> {
+  const query = new URLSearchParams();
+  if (params?.status) query.set("status", params.status);
+  if (params?.search) query.set("search", params.search);
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+  const qs = query.toString();
+  return api.get<PromotionListResponse>(
+    `/subscription/admin/promotions${qs ? `?${qs}` : ""}`,
+    { auth: true },
+  );
+}
+
+/**
+ * Super Admin: Creates a new subscription promotion coupon.
+ */
+export async function createAdminPromotion(
+  data: Partial<SubscriptionPromotion>,
+): Promise<{
+  success: boolean;
+  message: string;
+  promotion: SubscriptionPromotion;
+}> {
+  return api.post<{
+    success: boolean;
+    message: string;
+    promotion: SubscriptionPromotion;
+  }>("/subscription/admin/promotions", data, { auth: true });
+}
+
+/**
+ * Super Admin: Updates an existing subscription promotion.
+ */
+export async function updateAdminPromotion(
+  id: string,
+  data: Partial<SubscriptionPromotion>,
+): Promise<{
+  success: boolean;
+  message: string;
+  promotion: SubscriptionPromotion;
+}> {
+  return api.patch<{
+    success: boolean;
+    message: string;
+    promotion: SubscriptionPromotion;
+  }>("/subscription/admin/promotions/" + id, data, { auth: true });
+}
+
+/**
+ * Super Admin: Toggles the active status of a promotion.
+ */
+export async function toggleAdminPromotionStatus(
+  id: string,
+  isActive: boolean,
+): Promise<{
+  success: boolean;
+  message: string;
+  promotion: SubscriptionPromotion;
+}> {
+  return api.patch<{
+    success: boolean;
+    message: string;
+    promotion: SubscriptionPromotion;
+  }>(
+    "/subscription/admin/promotions/" + id + "/status",
+    { isActive },
+    { auth: true },
+  );
+}
+
+/**
+ * Super Admin: Fetches performance and revenue analytics for promotions.
+ */
+export async function getAdminPromotionAnalytics(params?: {
+  timeframe?: string;
+}): Promise<PromotionAnalyticsOverview> {
+  const query = new URLSearchParams();
+  if (params?.timeframe) query.set("timeframe", params.timeframe);
+  const qs = query.toString();
+  return api.get<PromotionAnalyticsOverview>(
+    `/subscription/admin/promotions/analytics${qs ? `?${qs}` : ""}`,
+    { auth: true },
+  );
+}
+
+/**
+ * Super Admin: Fetches redemption ledger for a specific promotion.
+ */
+export async function getAdminPromotionRedemptions(
+  id: string,
+  page = 1,
+  limit = 50,
+): Promise<PromotionRedemptionsResponse> {
+  const query = new URLSearchParams();
+  if (page) query.set("page", String(page));
+  if (limit) query.set("limit", String(limit));
+  const qs = query.toString();
+  return api.get<PromotionRedemptionsResponse>(
+    `/subscription/admin/promotions/${id}/redemptions${qs ? `?${qs}` : ""}`,
+    { auth: true },
+  );
 }

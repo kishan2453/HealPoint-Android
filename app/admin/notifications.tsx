@@ -26,6 +26,7 @@ import { Palette, Radius, Spacing, Typography } from "@/constants/theme";
 import { formatISODate } from "@/lib/format";
 import { toErrorMessage } from "@/services/api";
 import * as notificationsService from "@/services/notifications";
+import { subscribeToNotificationSync } from "@/services/socket";
 import type { Notification } from "@/types";
 
 const STATUS_FILTERS = [
@@ -132,6 +133,20 @@ export default function AdminNotificationsScreen() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToNotificationSync(
+      (newNotif: Notification) => {
+        if (!newNotif?._id) return;
+        setNotifications((prev) => {
+          if (prev.some((item) => item._id === newNotif._id)) return prev;
+          return [newNotif, ...prev];
+        });
+        setUnreadCount((c) => c + 1);
+      },
+    );
+    return unsubscribe;
+  }, []);
 
   const handleMarkAllRead = async () => {
     setMarkingAll(true);

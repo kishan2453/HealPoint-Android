@@ -10,11 +10,7 @@
  * - If physical beds/rooms are not configured, transparently reports "Resource capacity data not configured".
  */
 import { Ionicons } from "@expo/vector-icons";
-import type {
-  Appointment,
-  Doctor,
-  HospitalDepartment,
-} from "@/types";
+import type { Appointment, Doctor, HospitalDepartment } from "@/types";
 import {
   appointmentDepartment,
   appointmentDoctorName,
@@ -131,7 +127,10 @@ export function detectDelayedAppointments(
     }
 
     // If already in consultation, not in waiting delay
-    if (queueStatus === "in_consultation" || consultationStatus === "in_progress") {
+    if (
+      queueStatus === "in_consultation" ||
+      consultationStatus === "in_progress"
+    ) {
       continue;
     }
 
@@ -386,7 +385,10 @@ export function extractRecentOperationalActivity(
       if (!Number.isNaN(dateObj.getTime())) {
         activities.push({
           id: `checkin-${a._id}`,
-          timeText: dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          timeText: dateObj.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
           timestamp: dateObj,
           title: `${pName} checked in at hospital`,
           subtitle: `OPD Queue for ${dName}${tokenStr}`,
@@ -397,13 +399,17 @@ export function extractRecentOperationalActivity(
     }
 
     // Consultation started event
-    const startedAt = (a as unknown as { consultationStartedAt?: string }).consultationStartedAt;
+    const startedAt = (a as unknown as { consultationStartedAt?: string })
+      .consultationStartedAt;
     if (startedAt) {
       const dateObj = new Date(startedAt);
       if (!Number.isNaN(dateObj.getTime())) {
         activities.push({
           id: `started-${a._id}`,
-          timeText: dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          timeText: dateObj.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
           timestamp: dateObj,
           title: `Dr. ${dName} started consultation`,
           subtitle: `Patient: ${pName}${tokenStr}`,
@@ -414,13 +420,19 @@ export function extractRecentOperationalActivity(
     }
 
     // Consultation completed event
-    const completedAt = (a as unknown as { consultationCompletedAt?: string }).consultationCompletedAt;
+    const completedAt = (a as unknown as { consultationCompletedAt?: string })
+      .consultationCompletedAt;
     if (completedAt || a.status === "completed") {
-      const dateObj = completedAt ? new Date(completedAt) : new Date(a.updatedAt || a.createdAt || Date.now());
+      const dateObj = completedAt
+        ? new Date(completedAt)
+        : new Date(a.updatedAt || a.createdAt || Date.now());
       if (!Number.isNaN(dateObj.getTime())) {
         activities.push({
           id: `completed-${a._id}`,
-          timeText: dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          timeText: dateObj.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
           timestamp: dateObj,
           title: `Consultation completed for ${pName}`,
           subtitle: `Physician: ${dName} · Record locked`,
@@ -435,7 +447,10 @@ export function extractRecentOperationalActivity(
       const dateObj = new Date(a.updatedAt || a.createdAt || Date.now());
       activities.push({
         id: `cancelled-${a._id}`,
-        timeText: dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        timeText: dateObj.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
         timestamp: dateObj,
         title: `Appointment cancelled for ${pName}`,
         subtitle: `Ref: ${appointmentReference(a)}`,
@@ -455,12 +470,18 @@ export function extractRecentOperationalActivity(
 /**
  * Compute department workload breakdown.
  */
-export function computeDepartmentWorkload(
-  departments: HospitalDepartment[],
-  todayAppointments: Appointment[],
-  upcomingAppointments: Appointment[],
-  doctors: Doctor[],
-): DepartmentOperationalSummary[] {
+export function computeDepartmentWorkload(params: {
+  departments: HospitalDepartment[];
+  todayAppointments: Appointment[];
+  doctors: Doctor[];
+  upcomingAppointments?: Appointment[];
+}): DepartmentOperationalSummary[] {
+  const {
+    departments,
+    todayAppointments,
+    doctors,
+    upcomingAppointments = [],
+  } = params;
   const map: Record<string, DepartmentOperationalSummary> = {};
 
   // Seed configured departments
@@ -521,7 +542,10 @@ export function computeDepartmentWorkload(
       };
     }
     map[dName].totalToday++;
-    if (a.queueStatus === "in_consultation" || a.consultationStatus === "in_progress") {
+    if (
+      a.queueStatus === "in_consultation" ||
+      a.consultationStatus === "in_progress"
+    ) {
       map[dName].inConsultationCount++;
     } else if (a.queueStatus === "waiting" || a.checkedIn) {
       map[dName].waitingCount++;

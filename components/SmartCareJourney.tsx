@@ -54,6 +54,8 @@ export interface SmartCareJourneyProps {
   onPrescriptionPress?: () => void;
   onReportsPress?: () => void;
   onFollowUpPress?: () => void;
+  onHandoverPress?: () => void;
+  onReferralPress?: () => void;
 }
 
 function formatIsoDate(dateVal?: unknown): string | undefined {
@@ -90,6 +92,8 @@ export function computeJourneySteps(
     onPrescriptionPress?: () => void;
     onReportsPress?: () => void;
     onFollowUpPress?: () => void;
+    onHandoverPress?: () => void;
+    onReferralPress?: () => void;
   },
 ): JourneyStep[] {
   const steps: JourneyStep[] = [];
@@ -517,6 +521,152 @@ export function computeJourneySteps(
     });
   }
 
+  // 9. STAGE: Clinical Handover & Care Continuity Transfer (when handover initiated or linked)
+  const handoverRecord =
+    (
+      appointment as unknown as {
+        clinicalHandover?: Record<string, unknown>;
+        handover?: Record<string, unknown>;
+      }
+    ).clinicalHandover ||
+    (
+      appointment as unknown as {
+        clinicalHandover?: Record<string, unknown>;
+        handover?: Record<string, unknown>;
+      }
+    ).handover;
+  const handoverStatus =
+    (appointment as unknown as { handoverStatus?: string }).handoverStatus ||
+    (handoverRecord && typeof handoverRecord.status === "string"
+      ? handoverRecord.status
+      : undefined);
+
+  if (handoverRecord || handoverStatus) {
+    const isPendingAuth = handoverStatus === "pending_patient_authorization";
+    const isTransferred = ["accepted", "completed", "in_review"].includes(
+      handoverStatus || "",
+    );
+    const toDocName =
+      (handoverRecord &&
+        typeof handoverRecord.recipientDoctorName === "string" &&
+        handoverRecord.recipientDoctorName) ||
+      (handoverRecord &&
+      typeof handoverRecord.recipientDoctorId === "object" &&
+      handoverRecord.recipientDoctorId &&
+      "name" in handoverRecord.recipientDoctorId
+        ? String(
+            (handoverRecord.recipientDoctorId as { name?: string }).name || "",
+          )
+        : "");
+
+    steps.push({
+      id: "clinical_handover",
+      title: "Care Continuity Transfer",
+      status: isTransferred
+        ? "completed"
+        : isPendingAuth
+          ? "current"
+          : "completed",
+      description: isPendingAuth
+        ? `Doctor has initiated a clinical transfer to ${toDocName ? `Dr. ${toDocName}` : "a specialist"}. Your authorization is required.`
+        : isTransferred
+          ? `Clinical care successfully transferred to ${toDocName ? `Dr. ${toDocName}` : "the receiving clinician"}.`
+          : `Care transfer initiated (${String(handoverStatus || "active").replace(/_/g, " ")}).`,
+      badgeLabel: isPendingAuth ? "Action Required" : "Transferred",
+      action: callbacks?.onHandoverPress
+        ? {
+            label: "Review Transfer",
+            icon: "swap-horizontal-outline",
+            onPress: callbacks.onHandoverPress,
+            variant: isPendingAuth ? "primary" : "outline",
+          }
+        : undefined,
+    });
+  }
+
+  // 10. STAGE: Specialist Referral & Routing (when referral is initiated or linked)
+  const referralRecord =
+    (
+      appointment as unknown as {
+        clinicalReferral?: Record<string, unknown>;
+        referral?: Record<string, unknown>;
+      }
+    ).clinicalReferral ||
+    (
+      appointment as unknown as {
+        clinicalReferral?: Record<string, unknown>;
+        referral?: Record<string, unknown>;
+      }
+    ).referral;
+  const referralStatus =
+    (appointment as unknown as { referralStatus?: string }).referralStatus ||
+    (referralRecord && typeof referralRecord.status === "string"
+      ? referralRecord.status
+      : undefined);
+
+  if (referralRecord || referralStatus) {
+    const isPendingAuth = referralStatus === "pending_patient_authorization";
+    const isReadyToBook =
+      referralStatus === "accepted" || referralStatus === "appointment_pending";
+    const isBooked =
+      referralStatus === "appointment_booked" ||
+      referralStatus === "consultation_completed" ||
+      referralStatus === "completed";
+    const toDept =
+      (referralRecord &&
+        typeof referralRecord.department === "string" &&
+        referralRecord.department) ||
+      "Specialist Department";
+    const toDocName =
+      (referralRecord &&
+        typeof referralRecord.receivingDoctorName === "string" &&
+        referralRecord.receivingDoctorName) ||
+      (referralRecord &&
+      typeof referralRecord.receivingDoctorId === "object" &&
+      referralRecord.receivingDoctorId &&
+      "name" in referralRecord.receivingDoctorId
+        ? String(
+            (referralRecord.receivingDoctorId as { name?: string }).name || "",
+          )
+        : "");
+
+    steps.push({
+      id: "clinical_referral",
+      title: "Specialist Care Referral",
+      status: isBooked
+        ? "completed"
+        : isReadyToBook || isPendingAuth
+          ? "current"
+          : "upcoming",
+      description: isPendingAuth
+        ? `Referral initiated to ${toDocName ? `Dr. ${toDocName}` : toDept}. Your consent authorization is required.`
+        : isReadyToBook
+          ? `Referral accepted for ${toDocName ? `Dr. ${toDocName}` : toDept}. You can now schedule your specialist appointment.`
+          : isBooked
+            ? `Specialist appointment linked and confirmed with ${toDocName ? `Dr. ${toDocName}` : toDept}.`
+            : `Specialist referral routed to ${toDept} (${String(referralStatus || "active").replace(/_/g, " ")}).`,
+      badgeLabel: isPendingAuth
+        ? "Authorization Required"
+        : isReadyToBook
+          ? "Ready to Book"
+          : isBooked
+            ? "Booked"
+            : "Referral Active",
+      action: callbacks?.onReferralPress
+        ? {
+            label: isPendingAuth
+              ? "Review & Authorize"
+              : isReadyToBook
+                ? "Book Appointment"
+                : "View Referral",
+            icon: "git-network-outline",
+            onPress: callbacks.onReferralPress,
+            variant: isPendingAuth || isReadyToBook ? "primary" : "outline",
+          }
+        : undefined,
+    });
+  }
+
   return steps;
 }
 
@@ -529,6 +679,8 @@ export function SmartCareJourney({
   onPrescriptionPress,
   onReportsPress,
   onFollowUpPress,
+  onHandoverPress,
+  onReferralPress,
 }: SmartCareJourneyProps) {
   const steps = computeJourneySteps(appointment, {
     onPayPress,
@@ -537,6 +689,8 @@ export function SmartCareJourney({
     onPrescriptionPress,
     onReportsPress,
     onFollowUpPress,
+    onHandoverPress,
+    onReferralPress,
   });
 
   const currentStepIndex = steps.findIndex((s) => s.status === "current");

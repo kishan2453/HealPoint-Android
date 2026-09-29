@@ -206,6 +206,12 @@ export default function AdminDashboardScreen() {
       accent: "#2F80ED",
     },
     {
+      label: "Interoperability",
+      icon: "swap-horizontal-outline",
+      href: "/admin/interoperability",
+      accent: "#0284C7",
+    },
+    {
       label: "Security",
       icon: "shield-outline",
       href: "/admin/security",

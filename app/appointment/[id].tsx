@@ -59,7 +59,8 @@ import { toErrorMessage } from "@/services/api";
 import * as appointmentService from "@/services/appointments";
 import * as consultationService from "@/services/consultations";
 import * as subscriptionService from "@/services/subscriptions";
-import type { AppointmentDetails } from "@/types";
+import * as consentService from "@/services/consent";
+import type { AppointmentDetails, ClinicalAuthorizationRecord } from "@/types";
 import { deriveAppointmentIntelligence } from "@/lib/appointment-intelligence";
 import {
   isAppointmentEligibleForRebook,
@@ -166,6 +167,49 @@ export default function AppointmentDetailScreen() {
     useState<checkInService.PatientQueueStatusResponse | null>(null);
   const [queueLoading, setQueueLoading] = useState(false);
 
+  // Smart Clinical Authorization State
+  const [clinicalAuthorizations, setClinicalAuthorizations] = useState<
+    ClinicalAuthorizationRecord[]
+  >([]);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [respondingAuthId, setRespondingAuthId] = useState<string | null>(null);
+
+  const loadAuthorizations = useCallback(async () => {
+    if (!id) return;
+    setAuthLoading(true);
+    try {
+      const res = await consentService.getAppointmentClinicalAuthorizations(id);
+      if (res?.success && Array.isArray(res.authorizations)) {
+        setClinicalAuthorizations(res.authorizations);
+      }
+    } catch {
+      // Non-blocking background load
+    } finally {
+      setAuthLoading(false);
+    }
+  }, [id]);
+
+  const handleRespondAuth = async (
+    authId: string,
+    decision: "approve" | "decline",
+  ) => {
+    setRespondingAuthId(authId);
+    try {
+      const res = await consentService.respondClinicalAuthorization(authId, {
+        decision,
+      });
+      if (res.success) {
+        await loadAuthorizations();
+      }
+    } catch (e) {
+      setActionMessage(
+        toErrorMessage(e, "Failed to record clinical authorization decision."),
+      );
+    } finally {
+      setRespondingAuthId(null);
+    }
+  };
+
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -216,7 +260,8 @@ export default function AppointmentDetailScreen() {
 
   useEffect(() => {
     load();
-  }, [load]);
+    loadAuthorizations();
+  }, [load, loadAuthorizations]);
 
   useEffect(() => {
     if (appointment?.checkedIn) {
@@ -226,6 +271,7 @@ export default function AppointmentDetailScreen() {
 
   useScreenFocus(() => {
     load();
+    loadAuthorizations();
     if (appointment?.checkedIn) {
       loadQueueStatus();
     }
@@ -1254,6 +1300,143 @@ export default function AppointmentDetailScreen() {
           ) : null}
         </Card>
 
+        {/* ---------------- Clinical Authorization & Care Acknowledgement ---------------- */}
+        {clinicalAuthorizations.length > 0 ? (
+          <Card padded style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Ionicons
+                name="shield-checkmark"
+                size={20}
+                color={Palette.primary}
+              />
+              <Text style={styles.sectionTitle}>
+                Clinical Authorization & Care Acknowledgement
+              </Text>
+              <Badge
+                label={`${clinicalAuthorizations.length} Record${clinicalAuthorizations.length > 1 ? "s" : ""}`}
+                variant="primary"
+              />
+            </View>
+
+            {clinicalAuthorizations.map((auth) => {
+              const isPending = auth.status === "pending";
+              const isApproved = auth.status === "approved";
+              const isDeclined = auth.status === "declined";
+              const isRevoked = auth.status === "revoked";
+              const isResponding = respondingAuthId === auth._id;
+
+              return (
+                <View key={auth._id} style={styles.authItemCard}>
+                  <View style={styles.authItemHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.authItemTitle}>
+                        {auth.clinicalContext?.title ||
+                          auth.purpose ||
+                          "Treatment Authorization"}
+                      </Text>
+                      <Text style={styles.authItemType}>
+                        {auth.authorizationType
+                          ?.replace(/_/g, " ")
+                          .toUpperCase()}
+                      </Text>
+                    </View>
+                    <Badge
+                      label={
+                        isPending
+                          ? "Action Required"
+                          : isApproved
+                            ? "Authorized"
+                            : isDeclined
+                              ? "Declined"
+                              : isRevoked
+                                ? "Revoked"
+                                : auth.status
+                      }
+                      variant={
+                        isPending
+                          ? "warning"
+                          : isApproved
+                            ? "success"
+                            : isDeclined
+                              ? "error"
+                              : "neutral"
+                      }
+                    />
+                  </View>
+
+                  {auth.clinicalContext?.summary ? (
+                    <Text style={styles.authItemSummary}>
+                      {auth.clinicalContext.summary}
+                    </Text>
+                  ) : null}
+
+                  {auth.clinicalContext?.notes ? (
+                    <Text style={styles.authItemNotes}>
+                      Note: {auth.clinicalContext.notes}
+                    </Text>
+                  ) : null}
+
+                  {isPending ? (
+                    <View style={styles.authActionsRow}>
+                      <Button
+                        title="Decline"
+                        variant="outline"
+                        loading={isResponding}
+                        onPress={() => handleRespondAuth(auth._id, "decline")}
+                        style={{ flex: 1 }}
+                      />
+                      <Button
+                        title="Authorize"
+                        variant="primary"
+                        loading={isResponding}
+                        onPress={() => handleRespondAuth(auth._id, "approve")}
+                        style={{ flex: 1 }}
+                      />
+                    </View>
+                  ) : isApproved ? (
+                    <View style={styles.authStatusNoticeSuccess}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={16}
+                        color={Palette.success}
+                      />
+                      <Text style={styles.authStatusNoticeSuccessText}>
+                        Authorized by patient on{" "}
+                        {auth.respondedAt
+                          ? new Date(auth.respondedAt).toLocaleDateString()
+                          : "record"}
+                        . Doctor has verified compliance.
+                      </Text>
+                    </View>
+                  ) : isDeclined ? (
+                    <View style={styles.authStatusNoticeDeclined}>
+                      <Ionicons
+                        name="close-circle"
+                        size={16}
+                        color={Palette.error}
+                      />
+                      <Text style={styles.authStatusNoticeDeclinedText}>
+                        Declined by patient
+                        {auth.declinedReason
+                          ? `: "${auth.declinedReason}"`
+                          : "."}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
+
+            <Button
+              title="Privacy & Consent Center"
+              variant="outline"
+              icon="lock-closed-outline"
+              onPress={() => router.push("/(drawer)/privacy")}
+              style={{ marginTop: Spacing.xs }}
+            />
+          </Card>
+        ) : null}
+
         {/* ---------------- Clinical Consultation & Rx Section ---------------- */}
         {hasClinicalNotes ? (
           <Card padded style={styles.sectionCard}>
@@ -1594,6 +1777,20 @@ export default function AppointmentDetailScreen() {
             />
           </View>
         ) : null}
+
+        {/* Need Help with this Visit? */}
+        <View style={styles.actionButtonsWrap}>
+          <Button
+            title="Need Help with this Visit?"
+            variant="ghost"
+            icon="headset-outline"
+            onPress={() =>
+              router.push(
+                `/support?appointmentId=${String(appointment._id || id)}&type=APPOINTMENT_BOOKING` as any,
+              )
+            }
+          />
+        </View>
 
         <ConfirmDialog
           visible={cancelVisible}
@@ -2465,6 +2662,81 @@ const styles = StyleSheet.create({
   prepStatText: {
     fontSize: 11,
     color: Palette.text,
+    fontWeight: "500",
+  },
+  authItemCard: {
+    backgroundColor: Palette.surface,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    gap: Spacing.xs,
+    borderLeftWidth: 3,
+    borderLeftColor: Palette.primary,
+  },
+  authItemHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: Spacing.sm,
+  },
+  authItemTitle: {
+    ...Typography.label,
+    fontSize: 14,
+    color: Palette.text,
+  },
+  authItemType: {
+    ...Typography.caption,
+    fontSize: 10,
+    color: Palette.primaryDark,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  authItemSummary: {
+    ...Typography.bodySmall,
+    color: Palette.textMuted,
+    lineHeight: 18,
+  },
+  authItemNotes: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    fontStyle: "italic",
+  },
+  authActionsRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  authStatusNoticeSuccess: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    padding: Spacing.sm,
+    borderRadius: Radius.sm,
+    marginTop: 4,
+  },
+  authStatusNoticeSuccessText: {
+    ...Typography.caption,
+    fontSize: 11,
+    color: Palette.success,
+    flex: 1,
+    fontWeight: "500",
+  },
+  authStatusNoticeDeclined: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(239, 68, 68, 0.08)",
+    padding: Spacing.sm,
+    borderRadius: Radius.sm,
+    marginTop: 4,
+  },
+  authStatusNoticeDeclinedText: {
+    ...Typography.caption,
+    fontSize: 11,
+    color: Palette.error,
+    flex: 1,
     fontWeight: "500",
   },
 });

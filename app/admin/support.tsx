@@ -2,6 +2,7 @@
  * HealPoint - Admin · Support & Help.
  */
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ScrollView,
@@ -35,6 +36,7 @@ const FAQS = [
 ];
 
 export default function AdminSupportScreen() {
+  const router = useRouter();
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -75,6 +77,40 @@ export default function AdminSupportScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        <Card
+          padded
+          style={[
+            styles.card,
+            { borderLeftColor: Palette.primary, borderLeftWidth: 4 },
+          ]}
+        >
+          <View style={styles.header}>
+            <Ionicons
+              name="file-tray-full-outline"
+              size={24}
+              color={Palette.primary}
+            />
+            <Text style={styles.cardTitle}>
+              Operational Case & Incident Center
+            </Text>
+          </View>
+          <Text style={styles.desc}>
+            Track and resolve clinical workflow issues, appointment booking
+            disputes, and hospital payment escalations with SLA management.
+          </Text>
+          <Button
+            title="Open Hospital Incident Center"
+            onPress={() => router.push("/super-admin/cases" as any)}
+          />
+          <View style={{ marginTop: 8 }}>
+            <Button
+              title="Service Recovery & Resolution Center"
+              variant="outline"
+              onPress={() => router.push("/super-admin/recovery" as any)}
+            />
+          </View>
+        </Card>
+
         <Card padded style={styles.card}>
           <View style={styles.header}>
             <Ionicons name="headset" size={24} color={Palette.primary} />

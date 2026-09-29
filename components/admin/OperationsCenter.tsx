@@ -362,116 +362,80 @@ export function OperationsCenter() {
     });
   }, [doctors, todayAppointments]);
 
-  // Derived Department Load
-  const departmentLoads = useMemo(() => {
-    const deptMap: Record<
-      string,
-      {
-        name: string;
-        total: number;
-        waiting: number;
-        inConsultation: number;
-        completed: number;
-      }
-    > = {};
+  // Detect delayed appointments based on real scheduled slot time (>20m past slot)
+  const delayedAppointments = useMemo(
+    () => detectDelayedAppointments(todayAppointments),
+    [todayAppointments],
+  );
 
-    // Seed from real departments in hospital database
-    for (const d of departments) {
-      deptMap[d.name] = {
-        name: d.name,
-        total: 0,
-        waiting: 0,
-        inConsultation: 0,
-        completed: 0,
-      };
-    }
+  const delayedMap = useMemo(
+    () => new Map(delayedAppointments.map((d) => [d.id, d.delayMinutes])),
+    [delayedAppointments],
+  );
 
-    // Tally real appointments
-    for (const a of todayAppointments) {
-      const dName = appointmentDepartment(a) || "General";
-      if (!deptMap[dName]) {
-        deptMap[dName] = {
-          name: dName,
-          total: 0,
-          waiting: 0,
-          inConsultation: 0,
-          completed: 0,
-        };
-      }
-      deptMap[dName].total++;
-      if (a.queueStatus === "in_consultation") deptMap[dName].inConsultation++;
-      else if (a.queueStatus === "waiting" || a.checkedIn)
-        deptMap[dName].waiting++;
-      if (a.status === "completed") deptMap[dName].completed++;
-    }
-
-    return Object.values(deptMap);
-  }, [departments, todayAppointments]);
-
-  // Derived Smart Alerts (Strictly Real Backend Driven)
-  const smartAlerts: SmartAlertItem[] = useMemo(() => {
-    const alerts: SmartAlertItem[] = [];
-
-    // 1. High Waiting Queue Alert
-    const highQueueDocs = doctorOperationalList.filter(
+  // Derived factual Hospital Operational Status
+  const operationalStatus = useMemo(() => {
+    const highQueueDocsCount = doctorOperationalList.filter(
       (d) => d.waitingCount >= 4,
-    );
-    if (highQueueDocs.length > 0) {
-      alerts.push({
-        id: "high-queue",
-        type: "warning",
-        title: "Elevated OPD Waiting Queue",
-        message: `${highQueueDocs.length} doctor${
-          highQueueDocs.length > 1 ? "s have" : " has"
-        } 4 or more patients waiting in queue. Consider OPD lounge assistance.`,
-        count: highQueueDocs.length,
-      });
-    }
+    ).length;
+    return evaluateHospitalOperationalStatus({
+      totalToday: metrics.total,
+      waitingCount: metrics.waitingQueue,
+      inConsultationCount: metrics.inConsultation,
+      availableDoctorsCount: metrics.availableDoctors,
+      totalDoctorsCount: doctors.length,
+      delayedCount: delayedAppointments.length,
+      highQueueDoctorsCount: highQueueDocsCount,
+    });
+  }, [
+    metrics,
+    doctors.length,
+    delayedAppointments.length,
+    doctorOperationalList,
+  ]);
 
-    // 2. Unconfirmed Appointments for Today
-    if (metrics.pending > 0) {
-      alerts.push({
-        id: "pending-today",
-        type: "error",
-        title: "Pending Appointments Need Confirmation",
-        message: `${metrics.pending} patient appointment${
-          metrics.pending > 1 ? "s" : ""
-        } for today ${metrics.pending > 1 ? "are" : "is"} awaiting confirmation.`,
-        count: metrics.pending,
-      });
-    }
+  // Derived Department Workload summaries with load states
+  const departmentSummaries: DepartmentOperationalSummary[] = useMemo(() => {
+    return computeDepartmentWorkload({
+      departments,
+      todayAppointments,
+      doctors,
+      upcomingAppointments,
+    });
+  }, [departments, todayAppointments, doctors, upcomingAppointments]);
 
-    // 3. Doctor Unavailable with Upcoming Appointments
-    const unavailWithAppts = doctorOperationalList.filter(
-      (d) => d.status === "not_available" && d.todayAppointmentsCount > 0,
-    );
-    if (unavailWithAppts.length > 0) {
-      alerts.push({
-        id: "unavail-conflict",
-        type: "error",
-        title: "Doctor Offline With Scheduled Bookings",
-        message: `${unavailWithAppts
-          .map((d) => formatDoctorName(d.doctor.name))
-          .join(", ")} marked unavailable but has scheduled patients today.`,
-        count: unavailWithAppts.length,
-      });
-    }
+  // Derived Operational Alerts (Strictly Real Backend Driven)
+  const smartAlerts: OperationalAlert[] = useMemo(() => {
+    const highQueueDocs = doctorOperationalList
+      .filter((d) => d.waitingCount >= 4)
+      .map((d) => ({
+        doctorName: formatDoctorName(d.doctor.name),
+        waitingCount: d.waitingCount,
+      }));
 
-    // 4. In Consultation Live Broadcast
-    if (metrics.inConsultation > 0) {
-      alerts.push({
-        id: "active-consultations",
-        type: "info",
-        title: "Live Consultations In Progress",
-        message: `${metrics.inConsultation} patient${
-          metrics.inConsultation > 1 ? "s are" : " is"
-        } currently inside doctor consultation rooms.`,
-        count: metrics.inConsultation,
-      });
-    }
+    const offlineWithBookings = doctorOperationalList
+      .filter(
+        (d) => d.status === "not_available" && d.todayAppointmentsCount > 0,
+      )
+      .map((d) => ({
+        doctorName: formatDoctorName(d.doctor.name),
+        apptCount: d.todayAppointmentsCount,
+      }));
 
-    return alerts;
-  }, [doctorOperationalList, metrics]);
+    return buildOperationalAlerts({
+      pendingCount: metrics.pending,
+      delayedAppointments,
+      highQueueDoctors: highQueueDocs,
+      offlineDoctorsWithBookings: offlineWithBookings,
+      inConsultationCount: metrics.inConsultation,
+      videoConsultationCount: metrics.videoCount,
+    });
+  }, [doctorOperationalList, metrics, delayedAppointments]);
+
+  // Derived Recent Operational Activity timeline
+  const recentActivities: OperationalActivityItem[] = useMemo(() => {
+    return extractRecentOperationalActivity(todayAppointments);
+  }, [todayAppointments]);
 
   // Filtered Appointments
   const filteredAppointments = useMemo(() => {
@@ -499,6 +463,11 @@ export function OperationsCenter() {
         if (a.status !== "completed") return false;
       } else if (activeTab === "cancelled") {
         if (a.status !== "cancel" && a.status !== "missed") return false;
+      } else if (activeTab === "delayed") {
+        const isDelayed = delayedAppointments.some(
+          (d) => d.id === String(a._id),
+        );
+        if (!isDelayed) return false;
       }
 
       // Department filter
@@ -526,7 +495,13 @@ export function OperationsCenter() {
 
       return true;
     });
-  }, [todayAppointments, activeTab, departmentFilter, searchQuery]);
+  }, [
+    todayAppointments,
+    activeTab,
+    departmentFilter,
+    searchQuery,
+    delayedAppointments,
+  ]);
 
   // Handlers for Appointment Operations
   const handleUpdateStatus = useCallback(
@@ -729,15 +704,39 @@ export function OperationsCenter() {
       {/* ----------------- BANNER & LIVE SYNC STATUS ----------------- */}
       <View style={styles.topLiveBar}>
         <View style={styles.topLiveLeft}>
-          <View style={styles.livePulseDot} />
-          <Text style={styles.topLiveTitle}>
-            OPERATIONS CENTER · {hospitalName || "Hospital"}
-          </Text>
+          <View
+            style={[
+              styles.livePulseDot,
+              { backgroundColor: operationalStatus.statusColor },
+            ]}
+          />
+          <View style={{ flex: 1, gap: 2 }}>
+            <View style={styles.topStatusRow}>
+              <Text style={styles.topLiveTitle} numberOfLines={1}>
+                {operationalStatus.statusLabel} · {hospitalName || "Hospital"}
+              </Text>
+              <Badge
+                label={operationalStatus.status}
+                variant={operationalStatus.badgeVariant}
+              />
+            </View>
+            <Text style={styles.topLiveSub}>
+              {operationalStatus.description}
+            </Text>
+            <Text style={styles.topLiveMeta}>
+              {metrics.total} visits today · {metrics.waitingQueue} waiting in
+              OPD · {metrics.inConsultation} in consultation ·{" "}
+              {metrics.availableDoctors}/{doctors.length} doctors on duty
+              {delayedAppointments.length > 0
+                ? ` · ⏱️ ${delayedAppointments.length} delayed`
+                : ""}
+            </Text>
+          </View>
         </View>
         <View style={styles.topLiveRight}>
           <Ionicons name="sync-outline" size={13} color={Palette.primaryDark} />
           <Text style={styles.topLiveTimestamp}>
-            Live Synced{" "}
+            Live{" "}
             {lastSyncTime.toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
@@ -754,9 +753,12 @@ export function OperationsCenter() {
 
       {/* ----------------- TOP OPERATIONAL KPI CARDS ----------------- */}
       <View style={styles.kpiContainer}>
-        <View
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setActiveTab("all")}
           style={[
             styles.kpiCard,
+            activeTab === "all" && styles.kpiCardActive,
             isDesktop && styles.kpiCardDesktop,
             isTablet && styles.kpiCardTablet,
           ]}
@@ -767,11 +769,14 @@ export function OperationsCenter() {
           <Text style={styles.kpiValue}>{metrics.total}</Text>
           <Text style={styles.kpiLabel}>{"Today's Bookings"}</Text>
           <Text style={styles.kpiSub}>All scheduled visits</Text>
-        </View>
+        </Pressable>
 
-        <View
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setActiveTab("checked_in")}
           style={[
             styles.kpiCard,
+            activeTab === "checked_in" && styles.kpiCardActive,
             isDesktop && styles.kpiCardDesktop,
             isTablet && styles.kpiCardTablet,
           ]}
@@ -782,11 +787,14 @@ export function OperationsCenter() {
           <Text style={styles.kpiValue}>{metrics.checkedIn}</Text>
           <Text style={styles.kpiLabel}>Checked In</Text>
           <Text style={styles.kpiSub}>Present at hospital</Text>
-        </View>
+        </Pressable>
 
-        <View
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setActiveTab("waiting")}
           style={[
             styles.kpiCard,
+            activeTab === "waiting" && styles.kpiCardActive,
             isDesktop && styles.kpiCardDesktop,
             isTablet && styles.kpiCardTablet,
           ]}
@@ -797,11 +805,14 @@ export function OperationsCenter() {
           <Text style={styles.kpiValue}>{metrics.waitingQueue}</Text>
           <Text style={styles.kpiLabel}>Waiting Queue</Text>
           <Text style={styles.kpiSub}>OPD lounge line</Text>
-        </View>
+        </Pressable>
 
-        <View
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setActiveTab("in_consultation")}
           style={[
             styles.kpiCard,
+            activeTab === "in_consultation" && styles.kpiCardActive,
             isDesktop && styles.kpiCardDesktop,
             isTablet && styles.kpiCardTablet,
           ]}
@@ -812,9 +823,11 @@ export function OperationsCenter() {
           <Text style={styles.kpiValue}>{metrics.inConsultation}</Text>
           <Text style={styles.kpiLabel}>In Consultation</Text>
           <Text style={styles.kpiSub}>With doctors now</Text>
-        </View>
+        </Pressable>
 
-        <View
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push("/admin/doctor-availability" as never)}
           style={[
             styles.kpiCard,
             isDesktop && styles.kpiCardDesktop,
@@ -827,11 +840,14 @@ export function OperationsCenter() {
           <Text style={styles.kpiValue}>{metrics.availableDoctors}</Text>
           <Text style={styles.kpiLabel}>Available Doctors</Text>
           <Text style={styles.kpiSub}>{doctors.length} total staff</Text>
-        </View>
+        </Pressable>
 
-        <View
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setActiveTab("completed")}
           style={[
             styles.kpiCard,
+            activeTab === "completed" && styles.kpiCardActive,
             isDesktop && styles.kpiCardDesktop,
             isTablet && styles.kpiCardTablet,
           ]}
@@ -842,9 +858,11 @@ export function OperationsCenter() {
           <Text style={styles.kpiValue}>{metrics.completed}</Text>
           <Text style={styles.kpiLabel}>Completed</Text>
           <Text style={styles.kpiSub}>Consulted today</Text>
-        </View>
+        </Pressable>
 
-        <View
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setActiveTab("all")}
           style={[
             styles.kpiCard,
             isDesktop && styles.kpiCardDesktop,
@@ -857,7 +875,32 @@ export function OperationsCenter() {
           <Text style={styles.kpiValue}>{metrics.followUpsAdvised}</Text>
           <Text style={styles.kpiLabel}>Care Plans</Text>
           <Text style={styles.kpiSub}>Follow-ups advised</Text>
-        </View>
+        </Pressable>
+
+        {delayedAppointments.length > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setActiveTab("delayed")}
+            style={[
+              styles.kpiCard,
+              { borderColor: "#EF4444", backgroundColor: "#FEF2F2" },
+              activeTab === "delayed" && styles.kpiCardActive,
+              isDesktop && styles.kpiCardDesktop,
+              isTablet && styles.kpiCardTablet,
+            ]}
+          >
+            <View style={[styles.kpiIconWrap, { backgroundColor: "#FEE2E2" }]}>
+              <Ionicons name="alert-circle" size={20} color="#DC2626" />
+            </View>
+            <Text style={[styles.kpiValue, { color: "#DC2626" }]}>
+              {delayedAppointments.length}
+            </Text>
+            <Text style={[styles.kpiLabel, { color: "#991B1B" }]}>Delayed</Text>
+            <Text style={[styles.kpiSub, { color: "#B91C1C" }]}>
+              &gt;20m past slot
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
 
       {/* ----------------- SMART ALERTS SECTION ----------------- */}
@@ -871,6 +914,16 @@ export function OperationsCenter() {
           <Text style={styles.sectionHeading}>
             Real-Time Operational Alerts
           </Text>
+          {smartAlerts.length > 0 ? (
+            <Badge
+              label={`${smartAlerts.length} Active`}
+              variant={
+                smartAlerts.some((a) => a.severity === "CRITICAL")
+                  ? "error"
+                  : "warning"
+              }
+            />
+          ) : null}
         </View>
 
         {smartAlerts.length > 0 ? (
@@ -880,31 +933,63 @@ export function OperationsCenter() {
                 key={alert.id}
                 style={[
                   styles.alertItem,
-                  alert.type === "error" && styles.alertItemError,
-                  alert.type === "warning" && styles.alertItemWarning,
-                  alert.type === "info" && styles.alertItemInfo,
+                  alert.severity === "CRITICAL" && styles.alertItemError,
+                  alert.severity === "WARNING" && styles.alertItemWarning,
+                  alert.severity === "INFO" && styles.alertItemInfo,
                 ]}
               >
                 <Ionicons
                   name={
-                    alert.type === "error"
+                    alert.severity === "CRITICAL"
                       ? "alert-circle"
-                      : alert.type === "warning"
+                      : alert.severity === "WARNING"
                         ? "warning"
                         : "information-circle"
                   }
                   size={20}
                   color={
-                    alert.type === "error"
+                    alert.severity === "CRITICAL"
                       ? Palette.error
-                      : alert.type === "warning"
+                      : alert.severity === "WARNING"
                         ? "#D97706"
                         : Palette.primaryDark
                   }
                 />
                 <View style={styles.alertTexts}>
-                  <Text style={styles.alertTitle}>{alert.title}</Text>
+                  <View style={styles.alertHeaderRow}>
+                    <Text style={styles.alertTitle}>{alert.title}</Text>
+                    <Badge
+                      label={alert.severity}
+                      variant={
+                        alert.severity === "CRITICAL"
+                          ? "error"
+                          : alert.severity === "WARNING"
+                            ? "warning"
+                            : "primary"
+                      }
+                    />
+                  </View>
                   <Text style={styles.alertMessage}>{alert.message}</Text>
+                  {alert.actionRoute && alert.actionLabel ? (
+                    <Pressable
+                      style={styles.alertActionBtn}
+                      onPress={() => {
+                        if (alert.actionRoute?.includes("status=delayed")) {
+                          setActiveTab("delayed");
+                        } else if (
+                          alert.actionRoute?.includes("status=pending")
+                        ) {
+                          setActiveTab("pending");
+                        } else if (alert.actionRoute) {
+                          router.push(alert.actionRoute as never);
+                        }
+                      }}
+                    >
+                      <Text style={styles.alertActionBtnText}>
+                        {alert.actionLabel} →
+                      </Text>
+                    </Pressable>
+                  ) : null}
                 </View>
               </View>
             ))}
@@ -915,7 +1000,8 @@ export function OperationsCenter() {
             <View style={{ flex: 1 }}>
               <Text style={styles.normalStateTitle}>All Operations Normal</Text>
               <Text style={styles.normalStateSub}>
-                Zero queues overflowing, no schedule conflicts detected.
+                Zero queues overflowing, no delays or schedule conflicts
+                detected.
               </Text>
             </View>
           </Card>
@@ -1098,6 +1184,14 @@ export function OperationsCenter() {
               { key: "pending", label: "Pending" },
               { key: "completed", label: "Completed" },
               { key: "cancelled", label: "Cancelled" },
+              ...(delayedAppointments.length > 0
+                ? [
+                    {
+                      key: "delayed" as OperationalTab,
+                      label: `Delayed (${delayedAppointments.length})`,
+                    },
+                  ]
+                : []),
             ] as { key: OperationalTab; label: string }[]
           ).map((tab) => {
             const active = activeTab === tab.key;
@@ -1162,6 +1256,7 @@ export function OperationsCenter() {
               const isConsulting =
                 appt.queueStatus === "in_consultation" ||
                 appt.consultationStatus === "in_progress";
+              const delayMins = delayedMap.get(String(appt._id));
 
               return (
                 <Pressable
@@ -1231,8 +1326,22 @@ export function OperationsCenter() {
                       </View>
                     </View>
 
-                    {/* Operational Badges: Check-In, Queue Token, Payment, Status */}
+                    {/* Operational Badges: Check-In, Queue Token, Delayed, Payment, Status */}
                     <View style={styles.apptBadgesRow}>
+                      {/* Delayed Alert Pill */}
+                      {typeof delayMins === "number" ? (
+                        <View style={styles.badgeDelayed}>
+                          <Ionicons
+                            name="alert-circle"
+                            size={12}
+                            color="#DC2626"
+                          />
+                          <Text style={styles.badgeDelayedText}>
+                            Delayed {delayMins}m
+                          </Text>
+                        </View>
+                      ) : null}
+
                       {/* Check-In status */}
                       {isChecked ? (
                         <View style={styles.badgeCheckedIn}>
@@ -1299,6 +1408,12 @@ export function OperationsCenter() {
           <View style={styles.sectionHeaderRow}>
             <Ionicons name="people-outline" size={20} color={Palette.primary} />
             <Text style={styles.sectionHeading}>Doctor Operational Status</Text>
+            <Pressable
+              onPress={() => router.push("/admin/doctor-availability" as never)}
+              style={styles.headerActionBtn}
+            >
+              <Text style={styles.headerActionText}>Manage →</Text>
+            </Pressable>
           </View>
           <Card padded style={styles.panelCard}>
             {doctors.length === 0 ? (
@@ -1346,35 +1461,60 @@ export function OperationsCenter() {
           <View style={styles.sectionHeaderRow}>
             <Ionicons name="layers-outline" size={20} color={Palette.primary} />
             <Text style={styles.sectionHeading}>Department Workload</Text>
+            <Pressable
+              onPress={() => router.push("/admin/departments" as never)}
+              style={styles.headerActionBtn}
+            >
+              <Text style={styles.headerActionText}>View All →</Text>
+            </Pressable>
           </View>
           <Card padded style={styles.panelCard}>
-            {departmentLoads.length === 0 ? (
+            {departmentSummaries.length === 0 ? (
               <Text style={styles.emptyText}>
                 No active departments configured.
               </Text>
             ) : (
-              departmentLoads.map((dept) => {
+              departmentSummaries.map((dept) => {
                 const percent =
                   metrics.total > 0
-                    ? Math.round((dept.total / metrics.total) * 100)
+                    ? Math.round((dept.totalToday / metrics.total) * 100)
                     : 0;
 
                 return (
                   <View key={dept.name} style={styles.deptLoadItem}>
                     <View style={styles.deptLoadTop}>
-                      <Text style={styles.deptLoadName} numberOfLines={1}>
-                        {dept.name}
-                      </Text>
-                      <Text style={styles.deptLoadStats}>
-                        {dept.total} visit{dept.total === 1 ? "" : "s"} (
-                        {percent}%)
-                      </Text>
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text style={styles.deptLoadName} numberOfLines={1}>
+                          {dept.name}
+                        </Text>
+                        <Text style={styles.deptLoadSub}>
+                          {dept.availableDoctorsCount}/
+                          {dept.assignedDoctorsCount} Doctors Available ·{" "}
+                          {dept.waitingCount} Waiting
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: "flex-end", gap: 2 }}>
+                        <Badge
+                          label={dept.loadState}
+                          variant={dept.loadVariant}
+                        />
+                        <Text style={styles.deptLoadStats}>
+                          {dept.totalToday} visit
+                          {dept.totalToday === 1 ? "" : "s"} ({percent}%)
+                        </Text>
+                      </View>
                     </View>
                     <View style={styles.deptLoadBarTrack}>
                       <View
                         style={[
                           styles.deptLoadBarFill,
                           { width: `${Math.min(percent, 100)}%` },
+                          dept.loadState === "High Load" && {
+                            backgroundColor: "#DC2626",
+                          },
+                          dept.loadState === "Busy" && {
+                            backgroundColor: "#D97706",
+                          },
                         ]}
                       />
                     </View>
@@ -1383,6 +1523,153 @@ export function OperationsCenter() {
               })
             )}
           </Card>
+        </View>
+      </View>
+
+      {/* ----------------- RECENT OPERATIONAL ACTIVITY TIMELINE ----------------- */}
+      <View style={styles.sectionBlock}>
+        <View style={styles.sectionHeaderRow}>
+          <Ionicons name="time-outline" size={20} color={Palette.primary} />
+          <Text style={styles.sectionHeading}>Recent Operational Activity</Text>
+          <Badge
+            label={`${recentActivities.length} Events`}
+            variant="neutral"
+          />
+        </View>
+        <Card padded style={styles.activityCard}>
+          {recentActivities.length === 0 ? (
+            <View style={styles.emptyActivityBox}>
+              <Ionicons
+                name="hourglass-outline"
+                size={28}
+                color={Palette.textMuted}
+              />
+              <Text style={styles.emptyActivityTitle}>
+                No operational activity recorded today yet
+              </Text>
+              <Text style={styles.emptyActivitySub}>
+                Patient check-ins and consultation status updates will appear
+                here in real-time.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.activityTimelineList}>
+              {recentActivities.slice(0, 10).map((act, index) => (
+                <View key={act.id} style={styles.activityItemRow}>
+                  <View style={styles.activityTimeCol}>
+                    <Text style={styles.activityTimeText}>{act.timeText}</Text>
+                  </View>
+                  <View style={styles.activityIconCol}>
+                    <View
+                      style={[
+                        styles.activityIconDot,
+                        act.variant === "success" && {
+                          backgroundColor: "#059669",
+                        },
+                        act.variant === "primary" && {
+                          backgroundColor: "#0284C7",
+                        },
+                        act.variant === "warning" && {
+                          backgroundColor: "#D97706",
+                        },
+                        act.variant === "error" && {
+                          backgroundColor: Palette.error,
+                        },
+                      ]}
+                    >
+                      <Ionicons name={act.icon} size={13} color="#fff" />
+                    </View>
+                    {index < Math.min(recentActivities.length, 10) - 1 ? (
+                      <View style={styles.activityLine} />
+                    ) : null}
+                  </View>
+                  <View style={styles.activityBodyCol}>
+                    <Text style={styles.activityTitleText}>{act.title}</Text>
+                    <Text style={styles.activitySubText}>{act.subtitle}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </Card>
+      </View>
+
+      {/* ----------------- QUICK ADMINISTRATIVE SHORTCUTS ----------------- */}
+      <View style={styles.sectionBlock}>
+        <View style={styles.sectionHeaderRow}>
+          <Ionicons name="grid-outline" size={20} color={Palette.primary} />
+          <Text style={styles.sectionHeading}>Administrative Shortcuts</Text>
+        </View>
+        <View style={styles.shortcutsGrid}>
+          {[
+            {
+              label: "Appointments",
+              icon: "calendar-outline" as const,
+              route: "/admin/appointments",
+              color: "#0E9F8E",
+            },
+            {
+              label: "Staff Doctors",
+              icon: "medkit-outline" as const,
+              route: "/admin/doctors",
+              color: "#2F80ED",
+            },
+            {
+              label: "Doctor Verification",
+              icon: "shield-checkmark-outline" as const,
+              route: "/admin/doctor-verification",
+              color: "#059669",
+            },
+            {
+              label: "Slot Scheduling",
+              icon: "time-outline" as const,
+              route: "/admin/slots",
+              color: "#7B61FF",
+            },
+            {
+              label: "Departments",
+              icon: "layers-outline" as const,
+              route: "/admin/departments",
+              color: "#E89A3C",
+            },
+            {
+              label: "Consultations",
+              icon: "videocam-outline" as const,
+              route: "/admin/consultations",
+              color: "#7C3AED",
+            },
+            {
+              label: "Earnings",
+              icon: "cash-outline" as const,
+              route: "/admin/earnings",
+              color: "#10B981",
+            },
+            {
+              label: "Settings",
+              icon: "settings-outline" as const,
+              route: "/admin/settings",
+              color: "#6B7280",
+            },
+          ].map((item) => (
+            <Pressable
+              key={item.route}
+              accessibilityRole="button"
+              onPress={() => router.push(item.route as never)}
+              style={styles.shortcutCard}
+            >
+              <View
+                style={[
+                  styles.shortcutIconWrap,
+                  { backgroundColor: `${item.color}15` },
+                ]}
+              >
+                <Ionicons name={item.icon} size={22} color={item.color} />
+              </View>
+              <Text style={styles.shortcutLabel} numberOfLines={1}>
+                {item.label}
+              </Text>
+            </Pressable>
+          ))}
         </View>
       </View>
 
@@ -1511,6 +1798,21 @@ const styles = StyleSheet.create({
     color: Palette.text,
     letterSpacing: 0.5,
   },
+  topStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    flexWrap: "wrap",
+  },
+  topLiveSub: {
+    ...Typography.bodySmall,
+    color: Palette.text,
+    fontWeight: "700",
+  },
+  topLiveMeta: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+  },
   topLiveRight: {
     flexDirection: "row",
     alignItems: "center",
@@ -1537,6 +1839,10 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     gap: 2,
     ...Shadows.card,
+  },
+  kpiCardActive: {
+    borderColor: Palette.primary,
+    borderWidth: 2,
   },
   kpiCardTablet: {
     width: "31%",
@@ -1619,6 +1925,12 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  alertHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.xs,
+  },
   alertTitle: {
     ...Typography.bodySmall,
     fontWeight: "700",
@@ -1628,6 +1940,19 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Palette.textMuted,
     lineHeight: 16,
+  },
+  alertActionBtn: {
+    alignSelf: "flex-start",
+    marginTop: 4,
+    backgroundColor: Palette.primaryDark,
+    paddingVertical: 3,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: Radius.xs,
+  },
+  alertActionBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Palette.white,
   },
   normalStateCard: {
     flexDirection: "row",
@@ -1963,6 +2288,20 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: Palette.white,
   },
+  badgeDelayed: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#FEE2E2",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: Radius.pill,
+  },
+  badgeDelayedText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#DC2626",
+  },
 
   // Split Panel
   splitGrid: {
@@ -2046,6 +2385,125 @@ const styles = StyleSheet.create({
     height: "100%",
     backgroundColor: Palette.primary,
     borderRadius: 3,
+  },
+  headerActionBtn: {
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+  },
+  headerActionText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Palette.primary,
+  },
+  deptLoadSub: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    fontSize: 11,
+  },
+
+  // Activity timeline
+  activityCard: {
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    padding: Spacing.md,
+    ...Shadows.card,
+  },
+  emptyActivityBox: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.lg,
+    gap: 4,
+  },
+  emptyActivityTitle: {
+    ...Typography.bodySmall,
+    fontWeight: "700",
+    color: Palette.text,
+  },
+  emptyActivitySub: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    textAlign: "center",
+  },
+  activityTimelineList: {
+    gap: Spacing.md,
+  },
+  activityItemRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.sm,
+  },
+  activityTimeCol: {
+    width: 65,
+  },
+  activityTimeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Palette.textMuted,
+  },
+  activityIconCol: {
+    alignItems: "center",
+    width: 24,
+  },
+  activityIconDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Palette.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activityLine: {
+    width: 2,
+    flex: 1,
+    minHeight: 24,
+    backgroundColor: Palette.divider,
+    marginVertical: 2,
+  },
+  activityBodyCol: {
+    flex: 1,
+    gap: 1,
+  },
+  activityTitleText: {
+    ...Typography.bodySmall,
+    fontWeight: "700",
+    color: Palette.text,
+  },
+  activitySubText: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+  },
+
+  // Quick shortcuts grid
+  shortcutsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  shortcutCard: {
+    width: "48%",
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    padding: Spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    ...Shadows.card,
+  },
+  shortcutIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shortcutLabel: {
+    flex: 1,
+    ...Typography.caption,
+    fontWeight: "700",
+    color: Palette.text,
   },
 
   // Modal

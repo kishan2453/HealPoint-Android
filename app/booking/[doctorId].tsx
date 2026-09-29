@@ -53,6 +53,7 @@ import * as appointmentService from "@/services/appointments";
 import { getDoctorDetails } from "@/services/doctors";
 import * as familyService from "@/services/family";
 import * as subscriptionService from "@/services/subscriptions";
+import * as clinicalReferralService from "@/services/clinical-referral";
 import type {
   AppointmentBilling,
   ConsultationType,
@@ -355,6 +356,7 @@ export default function BookingScreen() {
     hospitalId,
     previousAppointmentId,
     source,
+    referralId,
   } = useLocalSearchParams<{
     doctorId?: string;
     type?: string;
@@ -363,6 +365,7 @@ export default function BookingScreen() {
     hospitalId?: string;
     previousAppointmentId?: string;
     source?: string;
+    referralId?: string;
   }>();
   const { user } = useAuth();
 
@@ -731,6 +734,15 @@ export default function BookingScreen() {
           booked?.appointmentId || booked?.displayAppointmentId || bookedId,
         ),
       );
+
+      // Atomically link referral with newly scheduled appointment
+      if (referralId && bookedId) {
+        clinicalReferralService
+          .linkReferralAppointment(referralId, { appointmentId: bookedId })
+          .catch((err) => {
+            console.error("[BookingScreen] Failed to link referral:", err);
+          });
+      }
     } catch (err: any) {
       const rawCode = err?.raw?.code;
       if (
@@ -933,6 +945,28 @@ export default function BookingScreen() {
             </Text>
           </View>
         </View>
+
+        {referralId ? (
+          <View style={styles.rebookBanner}>
+            <View
+              style={[
+                styles.rebookBannerIconWrap,
+                { backgroundColor: Palette.primaryLight },
+              ]}
+            >
+              <Ionicons name="git-network" size={18} color={Palette.primary} />
+            </View>
+            <View style={styles.rebookBannerTexts}>
+              <Text style={styles.rebookBannerTitle}>
+                Specialist Referral Booking
+              </Text>
+              <Text style={styles.rebookBannerDesc}>
+                This visit will be automatically linked with your clinical
+                referral continuum.
+              </Text>
+            </View>
+          </View>
+        ) : null}
 
         {source === "rebook" && (
           <View style={styles.rebookBanner}>

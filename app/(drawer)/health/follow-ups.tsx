@@ -44,7 +44,12 @@ import { getDoctorImage } from "@/lib/image";
 import { toErrorMessage } from "@/services/api";
 import * as appointmentService from "@/services/appointments";
 import * as familyService from "@/services/family";
-import type { FamilyMember, FollowUpOverviewItem } from "@/types";
+import * as clinicalHandoverService from "@/services/clinical-handover";
+import type {
+  ClinicalHandoverRecord,
+  FamilyMember,
+  FollowUpOverviewItem,
+} from "@/types";
 
 type TabFilter = "all" | "pending_booking" | "scheduled" | "completed";
 
@@ -73,6 +78,15 @@ export default function FollowUpsScreen() {
   const userId = user?._id;
 
   const [followUps, setFollowUps] = useState<FollowUpOverviewItem[]>([]);
+  const [handovers, setHandovers] = useState<ClinicalHandoverRecord[]>([]);
+  const [centerMode, setCenterMode] = useState<"plans" | "handovers">("plans");
+  const [respondingHandover, setRespondingHandover] =
+    useState<ClinicalHandoverRecord | null>(null);
+  const [respondDecision, setRespondDecision] = useState<
+    "approved" | "declined" | null
+  >(null);
+  const [processingAuth, setProcessingAuth] = useState(false);
+
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [selectedMemberId, setSelectedMemberId] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<TabFilter>("all");
@@ -94,8 +108,19 @@ export default function FollowUpsScreen() {
           status: activeTab === "all" ? undefined : activeTab,
         };
 
-        const response =
-          await appointmentService.getPatientFollowUps(queryParams);
+        const [response, handoverResponse] = await Promise.all([
+          appointmentService.getPatientFollowUps(queryParams),
+          clinicalHandoverService
+            .getPatientHandovers({
+              familyMemberId:
+                selectedMemberId === "all" ? undefined : selectedMemberId,
+            })
+            .catch(() => null),
+        ]);
+
+        if (handoverResponse?.success) {
+          setHandovers(handoverResponse.handovers || []);
+        }
 
         if (response && response.success) {
           setFollowUps(response.followUps || []);
@@ -109,7 +134,7 @@ export default function FollowUpsScreen() {
           // Graceful fallback to medical history if needed
           const history = await appointmentService.getPatientMedicalHistory();
           const mapped: FollowUpOverviewItem[] = (history.followUps || []).map(
-            (item) => ({
+            (item: any) => ({
               id: item.id || `followup-${item.appointmentId}`,
               appointmentId: item.appointmentId,
               displayAppointmentId:
@@ -148,7 +173,7 @@ export default function FollowUpsScreen() {
         try {
           const history = await appointmentService.getPatientMedicalHistory();
           const mapped: FollowUpOverviewItem[] = (history.followUps || []).map(
-            (item) => ({
+            (item: any) => ({
               id: item.id || `followup-${item.appointmentId}`,
               appointmentId: item.appointmentId,
               displayAppointmentId:
@@ -301,6 +326,287 @@ export default function FollowUpsScreen() {
         source: "rebook",
       },
     });
+  };
+
+  const handleAuthorizeHandover = async (
+    handoverId: string,
+    decision: "approved" | "declined",
+  ) => {
+    try {
+      setProcessingAuth(true);
+      const res =
+        await clinicalHandoverService.respondPatientHandoverAuthorization(
+          handoverId,
+          {
+            decision,
+            rejectionReason:
+              decision === "declined"
+                ? "Patient declined care transfer."
+                : undefined,
+          },
+        );
+      if (res?.success) {
+        Alert.alert(
+          decision === "approved"
+            ? "Care Transfer Authorized"
+            : "Care Transfer Declined",
+          decision === "approved"
+            ? "Your receiving physician now has verified access to continue your treatment plan."
+            : "The care transfer has been declined.",
+        );
+        setRespondingHandover(null);
+        setRespondDecision(null);
+        await loadFollowUps(true);
+      }
+    } catch (err) {
+      Alert.alert(
+        "Authorization Failed",
+        toErrorMessage(err, "Failed to update care transfer authorization."),
+      );
+    } finally {
+      setProcessingAuth(false);
+    }
+  };
+
+  const renderHandoverItem = ({ item }: { item: ClinicalHandoverRecord }) => {
+    const origDoctor = item.originatingDoctorId as unknown as {
+      name?: string;
+      speciality?: string;
+    };
+    const recvDoctor = item.receivingDoctorId as unknown as {
+      name?: string;
+      speciality?: string;
+    };
+
+    const isPendingAuth = item.patientAuthorization?.status === "pending";
+
+    const getStatusVariant = (st: string): BadgeVariant => {
+      switch (st) {
+        case "accepted":
+          return "success";
+        case "sent":
+        case "in_review":
+          return "warning";
+        case "completed":
+          return "primary";
+        case "pending_patient_authorization":
+          return "warning";
+        case "declined":
+        case "cancelled":
+          return "error";
+        default:
+          return "neutral";
+      }
+    };
+
+    const handoverDisplayId =
+      item.handoverDisplayId ||
+      (item._id ? `HND-${item._id.slice(-6).toUpperCase()}` : "HND-RECORD");
+    const handoverTypeLabel = (item.handoverType || "care_transfer")
+      .replace(/_/g, " ")
+      .toUpperCase();
+    const handoverStatusLabel = (item.status || "active")
+      .replace(/_/g, " ")
+      .toUpperCase();
+
+    return (
+      <Card style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.handoverIdText}>{handoverDisplayId}</Text>
+            <Text style={styles.handoverTypeText}>{handoverTypeLabel}</Text>
+          </View>
+          <Badge
+            label={handoverStatusLabel}
+            variant={getStatusVariant(item.status)}
+          />
+        </View>
+
+        {/* Transfer Path */}
+        <View style={styles.handoverTransferPath}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.transferRole}>From Clinician</Text>
+            <Text style={styles.transferDoctorName}>
+              Dr. {origDoctor?.name || "Doctor"}
+            </Text>
+            {origDoctor?.speciality ? (
+              <Text style={styles.transferSpeciality}>
+                {origDoctor.speciality}
+              </Text>
+            ) : null}
+          </View>
+          <Ionicons
+            name="arrow-forward"
+            size={16}
+            color={Palette.accent}
+            style={{ marginHorizontal: 8 }}
+          />
+          <View style={{ flex: 1, alignItems: "flex-end" }}>
+            <Text style={styles.transferRole}>To Destination</Text>
+            <Text style={styles.transferDoctorName}>
+              {recvDoctor?.name
+                ? `Dr. ${recvDoctor.name}`
+                : item.toDepartment
+                  ? `Dept: ${item.toDepartment}`
+                  : "Pending Assignment"}
+            </Text>
+            {recvDoctor?.speciality ? (
+              <Text style={styles.transferSpeciality}>
+                {recvDoctor.speciality}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+
+        {/* Reason & Clinical Summary */}
+        <View style={{ marginTop: 8 }}>
+          <Text style={styles.handoverLabel}>Clinical Reason:</Text>
+          <Text style={styles.handoverValue}>
+            {item.reasonForHandover || item.reason}
+          </Text>
+        </View>
+
+        {item.clinicalSummary ? (
+          <View style={{ marginTop: 6 }}>
+            <Text style={styles.handoverLabel}>Summary & Instructions:</Text>
+            <Text style={styles.handoverValue}>{item.clinicalSummary}</Text>
+          </View>
+        ) : null}
+
+        {/* Transferred Items */}
+        <View style={styles.contextPillsRow}>
+          {item.sharedContext?.includeConsultationNotes && (
+            <View style={styles.contextPill}>
+              <Ionicons
+                name="document-text-outline"
+                size={12}
+                color={Palette.primary}
+              />
+              <Text style={styles.contextPillText}>Notes</Text>
+            </View>
+          )}
+          {item.sharedContext?.includePrescriptions && (
+            <View style={styles.contextPill}>
+              <Ionicons
+                name="medkit-outline"
+                size={12}
+                color={Palette.success}
+              />
+              <Text style={styles.contextPillText}>Prescriptions</Text>
+            </View>
+          )}
+          {item.sharedContext?.includeReports && (
+            <View style={styles.contextPill}>
+              <Ionicons
+                name="folder-outline"
+                size={12}
+                color={Palette.accent}
+              />
+              <Text style={styles.contextPillText}>Reports</Text>
+            </View>
+          )}
+          {item.sharedContext?.includeVitals && (
+            <View style={styles.contextPill}>
+              <Ionicons name="heart-outline" size={12} color={Palette.error} />
+              <Text style={styles.contextPillText}>Vitals</Text>
+            </View>
+          )}
+          {item.sharedContext?.includeFollowUpPlan && (
+            <View style={styles.contextPill}>
+              <Ionicons
+                name="calendar-outline"
+                size={12}
+                color={Palette.warning}
+              />
+              <Text style={styles.contextPillText}>Follow-Up</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Authorization Action Banner */}
+        {isPendingAuth ? (
+          <View style={styles.patientAuthPromptBox}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <Ionicons
+                name="shield-checkmark"
+                size={16}
+                color={Palette.warning}
+              />
+              <Text style={styles.patientAuthPromptTitle}>
+                Your Authorization Required
+              </Text>
+            </View>
+            <Text style={styles.patientAuthPromptText}>
+              Dr. {origDoctor?.name || "Your doctor"} has initiated a care
+              handover to Dr.{" "}
+              {recvDoctor?.name ||
+                item.toDepartment ||
+                "the receiving specialist"}
+              . Please authorize or decline this transfer.
+            </Text>
+
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+              <Button
+                title="Authorize Transfer"
+                variant="primary"
+                fullWidth={false}
+                loading={
+                  processingAuth &&
+                  respondingHandover?._id === item._id &&
+                  respondDecision === "approved"
+                }
+                onPress={() => {
+                  setRespondingHandover(item);
+                  setRespondDecision("approved");
+                  handleAuthorizeHandover(item._id, "approved");
+                }}
+                style={{ flex: 1 }}
+              />
+              <Button
+                title="Decline"
+                variant="outline"
+                fullWidth={false}
+                loading={
+                  processingAuth &&
+                  respondingHandover?._id === item._id &&
+                  respondDecision === "declined"
+                }
+                onPress={() => {
+                  setRespondingHandover(item);
+                  setRespondDecision("declined");
+                  handleAuthorizeHandover(item._id, "declined");
+                }}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
+        ) : item.patientAuthorization?.status === "approved" ? (
+          <View style={styles.authorizedStatusBadge}>
+            <Ionicons
+              name="checkmark-circle"
+              size={14}
+              color={Palette.success}
+            />
+            <Text style={styles.authorizedStatusText}>
+              You authorized this care transfer
+            </Text>
+          </View>
+        ) : item.patientAuthorization?.status === "declined" ? (
+          <View style={styles.declinedStatusBadge}>
+            <Ionicons name="close-circle" size={14} color={Palette.error} />
+            <Text style={styles.declinedStatusText}>
+              Care transfer was declined by you
+            </Text>
+          </View>
+        ) : null}
+      </Card>
+    );
   };
 
   const renderItem = ({ item }: { item: FollowUpOverviewItem }) => {
@@ -641,6 +947,59 @@ export default function FollowUpsScreen() {
         </Pressable>
       </View>
 
+      {/* Mode Switcher: Follow-Up Plans vs Care Continuity Transfers */}
+      <View style={styles.centerModeRow}>
+        <Pressable
+          style={[
+            styles.centerModeBtn,
+            centerMode === "plans" && styles.centerModeBtnActive,
+          ]}
+          onPress={() => setCenterMode("plans")}
+        >
+          <Ionicons
+            name="calendar"
+            size={14}
+            color={
+              centerMode === "plans" ? Palette.primaryDark : Palette.textMuted
+            }
+          />
+          <Text
+            style={[
+              styles.centerModeBtnText,
+              centerMode === "plans" && styles.centerModeBtnTextActive,
+            ]}
+          >
+            Follow-Up Plans ({followUps.length})
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[
+            styles.centerModeBtn,
+            centerMode === "handovers" && styles.centerModeBtnActive,
+          ]}
+          onPress={() => setCenterMode("handovers")}
+        >
+          <Ionicons
+            name="swap-horizontal"
+            size={14}
+            color={
+              centerMode === "handovers"
+                ? Palette.primaryDark
+                : Palette.textMuted
+            }
+          />
+          <Text
+            style={[
+              styles.centerModeBtnText,
+              centerMode === "handovers" && styles.centerModeBtnTextActive,
+            ]}
+          >
+            Care Transfers ({handovers.length})
+          </Text>
+        </Pressable>
+      </View>
+
       {/* Family Member Isolation Selector */}
       {familyMembers.length > 0 ? (
         <View style={styles.familySection}>
@@ -729,95 +1088,102 @@ export default function FollowUpsScreen() {
         </View>
       ) : null}
 
-      {/* KPI Stats Strip */}
-      <View style={styles.statsStrip}>
-        <View style={styles.statItem}>
-          <Text style={styles.statNum}>{stats.total}</Text>
-          <Text style={styles.statLabel}>Total Plans</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={[styles.statNum, { color: "#D97706" }]}>
-            {stats.pending}
-          </Text>
-          <Text style={styles.statLabel}>Action Due</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={[styles.statNum, { color: "#059669" }]}>
-            {stats.scheduled}
-          </Text>
-          <Text style={styles.statLabel}>Scheduled</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={[styles.statNum, { color: Palette.textMuted }]}>
-            {stats.completed}
-          </Text>
-          <Text style={styles.statLabel}>Completed</Text>
-        </View>
-      </View>
-
-      {/* Search Input */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBox}>
-          <Ionicons name="search" size={18} color={Palette.textMuted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search by doctor, diagnosis, advice or patient..."
-            placeholderTextColor={Palette.textMuted}
-            value={search}
-            onChangeText={setSearch}
-            returnKeyType="search"
-            clearButtonMode="while-editing"
-          />
-          {search ? (
-            <Pressable onPress={() => setSearch("")} hitSlop={8}>
-              <Ionicons
-                name="close-circle"
-                size={18}
-                color={Palette.textMuted}
-              />
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
-
-      {/* Tab Filter Strip */}
-      <View style={styles.tabBar}>
-        {FILTER_TABS.map((tab) => {
-          const isActive = activeTab === tab.key;
-          return (
-            <Pressable
-              key={tab.key}
-              onPress={() => setActiveTab(tab.key)}
-              style={[styles.tabBtn, isActive && styles.tabBtnActive]}
-            >
-              <Ionicons
-                name={tab.icon}
-                size={14}
-                color={isActive ? Palette.primary : Palette.textMuted}
-              />
-              <Text
-                style={[styles.tabBtnText, isActive && styles.tabBtnTextActive]}
-              >
-                {tab.label}
+      {centerMode === "plans" && (
+        <>
+          {/* KPI Stats Strip */}
+          <View style={styles.statsStrip}>
+            <View style={styles.statItem}>
+              <Text style={styles.statNum}>{stats.total}</Text>
+              <Text style={styles.statLabel}>Total Plans</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={[styles.statNum, { color: "#D97706" }]}>
+                {stats.pending}
               </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+              <Text style={styles.statLabel}>Action Due</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={[styles.statNum, { color: "#059669" }]}>
+                {stats.scheduled}
+              </Text>
+              <Text style={styles.statLabel}>Scheduled</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={[styles.statNum, { color: Palette.textMuted }]}>
+                {stats.completed}
+              </Text>
+              <Text style={styles.statLabel}>Completed</Text>
+            </View>
+          </View>
+
+          {/* Search Input */}
+          <View style={styles.searchContainer}>
+            <View style={styles.searchBox}>
+              <Ionicons name="search" size={18} color={Palette.textMuted} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search by doctor, diagnosis, advice or patient..."
+                placeholderTextColor={Palette.textMuted}
+                value={search}
+                onChangeText={setSearch}
+                returnKeyType="search"
+                clearButtonMode="while-editing"
+              />
+              {search ? (
+                <Pressable onPress={() => setSearch("")} hitSlop={8}>
+                  <Ionicons
+                    name="close-circle"
+                    size={18}
+                    color={Palette.textMuted}
+                  />
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+
+          {/* Tab Filter Strip */}
+          <View style={styles.tabBar}>
+            {FILTER_TABS.map((tab) => {
+              const isActive = activeTab === tab.key;
+              return (
+                <Pressable
+                  key={tab.key}
+                  onPress={() => setActiveTab(tab.key)}
+                  style={[styles.tabBtn, isActive && styles.tabBtnActive]}
+                >
+                  <Ionicons
+                    name={tab.icon}
+                    size={14}
+                    color={isActive ? Palette.primary : Palette.textMuted}
+                  />
+                  <Text
+                    style={[
+                      styles.tabBtnText,
+                      isActive && styles.tabBtnTextActive,
+                    ]}
+                  >
+                    {tab.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </>
+      )}
 
       {/* Body Content */}
       {loading ? (
         <Loading label="Loading care continuity & follow-up recommendations..." />
       ) : error ? (
         <ErrorState
-          title="Couldn't load follow-up plans"
+          title="Couldn't load care continuity data"
           message={error}
           onRetry={() => loadFollowUps(false)}
         />
-      ) : (
+      ) : centerMode === "plans" ? (
         <FlatList
           data={filteredItems}
           keyExtractor={(item) => item.appointmentId}
@@ -859,6 +1225,28 @@ export default function FollowUpsScreen() {
                   />
                 ) : undefined
               }
+            />
+          }
+        />
+      ) : (
+        <FlatList
+          data={handovers}
+          keyExtractor={(item) => item._id}
+          renderItem={renderHandoverItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[Palette.primary]}
+              tintColor={Palette.primary}
+            />
+          }
+          ListEmptyComponent={
+            <EmptyState
+              title="No Care Transfers Found"
+              message="When your physician transfers responsibility for your treatment or initiates an inter-departmental handover, it will appear here for your review and authorization."
             />
           }
         />
@@ -1286,5 +1674,174 @@ const styles = StyleSheet.create({
   },
   actionBtnPrimary: {
     flex: 1,
+  },
+  centerModeRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Palette.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: Palette.border,
+  },
+  centerModeBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+    backgroundColor: Palette.surfaceAlt,
+    borderWidth: 1,
+    borderColor: Palette.border,
+  },
+  centerModeBtnActive: {
+    backgroundColor: "#EFF6FF",
+    borderColor: Palette.primary,
+  },
+  centerModeBtnText: {
+    ...Typography.caption,
+    fontWeight: "600",
+    color: Palette.textMuted,
+  },
+  centerModeBtnTextActive: {
+    color: Palette.primaryDark,
+    fontWeight: "700",
+  },
+  handoverIdText: {
+    ...Typography.caption,
+    fontSize: 11,
+    fontWeight: "700",
+    color: Palette.primary,
+  },
+  handoverTypeText: {
+    ...Typography.bodyMedium,
+    fontSize: 14,
+    fontWeight: "700",
+    color: Palette.text,
+    marginTop: 1,
+  },
+  handoverTransferPath: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: Palette.surfaceAlt,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    marginTop: Spacing.md,
+    borderWidth: 1,
+    borderColor: Palette.border,
+  },
+  transferRole: {
+    ...Typography.caption,
+    fontSize: 10,
+    color: Palette.textMuted,
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  transferDoctorName: {
+    ...Typography.caption,
+    fontSize: 13,
+    fontWeight: "700",
+    color: Palette.text,
+    marginTop: 2,
+  },
+  transferSpeciality: {
+    ...Typography.caption,
+    fontSize: 11,
+    color: Palette.textMuted,
+    marginTop: 1,
+  },
+  handoverLabel: {
+    ...Typography.caption,
+    fontSize: 11,
+    fontWeight: "700",
+    color: Palette.textMuted,
+  },
+  handoverValue: {
+    ...Typography.body,
+    fontSize: 13,
+    color: Palette.text,
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  contextPillsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.xs,
+    marginTop: Spacing.md,
+  },
+  contextPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Palette.surfaceAlt,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+    borderColor: Palette.border,
+  },
+  contextPillText: {
+    ...Typography.caption,
+    fontSize: 11,
+    color: Palette.text,
+    fontWeight: "600",
+  },
+  patientAuthPromptBox: {
+    marginTop: Spacing.md,
+    backgroundColor: "#FFFBEB",
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: "#FCD34D",
+  },
+  patientAuthPromptTitle: {
+    ...Typography.caption,
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#92400E",
+  },
+  patientAuthPromptText: {
+    ...Typography.caption,
+    fontSize: 12,
+    color: "#B45309",
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  authorizedStatusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: Spacing.md,
+    padding: Spacing.sm,
+    backgroundColor: "#F0FDF4",
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: "#86EFAC",
+  },
+  authorizedStatusText: {
+    ...Typography.caption,
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#166534",
+  },
+  declinedStatusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: Spacing.md,
+    padding: Spacing.sm,
+    backgroundColor: "#FEF2F2",
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  declinedStatusText: {
+    ...Typography.caption,
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#991B1B",
   },
 });

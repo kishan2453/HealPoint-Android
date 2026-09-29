@@ -4,57 +4,24 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./*"
-      ],
-      "components": [
-        "./components"
-      ],
-      "components/*": [
-        "./components/*"
-      ],
-      "hooks": [
-        "./hooks"
-      ],
-      "hooks/*": [
-        "./hooks/*"
-      ],
-      "lib": [
-        "./lib"
-      ],
-      "lib/*": [
-        "./lib/*"
-      ],
-      "services": [
-        "./services"
-      ],
-      "services/*": [
-        "./services/*"
-      ],
-      "constants": [
-        "./constants"
-      ],
-      "constants/*": [
-        "./constants/*"
-      ],
-      "types": [
-        "./types"
-      ],
-      "types/*": [
-        "./types/*"
-      ],
-      "ui": [
-        "./components/ui"
-      ],
-      "ui/*": [
-        "./components/ui/*"
-      ]
+      "@/*": ["./*"],
+      "components": ["./components"],
+      "components/*": ["./components/*"],
+      "hooks": ["./hooks"],
+      "hooks/*": ["./hooks/*"],
+      "lib": ["./lib"],
+      "lib/*": ["./lib/*"],
+      "services": ["./services"],
+      "services/*": ["./services/*"],
+      "constants": ["./constants"],
+      "constants/*": ["./constants/*"],
+      "types": ["./types"],
+      "types/*": ["./types/*"],
+      "@/types": ["./types/index.ts", "./types"],
+      "@/types/*": ["./types/*"],
+      "ui": ["./components/ui"],
+      "ui/*": ["./components/ui/*"]
     }
   },
-  "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts"
-  ]
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
 }

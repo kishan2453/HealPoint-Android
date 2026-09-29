@@ -1,19 +1,10 @@
 /**
- * HealPoint - Notifications (patient).
+ * HealPoint - Smart Notification & Event Orchestration Center (Patient & Doctor).
  *
  * Real notifications from the backend (`GET /notification/get-all`) scoped to
- * the logged-in user's token. Unread notifications are clearly highlighted;
- * tapping one marks it read (existing `PATCH /notification/read/:id`) and -- when
- * the notification carries a `link` to a known user-side screen -- opens that
- * screen. "Mark all read" uses the existing `PATCH /notification/mark-all`.
- *
- * Nothing here is mocked: loading/empty/error states and read-state changes all
- * reflect real backend data.
- *
- * The screen is scoped to the current user: on login switch the previous user's
- * notifications are cleared immediately and stale in-flight responses for a
- * previous user are discarded so one patient's notifications can never leak
- * to another.
+ * the logged-in user's token. Features real-time Socket.IO synchronization,
+ * multi-portal routing, category filtering, priority indicators (Normal, High, Critical),
+ * and interactive Notification Preferences & Quiet Hours management.
  */
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -27,10 +18,12 @@ import React, {
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from "react-native";
@@ -46,27 +39,38 @@ import { useScreenFocus } from "@/hooks/use-screen-focus";
 import { cleanDuplicateDoctorTitle, formatISODate } from "@/lib/format";
 import { toErrorMessage } from "@/services/api";
 import * as notificationService from "@/services/notifications";
-import type { Notification } from "@/types";
+import { subscribeToNotificationSync } from "@/services/socket";
+import type { Notification, NotificationPreferences } from "@/types";
 
 const LIST_LIMIT = 50;
 
 /** Known user-side routes a notification `link` may safely point to. */
 const INTERNAL_LINK =
-  /^\/(appointment|booking|payment|doctor|hospital|profile|notification|consultation|health|reviews)(\/|$)/;
+  /^\/(appointment|booking|payment|doctor|hospital|profile|notification|consultation|health|reviews|subscription)(\/|$)/;
 
 type FilterCategory =
   | "all"
   | "unread"
   | "appointments"
   | "clinical"
-  | "billing";
+  | "referrals"
+  | "documents"
+  | "billing"
+  | "security";
 
-const CATEGORY_TABS: { id: FilterCategory; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "unread", label: "Unread" },
-  { id: "appointments", label: "Appointments" },
-  { id: "clinical", label: "Clinical" },
-  { id: "billing", label: "Billing" },
+const CATEGORY_TABS: {
+  id: FilterCategory;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}[] = [
+  { id: "all", label: "All", icon: "layers-outline" },
+  { id: "unread", label: "Unread", icon: "mail-unread-outline" },
+  { id: "appointments", label: "Appointments", icon: "calendar-outline" },
+  { id: "clinical", label: "Clinical", icon: "medkit-outline" },
+  { id: "referrals", label: "Referrals", icon: "git-network-outline" },
+  { id: "documents", label: "Documents", icon: "document-text-outline" },
+  { id: "billing", label: "Billing", icon: "card-outline" },
+  { id: "security", label: "Security", icon: "shield-outline" },
 ];
 
 function notificationVisual(type?: string): {
@@ -77,11 +81,23 @@ function notificationVisual(type?: string): {
   if (key.startsWith("payment") || key.startsWith("subscription")) {
     return { icon: "card-outline", tint: Palette.success };
   }
-  if (key === "prescription_uploaded") {
-    return { icon: "document-text-outline", tint: Palette.primary };
+  if (key.includes("prescription") || key.includes("medication")) {
+    return { icon: "receipt-outline", tint: Palette.primary };
   }
-  if (key === "report_uploaded") {
+  if (key.includes("report")) {
     return { icon: "fitness-outline", tint: "#E89A3C" };
+  }
+  if (key.startsWith("referral")) {
+    return { icon: "git-network-outline", tint: "#7B61FF" };
+  }
+  if (key.startsWith("handover")) {
+    return { icon: "swap-horizontal-outline", tint: "#0E9F8E" };
+  }
+  if (key.startsWith("consent")) {
+    return { icon: "shield-checkmark-outline", tint: "#27AE60" };
+  }
+  if (key.startsWith("document_") || key.includes("ocr")) {
+    return { icon: "document-attach-outline", tint: "#0284C7" };
   }
   if (
     key.startsWith("appointment") ||
@@ -100,7 +116,11 @@ function notificationVisual(type?: string): {
   if (key === "message_received") {
     return { icon: "chatbubble-outline", tint: "#2F80ED" };
   }
-  if (key === "system_alert" || key === "admin_action") {
+  if (
+    key.includes("security") ||
+    key === "system_alert" ||
+    key === "admin_action"
+  ) {
     return { icon: "alert-circle-outline", tint: Palette.error };
   }
   return { icon: "notifications-outline", tint: Palette.primaryDark };
@@ -139,7 +159,8 @@ function getNotificationRoute(notification: Notification): string | null {
     type === "meeting_ready" ||
     type === "consultation_status" ||
     type === "consultation_completed" ||
-    type === "online_consultation"
+    type === "online_consultation" ||
+    type === "online_consultation_ready"
   ) {
     if (refId) return `/consultation/${refId}`;
     return "/(drawer)/consultations";
@@ -153,13 +174,28 @@ function getNotificationRoute(notification: Notification): string | null {
     if (refId) return `/appointment/${refId}`;
     return "/(drawer)/appointments";
   }
-  if (type === "prescription_uploaded") {
+  if (type.includes("prescription")) {
     return "/(drawer)/health/prescriptions";
   }
-  if (type === "report_uploaded") {
+  if (type.includes("report")) {
     return "/(drawer)/health/reports";
   }
-  if (type.startsWith("payment") || type.startsWith("subscription")) {
+  if (type.startsWith("referral") || type.includes("clinical_referral")) {
+    return "/(drawer)/health/referrals";
+  }
+  if (type.startsWith("handover") || type.includes("clinical_handover")) {
+    return "/(drawer)/health/handovers";
+  }
+  if (type.startsWith("consent") || type.includes("clinical_consent")) {
+    return "/(drawer)/health/consent";
+  }
+  if (type.startsWith("document_") || type.includes("ocr")) {
+    return "/(drawer)/health-wallet";
+  }
+  if (type.startsWith("subscription")) {
+    return "/(drawer)/subscription";
+  }
+  if (type.startsWith("payment")) {
     return "/(drawer)/payments/history";
   }
   if (type === "message_received") {
@@ -190,6 +226,29 @@ export default function NotificationsScreen() {
   const [markingAll, setMarkingAll] = useState(false);
   const hasLoaded = useRef(false);
   const activeUserIdRef = useRef<string | undefined>(userId);
+
+  // Preferences Modal state
+  const [prefsModalVisible, setPrefsModalVisible] = useState(false);
+  const [prefsLoading, setPrefsLoading] = useState(false);
+  const [prefsSaving, setPrefsSaving] = useState(false);
+  const [prefsError, setPrefsError] = useState("");
+  const [prefsSuccess, setPrefsSuccess] = useState("");
+  const [preferences, setPreferences] = useState<NotificationPreferences>({
+    channels: { inApp: true, push: true, email: true, sms: true },
+    categories: {
+      appointments: true,
+      payments: true,
+      consultations: true,
+      prescriptions: true,
+      reports: true,
+      referrals: true,
+      consent: true,
+      documents: true,
+      subscriptions: true,
+      security: true,
+    },
+    quietHours: { enabled: false, startHour: 22, endHour: 7 },
+  });
 
   const load = useCallback(
     async (background = false) => {
@@ -250,6 +309,20 @@ export default function NotificationsScreen() {
     load(true);
   });
 
+  // Real-time WebSocket synchronization
+  useEffect(() => {
+    const unsubscribe = subscribeToNotificationSync(
+      (newNotif: Notification) => {
+        if (!newNotif?._id) return;
+        setNotifications((prev) => {
+          if (prev.some((item) => item._id === newNotif._id)) return prev;
+          return [newNotif, ...prev];
+        });
+      },
+    );
+    return unsubscribe;
+  }, []);
+
   const onRefresh = async () => {
     setRefreshing(true);
     try {
@@ -265,7 +338,7 @@ export default function NotificationsScreen() {
     try {
       await notificationService.markAllNotificationsRead();
       setNotifications((prev) =>
-        prev.map((item) => ({ ...item, isRead: true })),
+        prev.map((item) => ({ ...item, isRead: true, deliveryStatus: "read" })),
       );
     } catch {
       // Keep state truthful
@@ -279,7 +352,9 @@ export default function NotificationsScreen() {
     if (wasUnread) {
       setNotifications((prev) =>
         prev.map((item) =>
-          item._id === notification._id ? { ...item, isRead: true } : item,
+          item._id === notification._id
+            ? { ...item, isRead: true, deliveryStatus: "read" }
+            : item,
         ),
       );
       try {
@@ -306,8 +381,42 @@ export default function NotificationsScreen() {
     try {
       await notificationService.deleteNotification(id);
     } catch {
-      // Reload on failure
       load(true);
+    }
+  };
+
+  const openPreferences = async () => {
+    setPrefsModalVisible(true);
+    setPrefsLoading(true);
+    setPrefsError("");
+    setPrefsSuccess("");
+    try {
+      const res = await notificationService.getNotificationPreferences();
+      if (res.preferences) {
+        setPreferences(res.preferences);
+      }
+    } catch (err) {
+      setPrefsError(toErrorMessage(err, "Failed to load preferences"));
+    } finally {
+      setPrefsLoading(false);
+    }
+  };
+
+  const savePreferences = async () => {
+    setPrefsSaving(true);
+    setPrefsError("");
+    setPrefsSuccess("");
+    try {
+      await notificationService.updateNotificationPreferences(preferences);
+      setPrefsSuccess("Preferences saved successfully!");
+      setTimeout(() => {
+        setPrefsModalVisible(false);
+        setPrefsSuccess("");
+      }, 1200);
+    } catch (err) {
+      setPrefsError(toErrorMessage(err, "Failed to save preferences"));
+    } finally {
+      setPrefsSaving(false);
     }
   };
 
@@ -322,8 +431,10 @@ export default function NotificationsScreen() {
     }
     if (activeCategory === "appointments") {
       return notifications.filter((item) => {
+        const cat = item.category?.toLowerCase();
         const t = (item.type || "").toLowerCase();
         return (
+          cat === "appointments" ||
           t.startsWith("appointment") ||
           t === "booking" ||
           item.refModel === "appointment"
@@ -332,18 +443,57 @@ export default function NotificationsScreen() {
     }
     if (activeCategory === "clinical") {
       return notifications.filter((item) => {
+        const cat = item.category?.toLowerCase();
         const t = (item.type || "").toLowerCase();
         return (
-          t === "prescription_uploaded" ||
-          t === "report_uploaded" ||
-          t === "message_received"
+          cat === "prescriptions" ||
+          cat === "reports" ||
+          cat === "consultations" ||
+          t.includes("prescription") ||
+          t.includes("report") ||
+          t.includes("consultation")
+        );
+      });
+    }
+    if (activeCategory === "referrals") {
+      return notifications.filter((item) => {
+        const cat = item.category?.toLowerCase();
+        const t = (item.type || "").toLowerCase();
+        return (
+          cat === "referrals" ||
+          t.includes("referral") ||
+          t.includes("handover")
+        );
+      });
+    }
+    if (activeCategory === "documents") {
+      return notifications.filter((item) => {
+        const cat = item.category?.toLowerCase();
+        const t = (item.type || "").toLowerCase();
+        return (
+          cat === "documents" || t.startsWith("document_") || t.includes("ocr")
         );
       });
     }
     if (activeCategory === "billing") {
       return notifications.filter((item) => {
+        const cat = item.category?.toLowerCase();
         const t = (item.type || "").toLowerCase();
-        return t.startsWith("payment") || t.startsWith("subscription");
+        return (
+          cat === "payments" ||
+          cat === "subscriptions" ||
+          t.startsWith("payment") ||
+          t.startsWith("subscription")
+        );
+      });
+    }
+    if (activeCategory === "security") {
+      return notifications.filter((item) => {
+        const cat = item.category?.toLowerCase();
+        const t = (item.type || "").toLowerCase();
+        return (
+          cat === "security" || t.includes("security") || t === "system_alert"
+        );
       });
     }
     return notifications;
@@ -359,6 +509,7 @@ export default function NotificationsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+      {/* Header */}
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
@@ -374,8 +525,9 @@ export default function NotificationsScreen() {
         >
           <Ionicons name="close" size={24} color={Palette.text} />
         </Pressable>
+
         <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>Notifications</Text>
+          <Text style={styles.headerTitle}>Notification Center</Text>
           {notifications.length > 0 ? (
             <Text style={styles.headerSubtitle}>
               {unreadCount > 0
@@ -384,6 +536,24 @@ export default function NotificationsScreen() {
             </Text>
           ) : null}
         </View>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Notification Settings"
+          onPress={openPreferences}
+          style={({ pressed }) => [
+            styles.iconButton,
+            pressed && styles.pressed,
+          ]}
+          hitSlop={8}
+        >
+          <Ionicons
+            name="options-outline"
+            size={20}
+            color={Palette.primaryDark}
+          />
+        </Pressable>
+
         {unreadCount > 0 ? (
           <Pressable
             accessibilityRole="button"
@@ -399,12 +569,10 @@ export default function NotificationsScreen() {
             {markingAll ? (
               <ActivityIndicator size="small" color={Palette.primary} />
             ) : (
-              <Text style={styles.markAll}>Mark all read</Text>
+              <Text style={styles.markAll}>Mark read</Text>
             )}
           </Pressable>
-        ) : (
-          <View style={styles.headerSpacer} />
-        )}
+        ) : null}
       </View>
 
       {/* Category Pills */}
@@ -436,6 +604,11 @@ export default function NotificationsScreen() {
                     pressed && styles.chipPressed,
                   ]}
                 >
+                  <Ionicons
+                    name={tab.icon}
+                    size={14}
+                    color={active ? Palette.white : Palette.textMuted}
+                  />
                   <Text
                     style={[
                       styles.filterChipText,
@@ -472,6 +645,7 @@ export default function NotificationsScreen() {
         </View>
       ) : null}
 
+      {/* List or States */}
       {loading ? (
         <Loading label="Loading notifications..." />
       ) : error ? (
@@ -491,20 +665,22 @@ export default function NotificationsScreen() {
           <EmptyState
             title={
               activeCategory === "unread"
-                ? "No unread notifications"
+                ? "No unread alerts"
                 : activeCategory === "appointments"
                   ? "No appointment alerts"
                   : activeCategory === "clinical"
-                    ? "No medical record alerts"
-                    : activeCategory === "billing"
-                      ? "No payment notifications"
-                      : "No notifications yet"
+                    ? "No medical alerts"
+                    : activeCategory === "referrals"
+                      ? "No referral alerts"
+                      : activeCategory === "documents"
+                        ? "No document alerts"
+                        : activeCategory === "billing"
+                          ? "No payment alerts"
+                          : activeCategory === "security"
+                            ? "No security alerts"
+                            : "No notifications yet"
             }
-            message={
-              activeCategory === "unread"
-                ? "You are all caught up on your healthcare updates!"
-                : "Appointment updates, doctor notes, and alerts will appear here."
-            }
+            message="Live events and healthcare notifications will appear here in real time."
           />
         </ScrollView>
       ) : (
@@ -533,6 +709,311 @@ export default function NotificationsScreen() {
           windowSize={7}
         />
       )}
+
+      {/* Notification Preferences Modal */}
+      <Modal
+        visible={prefsModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setPrefsModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Notification Settings</Text>
+                <Text style={styles.modalSubtitle}>
+                  Control your channels, categories & quiet hours
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setPrefsModalVisible(false)}
+                style={styles.modalCloseBtn}
+                hitSlop={8}
+              >
+                <Ionicons name="close" size={22} color={Palette.text} />
+              </Pressable>
+            </View>
+
+            {prefsLoading ? (
+              <View style={{ padding: Spacing.xl }}>
+                <Loading label="Loading preferences..." />
+              </View>
+            ) : (
+              <ScrollView
+                style={styles.modalBody}
+                showsVerticalScrollIndicator={false}
+              >
+                {prefsError ? (
+                  <FormMessage type="error" message={prefsError} />
+                ) : null}
+                {prefsSuccess ? (
+                  <FormMessage type="success" message={prefsSuccess} />
+                ) : null}
+
+                {/* Delivery Channels */}
+                <Text style={styles.prefSectionHeader}>Delivery Channels</Text>
+                <View style={styles.prefCard}>
+                  <View style={styles.prefRow}>
+                    <View style={styles.prefInfo}>
+                      <Ionicons
+                        name="phone-portrait-outline"
+                        size={18}
+                        color={Palette.primary}
+                      />
+                      <Text style={styles.prefLabel}>In-App Alerts</Text>
+                    </View>
+                    <Switch
+                      value={preferences.channels.inApp}
+                      onValueChange={(val) =>
+                        setPreferences((p) => ({
+                          ...p,
+                          channels: { ...p.channels, inApp: val },
+                        }))
+                      }
+                      trackColor={{
+                        false: Palette.border,
+                        true: Palette.primary,
+                      }}
+                    />
+                  </View>
+                  <View style={styles.prefDivider} />
+                  <View style={styles.prefRow}>
+                    <View style={styles.prefInfo}>
+                      <Ionicons
+                        name="notifications-outline"
+                        size={18}
+                        color={Palette.primary}
+                      />
+                      <Text style={styles.prefLabel}>Device Push</Text>
+                    </View>
+                    <Switch
+                      value={preferences.channels.push}
+                      onValueChange={(val) =>
+                        setPreferences((p) => ({
+                          ...p,
+                          channels: { ...p.channels, push: val },
+                        }))
+                      }
+                      trackColor={{
+                        false: Palette.border,
+                        true: Palette.primary,
+                      }}
+                    />
+                  </View>
+                  <View style={styles.prefDivider} />
+                  <View style={styles.prefRow}>
+                    <View style={styles.prefInfo}>
+                      <Ionicons
+                        name="mail-outline"
+                        size={18}
+                        color={Palette.primary}
+                      />
+                      <Text style={styles.prefLabel}>Email Notifications</Text>
+                    </View>
+                    <Switch
+                      value={preferences.channels.email}
+                      onValueChange={(val) =>
+                        setPreferences((p) => ({
+                          ...p,
+                          channels: { ...p.channels, email: val },
+                        }))
+                      }
+                      trackColor={{
+                        false: Palette.border,
+                        true: Palette.primary,
+                      }}
+                    />
+                  </View>
+                  <View style={styles.prefDivider} />
+                  <View style={styles.prefRow}>
+                    <View style={styles.prefInfo}>
+                      <Ionicons
+                        name="chatbox-ellipses-outline"
+                        size={18}
+                        color={Palette.primary}
+                      />
+                      <Text style={styles.prefLabel}>SMS Notifications</Text>
+                    </View>
+                    <Switch
+                      value={preferences.channels.sms}
+                      onValueChange={(val) =>
+                        setPreferences((p) => ({
+                          ...p,
+                          channels: { ...p.channels, sms: val },
+                        }))
+                      }
+                      trackColor={{
+                        false: Palette.border,
+                        true: Palette.primary,
+                      }}
+                    />
+                  </View>
+                </View>
+
+                {/* Categories */}
+                <Text style={styles.prefSectionHeader}>
+                  Notification Categories
+                </Text>
+                <View style={styles.prefCard}>
+                  {[
+                    {
+                      key: "appointments",
+                      label: "Appointments & Visits",
+                      icon: "calendar-outline",
+                    },
+                    {
+                      key: "consultations",
+                      label: "Consultations & Video",
+                      icon: "videocam-outline",
+                    },
+                    {
+                      key: "prescriptions",
+                      label: "Prescriptions & Meds",
+                      icon: "receipt-outline",
+                    },
+                    {
+                      key: "reports",
+                      label: "Lab Reports & Tests",
+                      icon: "fitness-outline",
+                    },
+                    {
+                      key: "referrals",
+                      label: "Referrals & Handovers",
+                      icon: "git-network-outline",
+                    },
+                    {
+                      key: "consent",
+                      label: "Consent & Approvals",
+                      icon: "shield-checkmark-outline",
+                    },
+                    {
+                      key: "documents",
+                      label: "Document Intelligence",
+                      icon: "document-text-outline",
+                    },
+                    {
+                      key: "payments",
+                      label: "Payments & Receipts",
+                      icon: "card-outline",
+                    },
+                    {
+                      key: "subscriptions",
+                      label: "Subscription Plans",
+                      icon: "star-outline",
+                    },
+                  ].map((item, idx, arr) => (
+                    <React.Fragment key={item.key}>
+                      <View style={styles.prefRow}>
+                        <View style={styles.prefInfo}>
+                          <Ionicons
+                            name={item.icon as never}
+                            size={18}
+                            color={Palette.primaryDark}
+                          />
+                          <Text style={styles.prefLabel}>{item.label}</Text>
+                        </View>
+                        <Switch
+                          value={
+                            preferences.categories[
+                              item.key as keyof typeof preferences.categories
+                            ]
+                          }
+                          onValueChange={(val) =>
+                            setPreferences((p) => ({
+                              ...p,
+                              categories: { ...p.categories, [item.key]: val },
+                            }))
+                          }
+                          trackColor={{
+                            false: Palette.border,
+                            true: Palette.primary,
+                          }}
+                        />
+                      </View>
+                      {idx < arr.length - 1 ? (
+                        <View style={styles.prefDivider} />
+                      ) : null}
+                    </React.Fragment>
+                  ))}
+                  <View style={styles.prefDivider} />
+                  <View style={styles.prefRow}>
+                    <View style={styles.prefInfo}>
+                      <Ionicons
+                        name="lock-closed-outline"
+                        size={18}
+                        color={Palette.error}
+                      />
+                      <Text style={[styles.prefLabel, { color: Palette.text }]}>
+                        Security Alerts (Mandatory)
+                      </Text>
+                    </View>
+                    <Switch
+                      value={true}
+                      disabled
+                      trackColor={{
+                        false: Palette.border,
+                        true: Palette.primary,
+                      }}
+                    />
+                  </View>
+                </View>
+
+                {/* Quiet Hours */}
+                <Text style={styles.prefSectionHeader}>Quiet Hours</Text>
+                <View style={styles.prefCard}>
+                  <View style={styles.prefRow}>
+                    <View style={styles.prefInfo}>
+                      <Ionicons name="moon-outline" size={18} color="#7B61FF" />
+                      <View>
+                        <Text style={styles.prefLabel}>Enable Quiet Hours</Text>
+                        <Text style={styles.prefSubLabel}>
+                          Mutes non-critical alerts between 10 PM and 7 AM
+                        </Text>
+                      </View>
+                    </View>
+                    <Switch
+                      value={preferences.quietHours.enabled}
+                      onValueChange={(val) =>
+                        setPreferences((p) => ({
+                          ...p,
+                          quietHours: { ...p.quietHours, enabled: val },
+                        }))
+                      }
+                      trackColor={{
+                        false: Palette.border,
+                        true: Palette.primary,
+                      }}
+                    />
+                  </View>
+                </View>
+
+                <View style={{ height: Spacing.xl }} />
+              </ScrollView>
+            )}
+
+            <View style={styles.modalFooter}>
+              <Pressable
+                onPress={() => setPrefsModalVisible(false)}
+                style={styles.modalCancelBtn}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={savePreferences}
+                disabled={prefsSaving || prefsLoading}
+                style={[styles.modalSaveBtn, prefsSaving && { opacity: 0.7 }]}
+              >
+                {prefsSaving ? (
+                  <ActivityIndicator size="small" color={Palette.white} />
+                ) : (
+                  <Text style={styles.modalSaveText}>Save Settings</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -548,10 +1029,12 @@ const NotificationRow = React.memo(function NotificationRow({
 }) {
   const unread = !notification.isRead;
   const visual = notificationVisual(notification.type);
+  const isCritical = notification.priority === "critical";
   const isHighPriority = notification.priority === "high";
   const hasRoute = Boolean(getNotificationRoute(notification));
   const cleanTitle = cleanDuplicateDoctorTitle(notification.title || "");
   const cleanMessage = cleanDuplicateDoctorTitle(notification.message || "");
+  const familyMember = notification.metadata?.familyMemberName;
 
   return (
     <Pressable
@@ -561,13 +1044,25 @@ const NotificationRow = React.memo(function NotificationRow({
       style={({ pressed }) => [
         styles.item,
         unread && styles.itemUnread,
+        isCritical && styles.itemCritical,
         pressed && styles.pressed,
       ]}
     >
       <View
-        style={[styles.iconCircle, { backgroundColor: `${visual.tint}18` }]}
+        style={[
+          styles.iconCircle,
+          {
+            backgroundColor: isCritical
+              ? "rgba(239, 68, 68, 0.15)"
+              : `${visual.tint}18`,
+          },
+        ]}
       >
-        <Ionicons name={visual.icon} size={20} color={visual.tint} />
+        <Ionicons
+          name={isCritical ? "alert-circle" : visual.icon}
+          size={20}
+          color={isCritical ? Palette.error : visual.tint}
+        />
       </View>
 
       <View style={styles.itemBody}>
@@ -581,6 +1076,17 @@ const NotificationRow = React.memo(function NotificationRow({
           {unread ? <View style={styles.dotUnread} /> : null}
         </View>
 
+        {familyMember ? (
+          <View style={styles.familyBadge}>
+            <Ionicons
+              name="people-outline"
+              size={11}
+              color={Palette.primaryDark}
+            />
+            <Text style={styles.familyBadgeText}>Patient: {familyMember}</Text>
+          </View>
+        ) : null}
+
         <Text style={styles.itemMessage} numberOfLines={3}>
           {cleanMessage}
         </Text>
@@ -589,10 +1095,15 @@ const NotificationRow = React.memo(function NotificationRow({
           <Text style={styles.itemTime}>
             {timeLabel(notification.createdAt)}
           </Text>
-          {isHighPriority ? (
+          {isCritical ? (
+            <View style={styles.criticalBadge}>
+              <Ionicons name="warning" size={10} color={Palette.error} />
+              <Text style={styles.criticalText}>Critical</Text>
+            </View>
+          ) : isHighPriority ? (
             <View style={styles.priorityBadge}>
-              <Ionicons name="flash" size={10} color={Palette.error} />
-              <Text style={styles.priorityText}>Priority</Text>
+              <Ionicons name="flash" size={10} color="#D97706" />
+              <Text style={styles.priorityText}>High</Text>
             </View>
           ) : null}
           {hasRoute ? (
@@ -658,19 +1169,17 @@ const styles = StyleSheet.create({
     color: Palette.textMuted,
   },
   markAllButton: {
-    minWidth: 44,
-    minHeight: 44,
+    minHeight: 38,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.primaryLight,
   },
   markAll: {
-    ...Typography.bodySmall,
+    ...Typography.caption,
     color: Palette.primaryDark,
     fontWeight: "700",
-  },
-  headerSpacer: {
-    width: 44,
   },
   pressed: {
     opacity: 0.88,
@@ -764,6 +1273,11 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: Palette.primary,
   },
+  itemCritical: {
+    borderLeftWidth: 4,
+    borderLeftColor: Palette.error,
+    backgroundColor: "rgba(239, 68, 68, 0.02)",
+  },
   iconCircle: {
     width: 42,
     height: 42,
@@ -797,6 +1311,22 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.primary,
     marginTop: 6,
   },
+  familyBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Palette.primaryLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: Radius.sm,
+    alignSelf: "flex-start",
+    marginVertical: 2,
+  },
+  familyBadgeText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: Palette.primaryDark,
+  },
   itemMessage: {
     ...Typography.bodySmall,
     color: Palette.textMuted,
@@ -818,12 +1348,26 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
-    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    backgroundColor: "rgba(217, 119, 6, 0.12)",
     borderRadius: Radius.pill,
     paddingHorizontal: 6,
     paddingVertical: 1,
   },
   priorityText: {
+    fontSize: 10,
+    color: "#D97706",
+    fontWeight: "700",
+  },
+  criticalBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    borderRadius: Radius.pill,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  criticalText: {
     fontSize: 10,
     color: Palette.error,
     fontWeight: "700",
@@ -844,5 +1388,126 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: Palette.surface,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    maxHeight: "85%",
+    paddingTop: Spacing.lg,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.md,
+    borderBottomWidth: 1,
+    borderColor: Palette.border,
+  },
+  modalTitle: {
+    ...Typography.h4,
+    color: Palette.text,
+  },
+  modalSubtitle: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+  },
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Palette.background,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalBody: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
+  },
+  prefSectionHeader: {
+    ...Typography.bodySmall,
+    fontWeight: "700",
+    color: Palette.text,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
+  },
+  prefCard: {
+    backgroundColor: Palette.background,
+    borderRadius: Radius.lg,
+    padding: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Palette.border,
+  },
+  prefRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.xs,
+  },
+  prefInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  prefLabel: {
+    ...Typography.bodyMedium,
+    color: Palette.text,
+    fontWeight: "600",
+  },
+  prefSubLabel: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    fontSize: 11,
+  },
+  prefDivider: {
+    height: 1,
+    backgroundColor: Palette.border,
+    marginVertical: 4,
+  },
+  modalFooter: {
+    flexDirection: "row",
+    gap: Spacing.md,
+    padding: Spacing.xl,
+    borderTopWidth: 1,
+    borderColor: Palette.border,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalCancelText: {
+    ...Typography.bodyMedium,
+    color: Palette.textMuted,
+    fontWeight: "600",
+  },
+  modalSaveBtn: {
+    flex: 2,
+    height: 46,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalSaveText: {
+    ...Typography.bodyMedium,
+    color: Palette.white,
+    fontWeight: "700",
   },
 });

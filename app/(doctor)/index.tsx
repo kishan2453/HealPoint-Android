@@ -28,14 +28,11 @@ import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Loading } from "@/components/ui/Loading";
-import {
-  Palette,
-  Radius,
-  Spacing,
-} from "@/constants/theme";
+import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useAuth } from "@/hooks/use-auth";
 import { toErrorMessage } from "@/services/api";
 import * as doctorPortalService from "@/services/doctor-portal";
+import * as clinicalHandoverService from "@/services/clinical-handover";
 import type { DoctorPatientQueueResponse } from "@/types";
 
 export default function DoctorDashboardScreen() {
@@ -46,7 +43,10 @@ export default function DoctorDashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
-  const [queueData, setQueueData] = useState<DoctorPatientQueueResponse | null>(null);
+  const [queueData, setQueueData] = useState<DoctorPatientQueueResponse | null>(
+    null,
+  );
+  const [incomingHandoversCount, setIncomingHandoversCount] = useState(0);
 
   const loadDashboard = useCallback(
     async (isRefresh = false) => {
@@ -60,11 +60,23 @@ export default function DoctorDashboardScreen() {
         else setLoading(true);
         setError("");
 
-        const res = await doctorPortalService.getDoctorPatientQueue(doctorId);
+        const [res, handoverRes] = await Promise.all([
+          doctorPortalService.getDoctorPatientQueue(doctorId),
+          clinicalHandoverService
+            .getDoctorIncomingHandovers({ status: "sent" })
+            .catch(() => null),
+        ]);
+
         if (res?.success) {
           setQueueData(res);
         } else {
           setError("Failed to fetch clinic queue status.");
+        }
+
+        if (handoverRes?.success) {
+          setIncomingHandoversCount(
+            handoverRes.count || handoverRes.handovers?.length || 0,
+          );
         }
       } catch (err) {
         setError(toErrorMessage(err, "Could not load doctor dashboard."));
@@ -89,16 +101,25 @@ export default function DoctorDashboardScreen() {
     action: "call" | "start" | "complete" | "skip",
   ) => {
     try {
-      const res = await doctorPortalService.executeQueueAction(doctorId, appointmentId, action);
+      const res = await doctorPortalService.executeQueueAction(
+        doctorId,
+        appointmentId,
+        action,
+      );
       if (res?.success) {
         await loadDashboard(true);
       }
     } catch (err) {
-      Alert.alert("Action Failed", toErrorMessage(err, "Could not update queue status."));
+      Alert.alert(
+        "Action Failed",
+        toErrorMessage(err, "Could not update queue status."),
+      );
     }
   };
 
-  const getStageBadge = (stage?: string): { label: string; variant: BadgeVariant } => {
+  const getStageBadge = (
+    stage?: string,
+  ): { label: string; variant: BadgeVariant } => {
     switch (stage) {
       case "in_consultation":
         return { label: "In Consultation", variant: "warning" };
@@ -122,12 +143,18 @@ export default function DoctorDashboardScreen() {
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={styles.welcomeGreeting}>Welcome back,</Text>
-            <Text style={styles.doctorNameText}>Dr. {user?.name || "Doctor"}</Text>
+            <Text style={styles.doctorNameText}>
+              Dr. {user?.name || "Doctor"}
+            </Text>
             <Text style={styles.hospitalAffiliation}>
-              {user?.hospitalName ? `${user.hospitalName} · ` : ""}OPD Clinical Station
+              {user?.hospitalName ? `${user.hospitalName} · ` : ""}OPD Clinical
+              Station
             </Text>
           </View>
-          <Pressable onPress={() => router.push("/doctor/profile")} style={styles.profileBadgeBtn}>
+          <Pressable
+            onPress={() => router.push("/doctor/profile")}
+            style={styles.profileBadgeBtn}
+          >
             <Ionicons name="medkit" size={20} color={Palette.accent} />
           </Pressable>
         </View>
@@ -155,30 +182,51 @@ export default function DoctorDashboardScreen() {
                 <View style={styles.pulseHeaderRow}>
                   <View style={styles.pulseLiveIndicator}>
                     <View style={styles.pulseDot} />
-                    <Text style={styles.pulseLiveText}>TODAY'S CLINIC PULSE</Text>
+                    <Text style={styles.pulseLiveText}>
+                      TODAY'S CLINIC PULSE
+                    </Text>
                   </View>
-                  <Text style={styles.pulseDateText}>{summary?.todayDate || "Today"}</Text>
+                  <Text style={styles.pulseDateText}>
+                    {summary?.todayDate || "Today"}
+                  </Text>
                 </View>
 
                 <View style={styles.pulseStatsGrid}>
                   <View style={styles.pulseStatBox}>
-                    <Text style={styles.pulseStatNumber}>{summary?.totalToday || 0}</Text>
+                    <Text style={styles.pulseStatNumber}>
+                      {summary?.totalToday || 0}
+                    </Text>
                     <Text style={styles.pulseStatLabel}>Total Scheduled</Text>
                   </View>
                   <View style={styles.pulseStatBox}>
-                    <Text style={[styles.pulseStatNumber, { color: Palette.success }]}>
+                    <Text
+                      style={[
+                        styles.pulseStatNumber,
+                        { color: Palette.success },
+                      ]}
+                    >
                       {summary?.checkedInCount || 0}
                     </Text>
                     <Text style={styles.pulseStatLabel}>Checked-In</Text>
                   </View>
                   <View style={styles.pulseStatBox}>
-                    <Text style={[styles.pulseStatNumber, { color: Palette.warning }]}>
+                    <Text
+                      style={[
+                        styles.pulseStatNumber,
+                        { color: Palette.warning },
+                      ]}
+                    >
                       {summary?.inConsultationCount || 0}
                     </Text>
                     <Text style={styles.pulseStatLabel}>In Progress</Text>
                   </View>
                   <View style={styles.pulseStatBox}>
-                    <Text style={[styles.pulseStatNumber, { color: Palette.primaryDark }]}>
+                    <Text
+                      style={[
+                        styles.pulseStatNumber,
+                        { color: Palette.primaryDark },
+                      ]}
+                    >
                       {summary?.completedCount || 0}
                     </Text>
                     <Text style={styles.pulseStatLabel}>Completed</Text>
@@ -194,7 +242,9 @@ export default function DoctorDashboardScreen() {
                       <Ionicons name="pulse" size={20} color="#fff" />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.activeLabel}>ACTIVE CLINICAL SESSION</Text>
+                      <Text style={styles.activeLabel}>
+                        ACTIVE CLINICAL SESSION
+                      </Text>
                       <Text style={styles.activePatientName}>
                         {currentConsultation.patientName || "Patient"}
                       </Text>
@@ -207,7 +257,11 @@ export default function DoctorDashboardScreen() {
                   </View>
 
                   <Pressable
-                    onPress={() => router.push(`/doctor/workspace/${currentConsultation._id}`)}
+                    onPress={() =>
+                      router.push(
+                        `/doctor/workspace/${currentConsultation._id}`,
+                      )
+                    }
                     style={styles.resumeWorkspaceBtn}
                   >
                     <Ionicons name="medkit" size={16} color="#fff" />
@@ -218,14 +272,67 @@ export default function DoctorDashboardScreen() {
                 </Card>
               ) : null}
 
+              {/* Incoming Clinical Handovers Banner */}
+              {incomingHandoversCount > 0 && (
+                <Card
+                  style={[
+                    styles.activeConsultationCard,
+                    {
+                      backgroundColor: Palette.primaryLight,
+                      borderColor: Palette.primary,
+                      borderWidth: 1,
+                    },
+                  ]}
+                >
+                  <View style={styles.activeHeaderRow}>
+                    <View
+                      style={[
+                        styles.activeIconBox,
+                        { backgroundColor: Palette.primary },
+                      ]}
+                    >
+                      <Ionicons name="swap-horizontal" size={20} color="#fff" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.activeLabel,
+                          { color: Palette.primaryDark },
+                        ]}
+                      >
+                        INCOMING CLINICAL HANDOVERS
+                      </Text>
+                      <Text style={styles.activePatientName}>
+                        {incomingHandoversCount} Pending Transfer
+                        {incomingHandoversCount > 1 ? "s" : ""}
+                      </Text>
+                      <Text style={styles.activePatientMeta}>
+                        Care continuity cases awaiting your review in the
+                        workspace
+                      </Text>
+                    </View>
+                    <Badge label="ACTION REQUIRED" variant="warning" />
+                  </View>
+                </Card>
+              )}
+
               {/* Quick Actions Grid */}
               <View style={styles.quickShortcutsGrid}>
                 <Pressable
                   onPress={() => router.push("/doctor/appointments")}
                   style={styles.shortcutCard}
                 >
-                  <View style={[styles.shortcutIconBox, { backgroundColor: Palette.primaryLight }]}>
-                    <Ionicons name="calendar" size={20} color={Palette.primaryDark} />
+                  <View
+                    style={[
+                      styles.shortcutIconBox,
+                      { backgroundColor: Palette.primaryLight },
+                    ]}
+                  >
+                    <Ionicons
+                      name="calendar"
+                      size={20}
+                      color={Palette.primaryDark}
+                    />
                   </View>
                   <Text style={styles.shortcutTitle}>Appointments</Text>
                   <Text style={styles.shortcutSub}>View full roster</Text>
@@ -235,7 +342,12 @@ export default function DoctorDashboardScreen() {
                   onPress={() => router.push("/doctor/follow-ups")}
                   style={styles.shortcutCard}
                 >
-                  <View style={[styles.shortcutIconBox, { backgroundColor: "#E2F5E9" }]}>
+                  <View
+                    style={[
+                      styles.shortcutIconBox,
+                      { backgroundColor: "#E2F5E9" },
+                    ]}
+                  >
                     <Ionicons name="repeat" size={20} color={Palette.success} />
                   </View>
                   <Text style={styles.shortcutTitle}>Follow-Ups</Text>
@@ -246,7 +358,12 @@ export default function DoctorDashboardScreen() {
                   onPress={() => router.push("/doctor/availability")}
                   style={styles.shortcutCard}
                 >
-                  <View style={[styles.shortcutIconBox, { backgroundColor: "#FDF0DC" }]}>
+                  <View
+                    style={[
+                      styles.shortcutIconBox,
+                      { backgroundColor: "#FDF0DC" },
+                    ]}
+                  >
                     <Ionicons name="time" size={20} color={Palette.warning} />
                   </View>
                   <Text style={styles.shortcutTitle}>Availability</Text>
@@ -257,8 +374,17 @@ export default function DoctorDashboardScreen() {
                   onPress={() => router.push("/doctor/profile")}
                   style={styles.shortcutCard}
                 >
-                  <View style={[styles.shortcutIconBox, { backgroundColor: Palette.border }]}>
-                    <Ionicons name="person-circle" size={20} color={Palette.text} />
+                  <View
+                    style={[
+                      styles.shortcutIconBox,
+                      { backgroundColor: Palette.border },
+                    ]}
+                  >
+                    <Ionicons
+                      name="person-circle"
+                      size={20}
+                      color={Palette.text}
+                    />
                   </View>
                   <Text style={styles.shortcutTitle}>Profile</Text>
                   <Text style={styles.shortcutSub}>Hospital credentials</Text>
@@ -268,24 +394,39 @@ export default function DoctorDashboardScreen() {
               {/* Today's Queue Section */}
               <View style={styles.sectionHeaderRow}>
                 <View>
-                  <Text style={styles.sectionHeading}>Today's Patient Queue</Text>
-                  <Text style={styles.sectionSub}>Live queue ordered by visit stage</Text>
+                  <Text style={styles.sectionHeading}>
+                    Today's Patient Queue
+                  </Text>
+                  <Text style={styles.sectionSub}>
+                    Live queue ordered by visit stage
+                  </Text>
                 </View>
                 <Pressable
                   onPress={() => router.push("/doctor/appointments")}
                   style={styles.seeAllBtn}
                 >
                   <Text style={styles.seeAllText}>View Roster</Text>
-                  <Ionicons name="chevron-forward" size={14} color={Palette.accent} />
+                  <Ionicons
+                    name="chevron-forward"
+                    size={14}
+                    color={Palette.accent}
+                  />
                 </Pressable>
               </View>
 
               {queueList.length === 0 ? (
                 <Card style={styles.emptyQueueCard}>
-                  <Ionicons name="people-outline" size={32} color={Palette.textMuted} />
-                  <Text style={styles.emptyQueueTitle}>No Patients in Queue Today</Text>
+                  <Ionicons
+                    name="people-outline"
+                    size={32}
+                    color={Palette.textMuted}
+                  />
+                  <Text style={styles.emptyQueueTitle}>
+                    No Patients in Queue Today
+                  </Text>
                   <Text style={styles.emptyQueueSub}>
-                    Scheduled OPD patients will appear here with token numbers and check-in status.
+                    Scheduled OPD patients will appear here with token numbers
+                    and check-in status.
                   </Text>
                 </Card>
               ) : (
@@ -295,26 +436,45 @@ export default function DoctorDashboardScreen() {
                   const isDone = item.queueStage === "completed";
 
                   return (
-                    <Card key={item._id} style={[styles.queueItemCard, isCur && styles.queueItemActive]}>
+                    <Card
+                      key={item._id}
+                      style={[
+                        styles.queueItemCard,
+                        isCur && styles.queueItemActive,
+                      ]}
+                    >
                       <View style={styles.queueItemTop}>
                         <View style={styles.queueTokenBadge}>
-                          <Text style={styles.queueTokenText}>#{item.queueToken || "-"}</Text>
+                          <Text style={styles.queueTokenText}>
+                            #{item.queueToken || "-"}
+                          </Text>
                         </View>
                         <View style={{ flex: 1, marginLeft: Spacing.sm }}>
                           <View style={styles.queueNameRow}>
-                            <Text style={styles.queuePatientName} numberOfLines={1}>
+                            <Text
+                              style={styles.queuePatientName}
+                              numberOfLines={1}
+                            >
                               {item.patientName || "Patient"}
                             </Text>
                             {item.isFamilyBooking && (
-                              <Badge label={item.familyRelationship || "Family"} variant="primary" />
+                              <Badge
+                                label={item.familyRelationship || "Family"}
+                                variant="primary"
+                              />
                             )}
                           </View>
                           <Text style={styles.queueTimeText}>
                             Slot: {item.slotTime || "General OPD"} ·{" "}
-                            {item.consultationType === "video" ? "📹 Video" : "🏥 In-Clinic"}
+                            {item.consultationType === "video"
+                              ? "📹 Video"
+                              : "🏥 In-Clinic"}
                           </Text>
                         </View>
-                        <Badge label={stageInfo.label} variant={stageInfo.variant} />
+                        <Badge
+                          label={stageInfo.label}
+                          variant={stageInfo.variant}
+                        />
                       </View>
 
                       {/* Queue Actions */}
@@ -324,14 +484,23 @@ export default function DoctorDashboardScreen() {
                             onPress={() => handleQueueAction(item._id, "call")}
                             style={styles.queueCallBtn}
                           >
-                            <Ionicons name="megaphone-outline" size={13} color={Palette.accent} />
+                            <Ionicons
+                              name="megaphone-outline"
+                              size={13}
+                              color={Palette.accent}
+                            />
                             <Text style={styles.queueCallBtnText}>Call</Text>
                           </Pressable>
                         )}
 
                         <Pressable
-                          onPress={() => router.push(`/doctor/workspace/${item._id}`)}
-                          style={[styles.queueWorkspaceBtn, isCur && styles.queueWorkspaceBtnActive]}
+                          onPress={() =>
+                            router.push(`/doctor/workspace/${item._id}`)
+                          }
+                          style={[
+                            styles.queueWorkspaceBtn,
+                            isCur && styles.queueWorkspaceBtnActive,
+                          ]}
                         >
                           <Ionicons
                             name="medkit"

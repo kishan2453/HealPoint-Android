@@ -82,6 +82,11 @@ export function patientDrawerMenu(): DrawerMenuSection[] {
       title: "Health",
       items: [
         {
+          label: "Care Passport",
+          icon: "id-card-outline",
+          href: "/care-passport" as Href,
+        },
+        {
           label: "Digital Health Wallet",
           icon: "wallet-outline",
           href: "/health-wallet" as Href,
@@ -90,6 +95,11 @@ export function patientDrawerMenu(): DrawerMenuSection[] {
           label: "Health Timeline",
           icon: "time-outline",
           href: "/health/timeline" as Href,
+        },
+        {
+          label: "Continuity Graph",
+          icon: "git-branch-outline",
+          href: "/health/continuity-graph" as Href,
         },
         {
           label: "Health Records",
@@ -112,6 +122,11 @@ export function patientDrawerMenu(): DrawerMenuSection[] {
           href: "/health/follow-ups" as Href,
         },
         {
+          label: "Specialist Referrals",
+          icon: "git-network-outline",
+          href: "/health/referrals" as Href,
+        },
+        {
           label: "Health Goals",
           icon: "trophy-outline",
           href: "/health/goals" as Href,
@@ -120,6 +135,11 @@ export function patientDrawerMenu(): DrawerMenuSection[] {
           label: "Family Members",
           icon: "people-outline",
           href: "/health/family" as Href,
+        },
+        {
+          label: "Health Data & Export",
+          icon: "cloud-download-outline",
+          href: "/health/export" as Href,
         },
       ],
     },
@@ -157,7 +177,7 @@ export function patientDrawerMenu(): DrawerMenuSection[] {
           href: "/settings" as Href,
         },
         {
-          label: "Privacy",
+          label: "Privacy & Consent Center",
           icon: "shield-checkmark-outline",
           href: "/privacy" as Href,
         },
@@ -285,6 +305,11 @@ export function adminDrawerMenu(): DrawerMenuSection[] {
       title: "Operations",
       items: [
         {
+          label: "Referral Network",
+          icon: "git-network-outline",
+          href: "/admin/referrals" as Href,
+        },
+        {
           label: "Notifications",
           icon: "notifications-outline",
           href: "/admin/notifications" as Href,
@@ -303,6 +328,41 @@ export function adminDrawerMenu(): DrawerMenuSection[] {
           label: "Reports",
           icon: "bar-chart-outline",
           href: "/admin/reports" as Href,
+        },
+        {
+          label: "Cases & Incidents",
+          icon: "file-tray-full-outline",
+          href: "/super-admin/cases" as Href,
+        },
+        {
+          label: "Patient Service SLAs",
+          icon: "timer-outline",
+          href: "/super-admin/sla" as Href,
+        },
+        {
+          label: "Service Recovery",
+          icon: "bandage-outline",
+          href: "/super-admin/recovery" as Href,
+        },
+        {
+          label: "Service Desk",
+          icon: "headset-outline",
+          href: "/super-admin/service-desk" as Href,
+        },
+        {
+          label: "Workflow Automation",
+          icon: "git-merge-outline",
+          href: "/super-admin/automation" as Href,
+        },
+        {
+          label: "Event Recovery",
+          icon: "refresh-circle-outline",
+          href: "/super-admin/event-recovery" as Href,
+        },
+        {
+          label: "Change Governance",
+          icon: "git-compare-outline",
+          href: "/super-admin/change-impact" as Href,
         },
       ],
     },
@@ -421,15 +481,100 @@ export function superAdminDrawerMenu(): DrawerMenuSection[] {
           icon: "card-outline",
           href: "/super-admin/subscriptions" as Href,
         },
+        {
+          label: "Revenue Protection",
+          icon: "shield-checkmark-outline",
+          href: "/super-admin/subscription-lifecycle" as Href,
+        },
+        {
+          label: "Subscription Analytics",
+          icon: "analytics-outline",
+          href: "/super-admin/subscription-analytics" as Href,
+        },
+        {
+          label: "Subscription Entitlements",
+          icon: "key-outline",
+          href: "/super-admin/subscription-entitlements" as Href,
+        },
+        {
+          label: "Billing & Tax Center",
+          icon: "receipt-outline",
+          href: "/super-admin/billing" as Href,
+        },
+        {
+          label: "Offers & Coupons",
+          icon: "pricetags-outline",
+          href: "/super-admin/promotions" as Href,
+        },
       ],
     },
     {
-      title: "Communication",
+      title: "Governance & Quality",
       items: [
         {
-          label: "Reviews",
-          icon: "star-outline",
-          href: "/super-admin/reviews" as Href,
+          label: "Policy & Rules Engine",
+          icon: "options-outline",
+          href: "/super-admin/policies" as Href,
+        },
+        {
+          label: "Data Quality & Integrity",
+          icon: "shield-checkmark-outline",
+          href: "/super-admin/data-integrity" as Href,
+        },
+        {
+          label: "Export Monitor",
+          icon: "cloud-download-outline",
+          href: "/super-admin/export-monitor" as Href,
+        },
+        {
+          label: "Interoperability",
+          icon: "swap-horizontal-outline",
+          href: "/super-admin/interoperability" as Href,
+        },
+        {
+          label: "Cases & Incidents",
+          icon: "file-tray-full-outline",
+          href: "/super-admin/cases" as Href,
+        },
+        {
+          label: "Patient Service SLAs",
+          icon: "timer-outline",
+          href: "/super-admin/sla" as Href,
+        },
+        {
+          label: "Service Recovery",
+          icon: "bandage-outline",
+          href: "/super-admin/recovery" as Href,
+        },
+        {
+          label: "Service Desk",
+          icon: "headset-outline",
+          href: "/super-admin/service-desk" as Href,
+        },
+        {
+          label: "Workflow Automation",
+          icon: "git-merge-outline",
+          href: "/super-admin/automation" as Href,
+        },
+        {
+          label: "Event Recovery",
+          icon: "refresh-circle-outline",
+          href: "/super-admin/event-recovery" as Href,
+        },
+        {
+          label: "Change Governance",
+          icon: "git-compare-outline",
+          href: "/super-admin/change-impact" as Href,
+        },
+        {
+          label: "Release Governance",
+          icon: "rocket-outline",
+          href: "/super-admin/release-governance" as Href,
+        },
+        {
+          label: "Business Continuity & Failover",
+          icon: "shield-half-outline",
+          href: "/super-admin/business-continuity" as Href,
         },
       ],
     },

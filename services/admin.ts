@@ -10,6 +10,7 @@ import type {
   Doctor,
   Hospital,
   HospitalAdminDashboardResponse,
+  HospitalFinancialOverviewResponse,
 } from "@/types";
 
 export async function getHospitalAdminDashboard(): Promise<HospitalAdminDashboardResponse> {
@@ -644,4 +645,41 @@ export async function getHospitalVideoGuides(): Promise<HospitalVideoGuidesRespo
   return api.get<HospitalVideoGuidesResponse>("/hospital-admin/video-guides", {
     auth: true,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Smart Hospital Financial Intelligence & Revenue Center
+// ---------------------------------------------------------------------------
+export interface HospitalFinancialOverviewParams {
+  range?: "today" | "week" | "month" | "year" | "all" | "custom";
+  startDate?: string;
+  endDate?: string;
+  search?: string;
+  paymentStatus?: string;
+  paymentMethod?: string;
+  consultationType?: string;
+  page?: number;
+  limit?: number;
+}
+
+export async function getHospitalAdminFinancialOverview(
+  params?: HospitalFinancialOverviewParams,
+): Promise<HospitalFinancialOverviewResponse> {
+  const query = new URLSearchParams();
+  if (params?.range) query.set("range", params.range);
+  if (params?.startDate) query.set("startDate", params.startDate);
+  if (params?.endDate) query.set("endDate", params.endDate);
+  if (params?.search) query.set("search", params.search);
+  if (params?.paymentStatus) query.set("paymentStatus", params.paymentStatus);
+  if (params?.paymentMethod) query.set("paymentMethod", params.paymentMethod);
+  if (params?.consultationType)
+    query.set("consultationType", params.consultationType);
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+
+  const qs = query.toString();
+  return api.get<HospitalFinancialOverviewResponse>(
+    `/hospital-admin/financial-overview${qs ? `?${qs}` : ""}`,
+    { auth: true },
+  );
 }

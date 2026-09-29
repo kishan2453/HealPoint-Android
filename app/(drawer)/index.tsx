@@ -210,6 +210,14 @@ const QUICK_ACTIONS: QuickAction[] = [
     path: "/favorites",
   },
   {
+    key: "care_passport",
+    label: "Care Passport",
+    subLabel: "Identity & QR",
+    icon: "id-card",
+    tint: "#0E9F8E",
+    path: "/care-passport" as any,
+  },
+  {
     key: "wallet",
     label: "Health Wallet",
     subLabel: "Vault & Rx",

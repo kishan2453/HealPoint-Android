@@ -56,17 +56,29 @@ import * as subscriptionService from "@/services/subscriptions";
 import type { SubscriptionPlan } from "@/types";
 
 const STATUS_FILTERS = [
-  { label: "All", value: "all" },
+  { label: "All Status", value: "all" },
   { label: "Active", value: "active" },
   { label: "Inactive", value: "inactive" },
+];
+
+const INTERVAL_FILTERS = [
+  { label: "All Intervals", value: "all" },
+  { label: "Monthly (5)", value: "monthly" },
+  { label: "Yearly (2)", value: "yearly" },
+  { label: "Free Baseline", value: "free" },
 ];
 
 const EMPTY_FORM = {
   key: "",
   name: "",
+  billingInterval: "monthly",
+  price: "",
   monthlyPrice: "",
   yearlyPrice: "",
+  referenceMonthlyPlanKey: "",
   videoConsultationsMonthly: "",
+  familyMembersLimit: "1",
+  badge: "",
   features: "",
   trialDays: "",
   sortOrder: "",
@@ -87,6 +99,7 @@ export default function SuperAdminPlansScreen() {
   const [actionError, setActionError] = useState("");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
+  const [intervalFilter, setIntervalFilter] = useState("all");
   const [selected, setSelected] = useState<SubscriptionPlan | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<SubscriptionPlan | null>(null);
@@ -121,7 +134,7 @@ export default function SuperAdminPlansScreen() {
     load();
   }, [load]);
 
-  /** Search + status filter computed over the REAL loaded catalog. */
+  /** Search + status + interval filter computed over the REAL loaded catalog. */
   const visiblePlans = useMemo(() => {
     const needle = query.trim().toLowerCase();
     let list = plans;
@@ -133,26 +146,70 @@ export default function SuperAdminPlansScreen() {
       );
     if (status === "active") list = list.filter((plan) => plan.isActive);
     if (status === "inactive") list = list.filter((plan) => !plan.isActive);
+
+    if (intervalFilter === "monthly") {
+      list = list.filter(
+        (plan) =>
+          (plan.billingInterval === "monthly" ||
+            (!plan.billingInterval &&
+              plan.monthlyPrice > 0 &&
+              !plan.yearlyPrice)) &&
+          plan.key !== "free",
+      );
+    } else if (intervalFilter === "yearly") {
+      list = list.filter(
+        (plan) =>
+          plan.billingInterval === "yearly" ||
+          (!plan.billingInterval &&
+            plan.yearlyPrice > 0 &&
+            !plan.monthlyPrice) ||
+          plan.key.startsWith("annual_"),
+      );
+    } else if (intervalFilter === "free") {
+      list = list.filter(
+        (plan) => plan.key === "free" || plan.billingInterval === "free",
+      );
+    }
+
     return list;
-  }, [plans, query, status]);
+  }, [plans, query, status, intervalFilter]);
 
   const openEditor = (plan: SubscriptionPlan | null) => {
     setEditing(plan);
     setError("");
     setActionError("");
     setNotice("");
+    const resolvedInterval =
+      plan?.billingInterval ||
+      (plan?.yearlyPrice && !plan?.monthlyPrice
+        ? "yearly"
+        : plan?.key === "free"
+          ? "free"
+          : "monthly");
+
     setForm(
       plan
         ? {
             key: plan.key,
             name: plan.name,
+            billingInterval: resolvedInterval,
+            price: String(
+              plan.price ??
+                (resolvedInterval === "yearly"
+                  ? plan.yearlyPrice
+                  : plan.monthlyPrice) ??
+                "",
+            ),
             monthlyPrice: String(plan.monthlyPrice ?? ""),
             yearlyPrice: String(plan.yearlyPrice ?? ""),
+            referenceMonthlyPlanKey: plan.referenceMonthlyPlanKey || "",
             videoConsultationsMonthly: String(
               typeof plan.videoConsultationsMonthly === "number"
                 ? plan.videoConsultationsMonthly
                 : getPlanVideoLimit(plan),
             ),
+            familyMembersLimit: String(plan.familyMembersLimit ?? "1"),
+            badge: plan.badge || "",
             features: (plan.features || []).join(", "),
             trialDays: String(plan.trialDays ?? ""),
             sortOrder: String(plan.sortOrder ?? ""),
@@ -173,10 +230,23 @@ export default function SuperAdminPlansScreen() {
     setError("");
     setActionError("");
     try {
-      const payload = {
+      const explicitPrice = Number(form.price) || 0;
+      const payload: any = {
         name: form.name.trim(),
-        monthlyPrice: Number(form.monthlyPrice) || 0,
-        yearlyPrice: Number(form.yearlyPrice) || 0,
+        billingInterval: form.billingInterval,
+        price: explicitPrice,
+        monthlyPrice:
+          form.billingInterval === "monthly"
+            ? explicitPrice
+            : Number(form.monthlyPrice) || 0,
+        yearlyPrice:
+          form.billingInterval === "yearly"
+            ? explicitPrice
+            : Number(form.yearlyPrice) || 0,
+        referenceMonthlyPlanKey:
+          form.referenceMonthlyPlanKey.trim() || undefined,
+        familyMembersLimit: Math.max(1, Number(form.familyMembersLimit) || 1),
+        badge: form.badge.trim() || undefined,
         videoConsultationsMonthly: Math.max(
           0,
           Number(form.videoConsultationsMonthly) || 0,
@@ -190,6 +260,7 @@ export default function SuperAdminPlansScreen() {
         imageUrl: form.imageUrl.trim() || undefined,
         description: form.description.trim() || undefined,
       };
+
       if (editing) {
         await subscriptionService.updatePlan(editing._id, payload);
         setNotice(`${editing.name} was updated.`);
@@ -292,11 +363,18 @@ export default function SuperAdminPlansScreen() {
               placeholder="Search plan name..."
             />
           </View>
-          <FilterChips
-            options={STATUS_FILTERS}
-            selected={status}
-            onSelect={setStatus}
-          />
+          <View style={{ gap: Spacing.xs }}>
+            <FilterChips
+              options={STATUS_FILTERS}
+              selected={status}
+              onSelect={setStatus}
+            />
+            <FilterChips
+              options={INTERVAL_FILTERS}
+              selected={intervalFilter}
+              onSelect={setIntervalFilter}
+            />
+          </View>
 
           {visiblePlans.length === 0 ? (
             <EmptyState
@@ -358,8 +436,8 @@ export default function SuperAdminPlansScreen() {
         }
         message={
           pendingStatus?.isActive
-            ? `${pendingStatus?.name || "This plan"} will stop being offered to new hospitals. Existing subscriptions are not affected.`
-            : `${pendingStatus?.name || "This plan"} will become available for new hospital subscriptions.`
+            ? `${pendingStatus?.name || "This plan"} will stop being offered to new subscribers. Existing subscriptions are not affected.`
+            : `${pendingStatus?.name || "This plan"} will become available for new subscriptions.`
         }
         confirmLabel={pendingStatus?.isActive ? "Deactivate" : "Activate"}
         tone={pendingStatus?.isActive ? "danger" : "primary"}
@@ -380,6 +458,12 @@ interface PlanCardProps {
 
 /** Visual subscription plan card: IMAGE → NAME → PRICE → FEATURES → STATUS → ACTIONS. */
 function PlanCard({ plan, style, onOpen, onToggle }: PlanCardProps) {
+  const isYearly =
+    plan.billingInterval === "yearly" ||
+    (plan.yearlyPrice > 0 && !plan.monthlyPrice) ||
+    plan.key.startsWith("annual_");
+  const isFree = plan.key === "free" || plan.billingInterval === "free";
+
   return (
     <Card style={[styles.planCard, style]}>
       <Pressable
@@ -394,10 +478,19 @@ function PlanCard({ plan, style, onOpen, onToggle }: PlanCardProps) {
           transition={250}
         />
         <View style={styles.planImageOverlay}>
-          <Badge
-            label={plan.isActive ? "ACTIVE" : "INACTIVE"}
-            variant={plan.isActive ? "success" : "neutral"}
-          />
+          <View style={{ flexDirection: "row", gap: 4 }}>
+            <Badge
+              label={(
+                plan.billingInterval ||
+                (isYearly ? "yearly" : isFree ? "free" : "monthly")
+              ).toUpperCase()}
+              variant="primary"
+            />
+            <Badge
+              label={plan.isActive ? "ACTIVE" : "INACTIVE"}
+              variant={plan.isActive ? "success" : "neutral"}
+            />
+          </View>
         </View>
       </Pressable>
 
@@ -408,7 +501,8 @@ function PlanCard({ plan, style, onOpen, onToggle }: PlanCardProps) {
               {plan.name}
             </Text>
             <Text style={styles.planKey}>
-              {planKeyLabel(plan.key)} · {plan.subscriberCount ?? 0} hospital(s)
+              {planKeyLabel(plan.key)} · {plan.badge ? `${plan.badge} · ` : ""}
+              {plan.subscriberCount ?? 0} subscriber(s)
             </Text>
           </View>
           <Ionicons
@@ -425,21 +519,43 @@ function PlanCard({ plan, style, onOpen, onToggle }: PlanCardProps) {
         ) : null}
 
         <View style={styles.priceRow}>
-          <Text style={styles.price}>
-            {formatINR(plan.monthlyPrice)}
-            <Text style={styles.pricePeriod}>/month</Text>
-          </Text>
-          <Text style={styles.priceDivider}>·</Text>
-          <Text style={styles.price}>
-            {formatINR(plan.yearlyPrice)}
-            <Text style={styles.pricePeriod}>/year</Text>
-          </Text>
+          {isYearly ? (
+            <View>
+              <Text style={styles.price}>
+                {formatINR(plan.price || plan.yearlyPrice)}
+                <Text style={styles.pricePeriod}>/year</Text>
+              </Text>
+              {plan.pricingMetrics?.annualSavings ? (
+                <Text
+                  style={{
+                    ...Typography.caption,
+                    color: Palette.success,
+                    fontWeight: "700",
+                  }}
+                >
+                  Save {formatINR(plan.pricingMetrics.annualSavings)} (
+                  {plan.pricingMetrics.savingsPercentage}% off)
+                </Text>
+              ) : null}
+            </View>
+          ) : isFree ? (
+            <Text style={styles.price}>
+              ₹0 <Text style={styles.pricePeriod}>Free Baseline</Text>
+            </Text>
+          ) : (
+            <Text style={styles.price}>
+              {formatINR(plan.price || plan.monthlyPrice)}
+              <Text style={styles.pricePeriod}>/month</Text>
+            </Text>
+          )}
         </View>
 
         <View style={styles.videoQuotaRow}>
           <Ionicons name="videocam" size={14} color={Palette.primary} />
           <Text style={styles.videoQuotaText}>
-            {getPlanVideoLimit(plan)} Video Consultations / month
+            {getPlanVideoLimit(plan)} Video Consultations / mo ·{" "}
+            {plan.familyMembersLimit ?? 1}{" "}
+            {(plan.familyMembersLimit ?? 1) === 1 ? "member" : "members"}
           </Text>
         </View>
 
@@ -551,15 +667,20 @@ function PlanDetailsModal({ plan, onClose, onEdit }: PlanDetailsModalProps) {
 
             <View style={styles.detailGrid}>
               <View style={styles.detailCol}>
-                <Text style={styles.detailLabel}>Monthly</Text>
+                <Text style={styles.detailLabel}>Interval</Text>
                 <Text style={styles.detailValue}>
-                  {formatINR(plan.monthlyPrice)}
+                  {(plan.billingInterval || "monthly").toUpperCase()}
                 </Text>
               </View>
               <View style={styles.detailCol}>
-                <Text style={styles.detailLabel}>Yearly</Text>
+                <Text style={styles.detailLabel}>Authoritative Price</Text>
                 <Text style={styles.detailValue}>
-                  {formatINR(plan.yearlyPrice)}
+                  {formatINR(
+                    plan.price ||
+                      (plan.billingInterval === "yearly"
+                        ? plan.yearlyPrice
+                        : plan.monthlyPrice),
+                  )}
                 </Text>
               </View>
               <View style={styles.detailCol}>
@@ -569,8 +690,16 @@ function PlanDetailsModal({ plan, onClose, onEdit }: PlanDetailsModalProps) {
                 </Text>
               </View>
               <View style={styles.detailCol}>
-                <Text style={styles.detailLabel}>Trial days</Text>
-                <Text style={styles.detailValue}>{plan.trialDays ?? 0}</Text>
+                <Text style={styles.detailLabel}>Family Limit</Text>
+                <Text style={styles.detailValue}>
+                  {plan.familyMembersLimit ?? 1} member(s)
+                </Text>
+              </View>
+              <View style={styles.detailCol}>
+                <Text style={styles.detailLabel}>Badge</Text>
+                <Text style={styles.detailValue}>
+                  {plan.badge || "Standard"}
+                </Text>
               </View>
               <View style={styles.detailCol}>
                 <Text style={styles.detailLabel}>Sort order</Text>
@@ -775,30 +904,116 @@ function PlanEditorModal({
               placeholder="Premium"
             />
 
+            <Text style={styles.label}>Billing Interval *</Text>
+            <View
+              style={{
+                flexDirection: "row",
+                gap: Spacing.xs,
+                marginBottom: Spacing.sm,
+              }}
+            >
+              {(["monthly", "yearly", "free"] as const).map((interval) => (
+                <Pressable
+                  key={interval}
+                  onPress={() =>
+                    setForm((prev) => ({ ...prev, billingInterval: interval }))
+                  }
+                  style={[
+                    styles.cycleTab,
+                    form.billingInterval === interval && styles.cycleTabActive,
+                    {
+                      borderWidth: 1,
+                      borderColor: Palette.border,
+                      flex: 1,
+                      paddingVertical: Spacing.xs + 2,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      ...Typography.caption,
+                      fontWeight:
+                        form.billingInterval === interval ? "700" : "500",
+                      color:
+                        form.billingInterval === interval
+                          ? Palette.primary
+                          : Palette.textMuted,
+                    }}
+                  >
+                    {interval.toUpperCase()}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
             <View style={styles.twoCol}>
               <View style={styles.twoColItem}>
-                <Text style={styles.label}>Monthly price (₹)</Text>
+                <Text style={styles.label}>Price (₹) *</Text>
                 <TextInput
                   style={styles.input}
-                  value={form.monthlyPrice}
+                  value={form.price}
                   onChangeText={(text) =>
-                    setForm((prev) => ({ ...prev, monthlyPrice: text }))
+                    setForm((prev) => ({
+                      ...prev,
+                      price: text,
+                      monthlyPrice:
+                        form.billingInterval === "monthly"
+                          ? text
+                          : prev.monthlyPrice,
+                      yearlyPrice:
+                        form.billingInterval === "yearly"
+                          ? text
+                          : prev.yearlyPrice,
+                    }))
                   }
                   keyboardType="numeric"
-                  placeholder="4999"
+                  placeholder="e.g. 249 or 7999"
                 />
               </View>
               <View style={styles.twoColItem}>
-                <Text style={styles.label}>Yearly price (₹)</Text>
+                <Text style={styles.label}>Badge (Optional)</Text>
                 <TextInput
                   style={styles.input}
-                  value={form.yearlyPrice}
+                  value={form.badge}
                   onChangeText={(text) =>
-                    setForm((prev) => ({ ...prev, yearlyPrice: text }))
+                    setForm((prev) => ({ ...prev, badge: text }))
+                  }
+                  placeholder="e.g. Popular, Best Value"
+                />
+              </View>
+            </View>
+
+            <View style={styles.twoCol}>
+              <View style={styles.twoColItem}>
+                <Text style={styles.label}>Family Members Limit</Text>
+                <TextInput
+                  style={styles.input}
+                  value={form.familyMembersLimit}
+                  onChangeText={(text) =>
+                    setForm((prev) => ({ ...prev, familyMembersLimit: text }))
                   }
                   keyboardType="numeric"
-                  placeholder="49990"
+                  placeholder="1 - 10"
                 />
+              </View>
+              <View style={styles.twoColItem}>
+                {form.billingInterval === "yearly" ? (
+                  <View>
+                    <Text style={styles.label}>Ref Monthly Key</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={form.referenceMonthlyPlanKey}
+                      onChangeText={(text) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          referenceMonthlyPlanKey: text,
+                        }))
+                      }
+                      placeholder="e.g. care_pro"
+                      autoCapitalize="none"
+                    />
+                  </View>
+                ) : null}
               </View>
             </View>
             <View style={styles.twoCol}>
@@ -1121,5 +1336,15 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     fontWeight: "700",
     color: Palette.primaryDark,
+  },
+  cycleTab: {
+    borderRadius: Radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Palette.surfaceAlt,
+  },
+  cycleTabActive: {
+    backgroundColor: Palette.primaryLight,
+    borderColor: Palette.primary,
   },
 });

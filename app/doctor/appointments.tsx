@@ -8,7 +8,6 @@
  *
  * Sourced from GET /doctor/panel/:doctorId/appointments with authentic live data.
  */
-import React from 'react';
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -24,8 +23,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { RoleGuard } from '@/components/RoleGuard';
-import { ModuleScreen } from '@/components/ui/ModuleScreen';
 import { RoleGuard } from "@/components/RoleGuard";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -33,12 +30,7 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Loading } from "@/components/ui/Loading";
-import {
-  Palette,
-  Radius,
-  Spacing,
-  Typography,
-} from "@/constants/theme";
+import { Palette, Radius, Spacing, Typography } from "@/constants/theme";
 import { useAuth } from "@/hooks/use-auth";
 import { formatINR } from "@/lib/format";
 import { toErrorMessage } from "@/services/api";
@@ -81,12 +73,15 @@ export default function DoctorAppointmentsScreen() {
         else setLoading(true);
         setError("");
 
-        const res = await doctorPortalService.getDoctorAppointmentsList(doctorId, {
-          view: activeTab,
-          search: search.trim() || undefined,
-          consultationType: activeMode === "all" ? undefined : activeMode,
-          limit: 50,
-        });
+        const res = await doctorPortalService.getDoctorAppointmentsList(
+          doctorId,
+          {
+            view: activeTab,
+            search: search.trim() || undefined,
+            consultationType: activeMode === "all" ? undefined : activeMode,
+            limit: 50,
+          },
+        );
 
         if (res?.success) {
           setAppointments(res.appointments || []);
@@ -110,8 +105,13 @@ export default function DoctorAppointmentsScreen() {
     loadAppointments();
   }, [loadAppointments]);
 
-  const getStatusBadge = (appt: Appointment): { label: string; variant: BadgeVariant } => {
-    if (appt.status === "completed" || appt.consultationStatus === "completed") {
+  const getStatusBadge = (
+    appt: Appointment,
+  ): { label: string; variant: BadgeVariant } => {
+    if (
+      appt.status === "completed" ||
+      appt.consultationStatus === "completed"
+    ) {
       return { label: "Completed", variant: "success" };
     }
     if (appt.consultationStatus === "in_progress") {
@@ -134,7 +134,8 @@ export default function DoctorAppointmentsScreen() {
     const patientDisplayName = item.patientName || "Patient";
     const slotDate = item.slotDate || item.date || "Scheduled";
     const slotTime = item.slotTime || item.time || "";
-    const isCompleted = item.status === "completed" || item.consultationStatus === "completed";
+    const isCompleted =
+      item.status === "completed" || item.consultationStatus === "completed";
     const isInProgress = item.consultationStatus === "in_progress";
 
     return (
@@ -147,12 +148,18 @@ export default function DoctorAppointmentsScreen() {
                 {patientDisplayName}
               </Text>
               {item.isFamilyBooking && (
-                <Badge label={item.familyRelationship || "Family"} variant="primary" />
+                <Badge
+                  label={item.familyRelationship || "Family"}
+                  variant="primary"
+                />
               )}
             </View>
             <Text style={styles.patientSubText}>
               {item.patientPhone ? `Phone: ${item.patientPhone} · ` : ""}
-              ID: {item.displayAppointmentId || item.appointmentId || item._id.slice(-6).toUpperCase()}
+              ID:{" "}
+              {item.displayAppointmentId ||
+                item.appointmentId ||
+                item._id.slice(-6).toUpperCase()}
             </Text>
           </View>
           <Badge label={statusBadge.label} variant={statusBadge.variant} />
@@ -161,7 +168,11 @@ export default function DoctorAppointmentsScreen() {
         {/* Schedule & Queue Detail */}
         <View style={styles.scheduleRow}>
           <View style={styles.scheduleItem}>
-            <Ionicons name="calendar-outline" size={14} color={Palette.accent} />
+            <Ionicons
+              name="calendar-outline"
+              size={14}
+              color={Palette.accent}
+            />
             <Text style={styles.scheduleItemText}>{slotDate}</Text>
           </View>
           <View style={styles.scheduleItem}>
@@ -170,7 +181,11 @@ export default function DoctorAppointmentsScreen() {
           </View>
           <View style={styles.scheduleItem}>
             <Ionicons
-              name={item.consultationType === "video" ? "videocam-outline" : "business-outline"}
+              name={
+                item.consultationType === "video"
+                  ? "videocam-outline"
+                  : "business-outline"
+              }
               size={14}
               color={Palette.accent}
             />
@@ -184,19 +199,29 @@ export default function DoctorAppointmentsScreen() {
         <View style={styles.metaRow}>
           {item.queueToken ? (
             <View style={styles.tokenPill}>
-              <Text style={styles.tokenPillLabel}>Token #{item.queueToken}</Text>
+              <Text style={styles.tokenPillLabel}>
+                Token #{item.queueToken}
+              </Text>
             </View>
           ) : null}
 
           {item.checkedIn && (
             <View style={styles.checkedInPill}>
-              <Ionicons name="checkmark-circle" size={12} color={Palette.success} />
+              <Ionicons
+                name="checkmark-circle"
+                size={12}
+                color={Palette.success}
+              />
               <Text style={styles.checkedInPillText}>Checked-In at Clinic</Text>
             </View>
           )}
 
           <Text style={styles.paymentText}>
-            {item.payment ? "Paid Online" : item.paymentMethod === "cash" ? "Cash at OPD" : "Unpaid"}
+            {item.payment
+              ? "Paid Online"
+              : item.paymentMethod === "cash"
+                ? "Cash at OPD"
+                : "Unpaid"}
             {item.amount ? ` · ${formatINR(item.amount)}` : ""}
           </Text>
         </View>
@@ -212,7 +237,13 @@ export default function DoctorAppointmentsScreen() {
             ]}
           >
             <Ionicons
-              name={isCompleted ? "eye-outline" : isInProgress ? "pulse" : "medkit-outline"}
+              name={
+                isCompleted
+                  ? "eye-outline"
+                  : isInProgress
+                    ? "pulse"
+                    : "medkit-outline"
+              }
               size={16}
               color={isCompleted ? Palette.text : "#fff"}
             />
@@ -245,17 +276,26 @@ export default function DoctorAppointmentsScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.screenTitle}>Appointments & Consultations</Text>
             <Text style={styles.screenSubtitle}>
-              {user?.hospitalName ? `${user.hospitalName} · ` : ""}Clinical Workstation
+              {user?.hospitalName ? `${user.hospitalName} · ` : ""}Clinical
+              Workstation
             </Text>
           </View>
-          <Pressable onPress={() => loadAppointments(true)} style={styles.refreshBtn}>
+          <Pressable
+            onPress={() => loadAppointments(true)}
+            style={styles.refreshBtn}
+          >
             <Ionicons name="refresh" size={20} color={Palette.accent} />
           </Pressable>
         </View>
 
         {/* Search Bar */}
         <View style={styles.searchBarContainer}>
-          <Ionicons name="search" size={16} color={Palette.textMuted} style={styles.searchIcon} />
+          <Ionicons
+            name="search"
+            size={16}
+            color={Palette.textMuted}
+            style={styles.searchIcon}
+          />
           <TextInput
             value={search}
             onChangeText={setSearch}
@@ -266,8 +306,15 @@ export default function DoctorAppointmentsScreen() {
             onSubmitEditing={() => loadAppointments()}
           />
           {search ? (
-            <Pressable onPress={() => setSearch("")} style={styles.searchClearBtn}>
-              <Ionicons name="close-circle" size={16} color={Palette.textMuted} />
+            <Pressable
+              onPress={() => setSearch("")}
+              style={styles.searchClearBtn}
+            >
+              <Ionicons
+                name="close-circle"
+                size={16}
+                color={Palette.textMuted}
+              />
             </Pressable>
           ) : null}
         </View>
@@ -276,45 +323,85 @@ export default function DoctorAppointmentsScreen() {
         <View style={styles.tabsRow}>
           <Pressable
             onPress={() => setActiveTab("today")}
-            style={[styles.tabItem, activeTab === "today" && styles.tabItemActive]}
+            style={[
+              styles.tabItem,
+              activeTab === "today" && styles.tabItemActive,
+            ]}
           >
-            <Text style={[styles.tabItemText, activeTab === "today" && styles.tabItemTextActive]}>
+            <Text
+              style={[
+                styles.tabItemText,
+                activeTab === "today" && styles.tabItemTextActive,
+              ]}
+            >
               Today's Clinic ({counts.today || 0})
             </Text>
           </Pressable>
 
           <Pressable
             onPress={() => setActiveTab("upcoming")}
-            style={[styles.tabItem, activeTab === "upcoming" && styles.tabItemActive]}
+            style={[
+              styles.tabItem,
+              activeTab === "upcoming" && styles.tabItemActive,
+            ]}
           >
-            <Text style={[styles.tabItemText, activeTab === "upcoming" && styles.tabItemTextActive]}>
+            <Text
+              style={[
+                styles.tabItemText,
+                activeTab === "upcoming" && styles.tabItemTextActive,
+              ]}
+            >
               Upcoming ({counts.upcoming || 0})
             </Text>
           </Pressable>
 
           <Pressable
             onPress={() => setActiveTab("pending")}
-            style={[styles.tabItem, activeTab === "pending" && styles.tabItemActive]}
+            style={[
+              styles.tabItem,
+              activeTab === "pending" && styles.tabItemActive,
+            ]}
           >
-            <Text style={[styles.tabItemText, activeTab === "pending" && styles.tabItemTextActive]}>
+            <Text
+              style={[
+                styles.tabItemText,
+                activeTab === "pending" && styles.tabItemTextActive,
+              ]}
+            >
               Pending ({counts.pending || 0})
             </Text>
           </Pressable>
 
           <Pressable
             onPress={() => setActiveTab("completed")}
-            style={[styles.tabItem, activeTab === "completed" && styles.tabItemActive]}
+            style={[
+              styles.tabItem,
+              activeTab === "completed" && styles.tabItemActive,
+            ]}
           >
-            <Text style={[styles.tabItemText, activeTab === "completed" && styles.tabItemTextActive]}>
+            <Text
+              style={[
+                styles.tabItemText,
+                activeTab === "completed" && styles.tabItemTextActive,
+              ]}
+            >
               Completed ({counts.completed || 0})
             </Text>
           </Pressable>
 
           <Pressable
             onPress={() => setActiveTab("all")}
-            style={[styles.tabItem, activeTab === "all" && styles.tabItemActive]}
+            style={[
+              styles.tabItem,
+              activeTab === "all" && styles.tabItemActive,
+            ]}
           >
-            <Text style={[styles.tabItemText, activeTab === "all" && styles.tabItemTextActive]}>
+            <Text
+              style={[
+                styles.tabItemText,
+                activeTab === "all" && styles.tabItemTextActive,
+              ]}
+            >
               All ({counts.all || 0})
             </Text>
           </Pressable>
@@ -324,25 +411,49 @@ export default function DoctorAppointmentsScreen() {
         <View style={styles.modeFilterRow}>
           <Pressable
             onPress={() => setActiveMode("all")}
-            style={[styles.modePill, activeMode === "all" && styles.modePillActive]}
+            style={[
+              styles.modePill,
+              activeMode === "all" && styles.modePillActive,
+            ]}
           >
-            <Text style={[styles.modePillText, activeMode === "all" && styles.modePillTextActive]}>
+            <Text
+              style={[
+                styles.modePillText,
+                activeMode === "all" && styles.modePillTextActive,
+              ]}
+            >
               All Modes
             </Text>
           </Pressable>
           <Pressable
             onPress={() => setActiveMode("clinic")}
-            style={[styles.modePill, activeMode === "clinic" && styles.modePillActive]}
+            style={[
+              styles.modePill,
+              activeMode === "clinic" && styles.modePillActive,
+            ]}
           >
-            <Text style={[styles.modePillText, activeMode === "clinic" && styles.modePillTextActive]}>
+            <Text
+              style={[
+                styles.modePillText,
+                activeMode === "clinic" && styles.modePillTextActive,
+              ]}
+            >
               🏥 In-Clinic OPD
             </Text>
           </Pressable>
           <Pressable
             onPress={() => setActiveMode("video")}
-            style={[styles.modePill, activeMode === "video" && styles.modePillActive]}
+            style={[
+              styles.modePill,
+              activeMode === "video" && styles.modePillActive,
+            ]}
           >
-            <Text style={[styles.modePillText, activeMode === "video" && styles.modePillTextActive]}>
+            <Text
+              style={[
+                styles.modePillText,
+                activeMode === "video" && styles.modePillTextActive,
+              ]}
+            >
               📹 Video Meet
             </Text>
           </Pressable>

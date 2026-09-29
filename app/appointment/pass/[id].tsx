@@ -572,6 +572,12 @@ export default function DigitalHospitalPassScreen() {
                 })
               }
             />
+            <Button
+              title="My Care Passport"
+              variant="ghost"
+              icon="id-card-outline"
+              onPress={() => router.push("/care-passport" as never)}
+            />
           </View>
         </Card>
       </ScrollView>

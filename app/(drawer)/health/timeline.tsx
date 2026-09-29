@@ -464,6 +464,21 @@ export default function HealthTimelineScreen() {
         <View style={styles.headerRight}>
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel="View Continuity Graph"
+            onPress={() => router.push("/health/continuity-graph" as never)}
+            style={({ pressed }) => [
+              styles.headerBtn,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name="git-branch-outline"
+              size={18}
+              color={Palette.primary}
+            />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
             accessibilityLabel="Ask HealPoint AI"
             onPress={() => router.push("/ai-assistant" as never)}
             style={({ pressed }) => [

@@ -49,9 +49,12 @@ import {
 } from "@/constants/theme";
 import { useAuth } from "@/hooks/use-auth";
 import { useScreenFocus } from "@/hooks/use-screen-focus";
+import * as ImagePicker from "expo-image-picker";
 import { formatDDMMYYYY, formatDoctorName, formatINR } from "@/lib/format";
 import { toErrorMessage } from "@/services/api";
 import * as walletService from "@/services/wallet";
+import * as healthDocumentsService from "@/services/health-documents";
+import type { HealthDocumentRecord, DocumentProcessingStatus } from "@/types";
 import type {
   HealthWalletCounts,
   WalletCategory,
@@ -115,6 +118,35 @@ export default function DigitalHealthWalletScreen() {
 
   // Bill Details Modal
   const [selectedBill, setSelectedBill] = useState<WalletItem | null>(null);
+
+  // Document Intelligence & OCR State
+  const [selectedDocForDetails, setSelectedDocForDetails] =
+    useState<WalletItem | null>(null);
+  const [detailsTab, setDetailsTab] = useState<"entities" | "tests" | "text">(
+    "entities",
+  );
+  const [retryingDocId, setRetryingDocId] = useState<string | null>(null);
+
+  // Upload Document Modal State
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadDocTitle, setUploadDocTitle] = useState("");
+  const [uploadDocCategory, setUploadDocCategory] = useState("Medical Report");
+  const [uploadDocNotes, setUploadDocNotes] = useState("");
+  const [uploadDocAsset, setUploadDocAsset] =
+    useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [uploadDuplicateWarning, setUploadDuplicateWarning] = useState(false);
+
+  // Edit / Verify Metadata Modal State
+  const [showEditMetadataModal, setShowEditMetadataModal] = useState(false);
+  const [editingDocId, setEditingDocId] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editCategory, setEditCategory] = useState("Medical Report");
+  const [editDoctorName, setEditDoctorName] = useState("");
+  const [editHospitalName, setEditHospitalName] = useState("");
+  const [editReferenceNumber, setEditReferenceNumber] = useState("");
+  const [editDocumentDate, setEditDocumentDate] = useState("");
+  const [savingEditMetadata, setSavingEditMetadata] = useState(false);
 
   const fetchWallet = useCallback(async () => {
     if (!userId) return;
@@ -248,11 +280,236 @@ export default function DigitalHealthWalletScreen() {
     } catch {}
   };
 
+  // Pick Document for Upload via expo-image-picker
+  const handlePickDocument = async () => {
+    try {
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert(
+          "Permission Required",
+          "Media library access is needed to select healthcare documents for analysis.",
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets?.[0]) {
+        const asset = result.assets[0];
+        setUploadDocAsset(asset);
+        if (!uploadDocTitle) {
+          const derivedName = asset.fileName || "Medical Report";
+          setUploadDocTitle(derivedName.replace(/\.[^/.]+$/, ""));
+        }
+      }
+    } catch (err) {
+      Alert.alert(
+        "Picker Error",
+        toErrorMessage(err, "Failed to select document."),
+      );
+    }
+  };
+
+  // Submit Upload to Document Intelligence Backend
+  const handleSubmitUpload = async () => {
+    if (!uploadDocAsset) {
+      Alert.alert(
+        "File Required",
+        "Please select a medical report or document file to upload.",
+      );
+      return;
+    }
+    if (!uploadDocTitle.trim()) {
+      Alert.alert(
+        "Title Required",
+        "Please provide a title for this health document.",
+      );
+      return;
+    }
+
+    setUploadingDoc(true);
+    try {
+      const formData = new FormData();
+      const fileData: unknown = {
+        uri: uploadDocAsset.uri,
+        name: uploadDocAsset.fileName || "document.jpg",
+        type: uploadDocAsset.mimeType || "image/jpeg",
+      };
+      formData.append("file", fileData as Blob);
+      formData.append("title", uploadDocTitle.trim());
+      formData.append("category", uploadDocCategory);
+      if (uploadDocNotes.trim()) {
+        formData.append("notes", uploadDocNotes.trim());
+      }
+      if (
+        familyMemberFilter &&
+        familyMemberFilter !== "all" &&
+        familyMemberFilter !== "self"
+      ) {
+        formData.append("familyMemberId", familyMemberFilter);
+      }
+
+      const res = await healthDocumentsService.uploadHealthDocument(formData);
+      if (res.success) {
+        if (res.isDuplicate) {
+          setUploadDuplicateWarning(true);
+          Alert.alert(
+            "Document Uploaded (Duplicate Detected)",
+            "An identical document already exists in your vault. It has been securely analyzed and indexed.",
+          );
+        } else {
+          Alert.alert(
+            "Document Queued for Analysis",
+            "Your document has been securely uploaded. Document Intelligence is analyzing the medical entities in the background.",
+          );
+        }
+        setShowUploadModal(false);
+        setUploadDocAsset(null);
+        setUploadDocTitle("");
+        setUploadDocNotes("");
+        await fetchWallet();
+      }
+    } catch (err) {
+      Alert.alert(
+        "Upload Failed",
+        toErrorMessage(err, "Failed to upload document."),
+      );
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
+  // Retry Failed or Partial Document Processing
+  const handleRetryProcessing = async (docId: string) => {
+    setRetryingDocId(docId);
+    try {
+      const res = await healthDocumentsService.retryDocumentProcessing(docId);
+      if (res.success) {
+        Alert.alert(
+          "OCR Analysis Re-queued",
+          "Document intelligence has been re-triggered. Refresh in a few seconds.",
+        );
+        await fetchWallet();
+        if (
+          selectedDocForDetails &&
+          (selectedDocForDetails._id === docId ||
+            selectedDocForDetails.id.includes(docId))
+        ) {
+          setSelectedDocForDetails({
+            ...selectedDocForDetails,
+            processingStatus: "processing",
+          });
+        }
+      }
+    } catch (err) {
+      Alert.alert(
+        "Retry Failed",
+        toErrorMessage(err, "Unable to retry document processing."),
+      );
+    } finally {
+      setRetryingDocId(null);
+    }
+  };
+
+  // Open Edit Metadata Modal
+  const handleOpenEditMetadata = (item: WalletItem) => {
+    setEditingDocId(item._id || item.id.replace("doc-", ""));
+    setEditTitle(item.title || "");
+    setEditCategory(
+      item.extractedMetadata?.documentType ||
+        item.reportType ||
+        item.category ||
+        "Medical Report",
+    );
+    setEditDoctorName(
+      item.extractedMetadata?.doctorName &&
+        item.extractedMetadata.doctorName !== "Unknown / Not detected"
+        ? item.extractedMetadata.doctorName
+        : item.doctor?.name || "",
+    );
+    setEditHospitalName(
+      item.extractedMetadata?.hospitalName &&
+        item.extractedMetadata.hospitalName !== "Unknown / Not detected"
+        ? item.extractedMetadata.hospitalName
+        : item.hospital?.name || "",
+    );
+    setEditReferenceNumber(
+      item.extractedMetadata?.referenceNumber &&
+        item.extractedMetadata.referenceNumber !== "Unknown / Not detected"
+        ? item.extractedMetadata.referenceNumber
+        : "",
+    );
+    setEditDocumentDate(item.date || "");
+    setShowEditMetadataModal(true);
+  };
+
+  // Save Human-Verified Metadata
+  const handleSaveMetadata = async () => {
+    if (!editTitle.trim()) {
+      Alert.alert("Title Required", "Document title cannot be empty.");
+      return;
+    }
+
+    setSavingEditMetadata(true);
+    try {
+      const res = await healthDocumentsService.updateDocumentMetadata(
+        editingDocId,
+        {
+          title: editTitle.trim(),
+          category: editCategory,
+          doctorName: editDoctorName.trim(),
+          hospitalName: editHospitalName.trim(),
+          referenceNumber: editReferenceNumber.trim(),
+          documentDate: editDocumentDate.trim() || undefined,
+        },
+      );
+
+      if (res.success) {
+        Alert.alert(
+          "Metadata Verified",
+          "Document details have been verified and saved with audit trail.",
+        );
+        setShowEditMetadataModal(false);
+        if (
+          selectedDocForDetails &&
+          (selectedDocForDetails._id === editingDocId ||
+            selectedDocForDetails.id.includes(editingDocId))
+        ) {
+          setSelectedDocForDetails({
+            ...selectedDocForDetails,
+            title: res.document.title,
+            reportType: res.document.category,
+            extractedMetadata: res.document.extractedMetadata,
+            userCorrections: res.document.userCorrections,
+          });
+        }
+        await fetchWallet();
+      }
+    } catch (err) {
+      Alert.alert(
+        "Save Failed",
+        toErrorMessage(err, "Failed to update document metadata."),
+      );
+    } finally {
+      setSavingEditMetadata(false);
+    }
+  };
+
   const getItemBadgeVariant = (type: string, status?: string): BadgeVariant => {
     switch (type) {
       case "prescription":
         return "primary";
       case "report":
+        if (status === "processed" || status === "AI Processed")
+          return "success";
+        if (status === "processing" || status === "Analyzing...")
+          return "warning";
+        if (status === "failed" || status === "Analysis Failed") return "error";
         return "primary";
       case "bill":
         return status === "paid" || status === "success"
@@ -333,8 +590,23 @@ export default function DigitalHealthWalletScreen() {
             </View>
           </View>
           <Badge
-            label={item.statusLabel || item.type.toUpperCase()}
-            variant={getItemBadgeVariant(item.type, item.status)}
+            label={
+              isReport && item.processingStatus
+                ? item.processingStatus === "processed"
+                  ? "AI Analyzed"
+                  : item.processingStatus === "processing"
+                    ? "Analyzing..."
+                    : item.processingStatus === "partially_processed"
+                      ? "Partial OCR"
+                      : item.processingStatus === "failed"
+                        ? "Analysis Failed"
+                        : "Uploaded"
+                : item.statusLabel || item.type.toUpperCase()
+            }
+            variant={getItemBadgeVariant(
+              item.type,
+              item.processingStatus || item.status,
+            )}
           />
         </View>
 
@@ -413,20 +685,93 @@ export default function DigitalHealthWalletScreen() {
           </View>
         )}
 
-        {/* Medical Report Specific Details */}
+        {/* Medical Report Specific Details with Document Intelligence */}
         {isReport && (
           <View style={styles.contentBox}>
             <View style={styles.tagRow}>
-              <Text style={styles.tagLabel}>Type:</Text>
+              <Text style={styles.tagLabel}>Classification:</Text>
               <Text style={styles.tagValue}>
-                {item.reportType || "Diagnostic Test"}
+                {item.extractedMetadata?.documentType ||
+                  item.reportType ||
+                  "Diagnostic Test"}
               </Text>
-              {item.size ? (
-                <Text style={styles.fileSizeText}>
-                  • {(item.size / 1024).toFixed(0)} KB
-                </Text>
+              {item.confidence ? (
+                <Badge
+                  label={`${item.confidence}% Confidence`}
+                  variant={item.confidence >= 70 ? "success" : "neutral"}
+                  style={{ marginLeft: Spacing.xs }}
+                />
+              ) : null}
+              {item.userCorrections?.isCorrected ? (
+                <Badge
+                  label="Verified"
+                  variant="primary"
+                  style={{ marginLeft: Spacing.xs }}
+                />
               ) : null}
             </View>
+
+            {item.extractedMetadata?.hospitalName &&
+            item.extractedMetadata.hospitalName !== "Unknown / Not detected" ? (
+              <View style={styles.tagRow}>
+                <Text style={styles.tagLabel}>Facility:</Text>
+                <Text style={styles.tagValue} numberOfLines={1}>
+                  {item.extractedMetadata.hospitalName}
+                </Text>
+              </View>
+            ) : null}
+
+            {item.extractedMetadata?.doctorName &&
+            item.extractedMetadata.doctorName !== "Unknown / Not detected" ? (
+              <View style={styles.tagRow}>
+                <Text style={styles.tagLabel}>Doctor:</Text>
+                <Text style={styles.tagValue} numberOfLines={1}>
+                  {item.extractedMetadata.doctorName}
+                </Text>
+              </View>
+            ) : null}
+
+            {item.extractedMetadata?.referenceNumber &&
+            item.extractedMetadata.referenceNumber !==
+              "Unknown / Not detected" ? (
+              <View style={styles.tagRow}>
+                <Text style={styles.tagLabel}>Ref / ID:</Text>
+                <Text style={[styles.tagValue, { fontFamily: "monospace" }]}>
+                  {item.extractedMetadata.referenceNumber}
+                </Text>
+              </View>
+            ) : null}
+
+            {item.extractedMetadata?.testResults &&
+            item.extractedMetadata.testResults.length > 0 ? (
+              <View style={{ marginTop: Spacing.xs }}>
+                <Text style={[styles.tagLabel, { marginBottom: 4 }]}>
+                  Detected Lab Values:
+                </Text>
+                <View
+                  style={{ flexDirection: "row", flexWrap: "wrap", gap: 4 }}
+                >
+                  {item.extractedMetadata.testResults
+                    .slice(0, 3)
+                    .map((t, idx) => (
+                      <View key={idx} style={styles.testValueChip}>
+                        <Text style={styles.testValueChipText}>
+                          {t.testName}:{" "}
+                          <Text style={{ fontWeight: "700" }}>
+                            {t.value} {t.unit}
+                          </Text>
+                        </Text>
+                      </View>
+                    ))}
+                  {item.extractedMetadata.testResults.length > 3 ? (
+                    <Text style={styles.moreText}>
+                      +{item.extractedMetadata.testResults.length - 3} more
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+
             {item.notes ? (
               <Text style={styles.bodyText} numberOfLines={2}>
                 Notes: {item.notes}
@@ -590,11 +935,38 @@ export default function DigitalHealthWalletScreen() {
           {isReport && (
             <>
               <Button
-                title="Open Document"
+                title="Smart Details"
                 variant="primary"
-                onPress={() => handleOpenDocument(item.url)}
+                onPress={() => {
+                  setSelectedDocForDetails(item);
+                  setDetailsTab("entities");
+                }}
                 style={styles.actionBtn}
               />
+              <Button
+                title="Open File"
+                variant="outline"
+                onPress={() => handleOpenDocument(item.url)}
+                style={styles.actionBtnSmall}
+              />
+              {item.processingStatus === "failed" ||
+              item.processingStatus === "partially_processed" ? (
+                <Button
+                  title={
+                    retryingDocId === (item._id || item.id)
+                      ? "Retrying..."
+                      : "Retry OCR"
+                  }
+                  variant="outline"
+                  loading={retryingDocId === (item._id || item.id)}
+                  onPress={() =>
+                    handleRetryProcessing(
+                      item._id || item.id.replace("doc-", ""),
+                    )
+                  }
+                  style={styles.actionBtnSmall}
+                />
+              ) : null}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Share report"
@@ -607,14 +979,16 @@ export default function DigitalHealthWalletScreen() {
                   color={Palette.primary}
                 />
               </Pressable>
-              <Button
-                title="Encounter"
-                variant="outline"
-                onPress={() =>
-                  router.push(`/appointment/${item.appointmentId}` as never)
-                }
-                style={styles.actionBtnSmall}
-              />
+              {item.appointmentId ? (
+                <Button
+                  title="Encounter"
+                  variant="outline"
+                  onPress={() =>
+                    router.push(`/appointment/${item.appointmentId}` as never)
+                  }
+                  style={styles.actionBtnSmall}
+                />
+              ) : null}
             </>
           )}
 
@@ -735,6 +1109,48 @@ export default function DigitalHealthWalletScreen() {
               Unified Health Records, Rx, Lab & Billing Vault
             </Text>
           </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Upload medical document"
+            onPress={() => {
+              setUploadDocTitle("");
+              setUploadDocNotes("");
+              setUploadDocAsset(null);
+              setUploadDuplicateWarning(false);
+              setShowUploadModal(true);
+            }}
+            style={[
+              styles.refreshBtn,
+              {
+                backgroundColor: Palette.primaryLight,
+                marginRight: Spacing.xs,
+              },
+            ]}
+          >
+            <Ionicons
+              name="cloud-upload-outline"
+              size={19}
+              color={Palette.primary}
+            />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Export health records"
+            onPress={() => router.push("/(drawer)/health/export" as any)}
+            style={[
+              styles.refreshBtn,
+              {
+                backgroundColor: Palette.surfaceAlt,
+                marginRight: Spacing.xs,
+              },
+            ]}
+          >
+            <Ionicons
+              name="cloud-download-outline"
+              size={19}
+              color={Palette.primary}
+            />
+          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Refresh wallet"
@@ -1207,6 +1623,646 @@ export default function DigitalHealthWalletScreen() {
                 title="Close"
                 variant="outline"
                 onPress={() => setSelectedBill(null)}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Document Intelligence & OCR Details Modal ──────────────────────── */}
+      <Modal
+        visible={!!selectedDocForDetails}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedDocForDetails(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.billModalCard,
+              { maxHeight: "88%", width: "94%", maxWidth: 440 },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <Text style={styles.modalTitle} numberOfLines={1}>
+                    {selectedDocForDetails?.title || "Document Intelligence"}
+                  </Text>
+                  {selectedDocForDetails?.userCorrections?.verifiedByUser ? (
+                    <Badge label="Verified" variant="success" />
+                  ) : selectedDocForDetails?.processingStatus ===
+                    "processed" ? (
+                    <Badge label="Analyzed" variant="primary" />
+                  ) : null}
+                </View>
+                <Text style={styles.modalSub}>
+                  {selectedDocForDetails?.reportType ||
+                    selectedDocForDetails?.extractedMetadata?.documentType ||
+                    "Health Document"}{" "}
+                  •{" "}
+                  {selectedDocForDetails?.ocrProvider === "gemini_vision"
+                    ? "Gemini Multimodal OCR"
+                    : "Local Healthcare Parser"}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setSelectedDocForDetails(null)}
+                style={styles.modalCloseBtn}
+                hitSlop={8}
+              >
+                <Ionicons name="close" size={22} color={Palette.textMuted} />
+              </Pressable>
+            </View>
+
+            {/* Non-Diagnostic Safety Callout */}
+            <View style={styles.ocrSafetyNotice}>
+              <Ionicons
+                name="shield-checkmark-outline"
+                size={16}
+                color="#0D9488"
+              />
+              <Text style={styles.ocrSafetyNoticeText}>
+                Factual entity extraction for reference only. No diagnosis or
+                treatment generated.
+              </Text>
+            </View>
+
+            {/* Sub-tabs: Entities, Test Results, Extracted Text */}
+            <View style={styles.docDetailsTabsRow}>
+              <Pressable
+                onPress={() => setDetailsTab("entities")}
+                style={[
+                  styles.docTabBtn,
+                  detailsTab === "entities" && styles.docTabBtnActive,
+                ]}
+              >
+                <Ionicons
+                  name="information-circle-outline"
+                  size={15}
+                  color={
+                    detailsTab === "entities"
+                      ? Palette.primary
+                      : Palette.textMuted
+                  }
+                />
+                <Text
+                  style={[
+                    styles.docTabBtnText,
+                    detailsTab === "entities" && styles.docTabBtnTextActive,
+                  ]}
+                >
+                  Entities
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setDetailsTab("tests")}
+                style={[
+                  styles.docTabBtn,
+                  detailsTab === "tests" && styles.docTabBtnActive,
+                ]}
+              >
+                <Ionicons
+                  name="flask-outline"
+                  size={15}
+                  color={
+                    detailsTab === "tests" ? Palette.primary : Palette.textMuted
+                  }
+                />
+                <Text
+                  style={[
+                    styles.docTabBtnText,
+                    detailsTab === "tests" && styles.docTabBtnTextActive,
+                  ]}
+                >
+                  Test Values (
+                  {selectedDocForDetails?.extractedMetadata?.testResults
+                    ?.length || 0}
+                  )
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setDetailsTab("text")}
+                style={[
+                  styles.docTabBtn,
+                  detailsTab === "text" && styles.docTabBtnActive,
+                ]}
+              >
+                <Ionicons
+                  name="document-text-outline"
+                  size={15}
+                  color={
+                    detailsTab === "text" ? Palette.primary : Palette.textMuted
+                  }
+                />
+                <Text
+                  style={[
+                    styles.docTabBtnText,
+                    detailsTab === "text" && styles.docTabBtnTextActive,
+                  ]}
+                >
+                  Raw OCR
+                </Text>
+              </Pressable>
+            </View>
+
+            <ScrollView
+              style={{ maxHeight: 320, marginVertical: Spacing.sm }}
+              showsVerticalScrollIndicator={false}
+            >
+              {detailsTab === "entities" && (
+                <View style={styles.entitiesContainer}>
+                  <View style={styles.entityRow}>
+                    <Text style={styles.entityLabel}>Healthcare Facility</Text>
+                    <Text style={styles.entityValue}>
+                      {selectedDocForDetails?.extractedMetadata?.hospitalName ||
+                        selectedDocForDetails?.hospital?.name ||
+                        "Not detected"}
+                    </Text>
+                  </View>
+                  <View style={styles.entityRow}>
+                    <Text style={styles.entityLabel}>Doctor / Specialist</Text>
+                    <Text style={styles.entityValue}>
+                      {selectedDocForDetails?.extractedMetadata?.doctorName ||
+                        selectedDocForDetails?.doctor?.name ||
+                        "Not detected"}
+                    </Text>
+                  </View>
+                  <View style={styles.entityRow}>
+                    <Text style={styles.entityLabel}>Document Date</Text>
+                    <Text style={styles.entityValue}>
+                      {formatDDMMYYYY(
+                        selectedDocForDetails?.extractedMetadata
+                          ?.documentDate ||
+                          selectedDocForDetails?.date ||
+                          "",
+                      )}
+                    </Text>
+                  </View>
+                  <View style={styles.entityRow}>
+                    <Text style={styles.entityLabel}>Reference / Lab ID</Text>
+                    <Text
+                      style={[styles.entityValue, { fontFamily: "monospace" }]}
+                    >
+                      {selectedDocForDetails?.extractedMetadata
+                        ?.referenceNumber || "N/A"}
+                    </Text>
+                  </View>
+                  <View style={styles.entityRow}>
+                    <Text style={styles.entityLabel}>OCR Confidence</Text>
+                    <Text style={styles.entityValue}>
+                      {Math.round(
+                        (selectedDocForDetails?.extractedMetadata?.confidence ||
+                          0) * 100,
+                      )}
+                      %
+                    </Text>
+                  </View>
+                  {selectedDocForDetails?.contentHash ? (
+                    <View style={styles.entityRow}>
+                      <Text style={styles.entityLabel}>SHA-256 Hash</Text>
+                      <Text
+                        style={[
+                          styles.entityValue,
+                          { fontFamily: "monospace", fontSize: 11 },
+                        ]}
+                      >
+                        {selectedDocForDetails.contentHash.substring(0, 16)}...
+                      </Text>
+                    </View>
+                  ) : null}
+                  {selectedDocForDetails?.userCorrections?.verifiedByUser ? (
+                    <View style={styles.verificationAuditBox}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={16}
+                        color="#16A34A"
+                      />
+                      <Text style={styles.verificationAuditText}>
+                        Human verified on{" "}
+                        {formatDDMMYYYY(
+                          selectedDocForDetails.userCorrections.verifiedAt ||
+                            "",
+                        )}
+                        .
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              )}
+
+              {detailsTab === "tests" && (
+                <View style={styles.testsContainer}>
+                  {(selectedDocForDetails?.extractedMetadata?.testResults
+                    ?.length || 0) === 0 ? (
+                    <Text style={styles.emptyTestsText}>
+                      No discrete numerical lab parameters detected in this
+                      document.
+                    </Text>
+                  ) : (
+                    selectedDocForDetails?.extractedMetadata?.testResults?.map(
+                      (t, idx) => (
+                        <View key={`test-${idx}`} style={styles.testResultCard}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.testResultName}>
+                              {t.testName}
+                            </Text>
+                            {t.referenceRange ? (
+                              <Text style={styles.testResultRange}>
+                                Ref: {t.referenceRange}
+                              </Text>
+                            ) : null}
+                          </View>
+                          <View style={{ alignItems: "flex-end" }}>
+                            <Text style={styles.testResultValue}>
+                              {t.value} {t.unit || ""}
+                            </Text>
+                            {t.flag && t.flag !== "normal" ? (
+                              <Badge
+                                label={t.flag.toUpperCase()}
+                                variant={
+                                  t.flag === "high" ? "error" : "warning"
+                                }
+                              />
+                            ) : null}
+                          </View>
+                        </View>
+                      ),
+                    )
+                  )}
+                </View>
+              )}
+
+              {detailsTab === "text" && (
+                <View style={styles.rawTextContainer}>
+                  <Text style={styles.rawTextContent} selectable>
+                    {selectedDocForDetails?.extractedText ||
+                      "No OCR text extracted yet. If processing failed, tap Retry."}
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+
+            <View style={styles.modalActionsRow}>
+              <Button
+                title="Verify / Edit"
+                variant="outline"
+                onPress={() => {
+                  if (selectedDocForDetails) {
+                    const doc = selectedDocForDetails;
+                    setSelectedDocForDetails(null);
+                    handleOpenEditMetadata(doc);
+                  }
+                }}
+                style={{ flex: 1 }}
+              />
+              <Button
+                title="Open Original"
+                variant="primary"
+                onPress={() => {
+                  if (selectedDocForDetails?.url) {
+                    handleOpenDocument(selectedDocForDetails.url);
+                  }
+                }}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Upload Health Document Modal ─────────────────────────────────────── */}
+      <Modal
+        visible={showUploadModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          if (!uploadingDoc) setShowUploadModal(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.billModalCard,
+              { width: "94%", maxWidth: 440, maxHeight: "90%" },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>Upload Health Document</Text>
+                <Text style={styles.modalSub}>
+                  Upload PDF or image for automatic entity & metadata
+                  recognition
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => {
+                  if (!uploadingDoc) setShowUploadModal(false);
+                }}
+                style={styles.modalCloseBtn}
+                hitSlop={8}
+              >
+                <Ionicons name="close" size={22} color={Palette.textMuted} />
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* File Selection Box */}
+              <Pressable
+                onPress={handlePickDocument}
+                disabled={uploadingDoc}
+                style={[
+                  styles.uploadFilePickerBox,
+                  uploadDocAsset && styles.uploadFilePickerBoxSelected,
+                ]}
+              >
+                <Ionicons
+                  name={
+                    uploadDocAsset ? "document-attach" : "cloud-upload-outline"
+                  }
+                  size={32}
+                  color={uploadDocAsset ? Palette.primary : Palette.textMuted}
+                />
+                <Text style={styles.uploadFilePickerTitle}>
+                  {uploadDocAsset
+                    ? uploadDocAsset.fileName || "File Selected"
+                    : "Select File / Image from Device"}
+                </Text>
+                <Text style={styles.uploadFilePickerSub}>
+                  {uploadDocAsset
+                    ? `${uploadDocAsset.mimeType || "image"} • ${uploadDocAsset.fileSize ? (uploadDocAsset.fileSize / 1024).toFixed(1) + " KB" : "Ready"}`
+                    : "Supports PDF, JPG, PNG up to 10MB"}
+                </Text>
+              </Pressable>
+
+              {/* Title input */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Document Title *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={uploadDocTitle}
+                  onChangeText={setUploadDocTitle}
+                  placeholder="e.g., Blood Test Report, Discharge Summary"
+                  placeholderTextColor={Palette.textMuted}
+                  editable={!uploadingDoc}
+                />
+              </View>
+
+              {/* Category chips */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Document Category</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={{ marginVertical: 4 }}
+                >
+                  {[
+                    "Medical Report",
+                    "Prescription",
+                    "Lab Test",
+                    "Discharge Summary",
+                    "Scan / Imaging",
+                    "Vaccination",
+                    "Other",
+                  ].map((cat) => (
+                    <Pressable
+                      key={cat}
+                      onPress={() => setUploadDocCategory(cat)}
+                      style={[
+                        styles.categoryChip,
+                        uploadDocCategory === cat && styles.categoryChipActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.categoryChipText,
+                          uploadDocCategory === cat &&
+                            styles.categoryChipTextActive,
+                        ]}
+                      >
+                        {cat}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+
+              {/* Notes input */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>
+                  Clinical / Personal Notes (Optional)
+                </Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    { height: 70, textAlignVertical: "top" },
+                  ]}
+                  value={uploadDocNotes}
+                  onChangeText={setUploadDocNotes}
+                  placeholder="Add any context or instructions..."
+                  placeholderTextColor={Palette.textMuted}
+                  multiline
+                  numberOfLines={3}
+                  editable={!uploadingDoc}
+                />
+              </View>
+
+              <View style={styles.ocrInfoBanner}>
+                <Ionicons
+                  name="sparkles-outline"
+                  size={16}
+                  color={Palette.primary}
+                />
+                <Text style={styles.ocrInfoBannerText}>
+                  HealPoint will analyze facility name, treating physician, lab
+                  parameters and raw text in the background. Original file
+                  remains untouched.
+                </Text>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalActionsRow}>
+              <Button
+                title={uploadingDoc ? "Uploading..." : "Upload & Analyze"}
+                variant="primary"
+                onPress={handleSubmitUpload}
+                loading={uploadingDoc}
+                disabled={
+                  uploadingDoc || !uploadDocAsset || !uploadDocTitle.trim()
+                }
+                style={{ flex: 1 }}
+              />
+              <Button
+                title="Cancel"
+                variant="outline"
+                onPress={() => setShowUploadModal(false)}
+                disabled={uploadingDoc}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Edit / Verify Metadata Modal ─────────────────────────────────────── */}
+      <Modal
+        visible={showEditMetadataModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          if (!savingEditMetadata) setShowEditMetadataModal(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.billModalCard,
+              { width: "94%", maxWidth: 440, maxHeight: "90%" },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>Verify & Correct Details</Text>
+                <Text style={styles.modalSub}>
+                  Human verification with immutable audit tracking
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => {
+                  if (!savingEditMetadata) setShowEditMetadataModal(false);
+                }}
+                style={styles.modalCloseBtn}
+                hitSlop={8}
+              >
+                <Ionicons name="close" size={22} color={Palette.textMuted} />
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Document Title *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editTitle}
+                  onChangeText={setEditTitle}
+                  placeholder="Title"
+                  placeholderTextColor={Palette.textMuted}
+                  editable={!savingEditMetadata}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Category</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={{ marginVertical: 4 }}
+                >
+                  {[
+                    "Medical Report",
+                    "Prescription",
+                    "Lab Test",
+                    "Discharge Summary",
+                    "Scan / Imaging",
+                    "Vaccination",
+                    "Other",
+                  ].map((cat) => (
+                    <Pressable
+                      key={cat}
+                      onPress={() => setEditCategory(cat)}
+                      style={[
+                        styles.categoryChip,
+                        editCategory === cat && styles.categoryChipActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.categoryChipText,
+                          editCategory === cat && styles.categoryChipTextActive,
+                        ]}
+                      >
+                        {cat}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>
+                  Treating Doctor / Specialist
+                </Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editDoctorName}
+                  onChangeText={setEditDoctorName}
+                  placeholder="Doctor Name"
+                  placeholderTextColor={Palette.textMuted}
+                  editable={!savingEditMetadata}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Hospital / Clinic / Lab</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editHospitalName}
+                  onChangeText={setEditHospitalName}
+                  placeholder="Facility Name"
+                  placeholderTextColor={Palette.textMuted}
+                  editable={!savingEditMetadata}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Reference / Lab ID Number</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editReferenceNumber}
+                  onChangeText={setEditReferenceNumber}
+                  placeholder="Reference Number"
+                  placeholderTextColor={Palette.textMuted}
+                  editable={!savingEditMetadata}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Document Date</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editDocumentDate}
+                  onChangeText={setEditDocumentDate}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={Palette.textMuted}
+                  editable={!savingEditMetadata}
+                />
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalActionsRow}>
+              <Button
+                title={savingEditMetadata ? "Saving..." : "Verify & Save"}
+                variant="primary"
+                onPress={handleSaveMetadata}
+                loading={savingEditMetadata}
+                disabled={savingEditMetadata || !editTitle.trim()}
+                style={{ flex: 1 }}
+              />
+              <Button
+                title="Cancel"
+                variant="outline"
+                onPress={() => setShowEditMetadataModal(false)}
+                disabled={savingEditMetadata}
                 style={{ flex: 1 }}
               />
             </View>
@@ -1713,5 +2769,215 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: Spacing.sm,
     marginTop: Spacing.lg,
+  },
+  // Document Intelligence & OCR Styles
+  testValueChip: {
+    backgroundColor: "#F0FDFA",
+    borderWidth: 1,
+    borderColor: "#CCFBF1",
+    borderRadius: Radius.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  testValueChipText: {
+    ...Typography.caption,
+    fontSize: 11,
+    color: "#0F766E",
+    fontWeight: "600",
+  },
+  ocrSafetyNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#F0FDFA",
+    borderLeftWidth: 3,
+    borderLeftColor: "#0D9488",
+    padding: Spacing.xs,
+    borderRadius: Radius.sm,
+    marginBottom: Spacing.xs,
+  },
+  ocrSafetyNoticeText: {
+    ...Typography.caption,
+    fontSize: 11,
+    color: "#115E59",
+    flex: 1,
+  },
+  docDetailsTabsRow: {
+    flexDirection: "row",
+    backgroundColor: Palette.surfaceAlt,
+    borderRadius: Radius.md,
+    padding: 3,
+    marginBottom: Spacing.xs,
+    gap: 4,
+  },
+  docTabBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: 6,
+    borderRadius: Radius.sm,
+  },
+  docTabBtnActive: {
+    backgroundColor: Palette.surface,
+    ...Shadows.sm,
+  },
+  docTabBtnText: {
+    ...Typography.caption,
+    fontWeight: "600",
+    color: Palette.textMuted,
+    fontSize: 12,
+  },
+  docTabBtnTextActive: {
+    color: Palette.primary,
+  },
+  entitiesContainer: {
+    backgroundColor: Palette.surfaceAlt,
+    borderRadius: Radius.md,
+    padding: Spacing.sm,
+    gap: 6,
+  },
+  entityRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 3,
+    borderBottomWidth: 1,
+    borderBottomColor: Palette.border,
+  },
+  entityLabel: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+  },
+  entityValue: {
+    ...Typography.caption,
+    fontWeight: "600",
+    color: Palette.text,
+    textAlign: "right",
+    flexShrink: 1,
+  },
+  verificationAuditBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#F0FDF4",
+    padding: Spacing.xs,
+    borderRadius: Radius.sm,
+    marginTop: 4,
+  },
+  verificationAuditText: {
+    ...Typography.caption,
+    fontSize: 11,
+    color: "#166534",
+    fontWeight: "600",
+  },
+  testsContainer: {
+    gap: Spacing.xs,
+  },
+  emptyTestsText: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    textAlign: "center",
+    paddingVertical: Spacing.md,
+  },
+  testResultCard: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: Palette.surfaceAlt,
+    padding: Spacing.sm,
+    borderRadius: Radius.md,
+    borderLeftWidth: 3,
+    borderLeftColor: Palette.primary,
+  },
+  testResultName: {
+    ...Typography.body,
+    fontWeight: "600",
+    color: Palette.text,
+  },
+  testResultRange: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    marginTop: 1,
+  },
+  testResultValue: {
+    ...Typography.body,
+    fontWeight: "700",
+    color: Palette.primaryDark,
+  },
+  rawTextContainer: {
+    backgroundColor: Palette.surfaceAlt,
+    padding: Spacing.sm,
+    borderRadius: Radius.md,
+    maxHeight: 280,
+  },
+  rawTextContent: {
+    fontFamily: "monospace",
+    fontSize: 11,
+    color: Palette.text,
+    lineHeight: 16,
+  },
+  uploadFilePickerBox: {
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderColor: Palette.border,
+    borderRadius: Radius.md,
+    padding: Spacing.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Palette.surfaceAlt,
+    marginBottom: Spacing.sm,
+  },
+  uploadFilePickerBoxSelected: {
+    borderColor: Palette.primary,
+    backgroundColor: "#F0FDF4",
+  },
+  uploadFilePickerTitle: {
+    ...Typography.body,
+    fontWeight: "700",
+    color: Palette.text,
+    marginTop: Spacing.xs,
+    textAlign: "center",
+  },
+  uploadFilePickerSub: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    marginTop: 2,
+    textAlign: "center",
+  },
+  inputGroup: {
+    marginBottom: Spacing.sm,
+  },
+  inputLabel: {
+    ...Typography.caption,
+    fontWeight: "600",
+    color: Palette.text,
+    marginBottom: 4,
+  },
+  textInput: {
+    backgroundColor: Palette.surfaceAlt,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    ...Typography.body,
+    color: Palette.text,
+  },
+  ocrInfoBanner: {
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: "#F0FDFA",
+    padding: Spacing.sm,
+    borderRadius: Radius.md,
+    marginTop: 4,
+    alignItems: "center",
+  },
+  ocrInfoBannerText: {
+    ...Typography.caption,
+    color: "#0F766E",
+    flex: 1,
+    fontSize: 11,
   },
 });
