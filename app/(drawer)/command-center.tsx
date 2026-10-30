@@ -523,6 +523,63 @@ export default function CareCommandCenterScreen() {
           </View>
         )}
 
+        {/* Next Care Activity & Smart Planner Entry */}
+        <View style={styles.sectionContainer}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleRow}>
+              <Ionicons
+                name="calendar-outline"
+                size={18}
+                color={Palette.primary}
+              />
+              <Text style={styles.sectionTitle}>Next Care Activity</Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open Care Planner"
+              onPress={() => router.push("/care-planner" as never)}
+            >
+              <Text style={styles.sectionActionText}>View Planner ›</Text>
+            </Pressable>
+          </View>
+
+          <Card style={styles.nextActivityCard}>
+            <View style={styles.nextActivityRow}>
+              <View style={styles.nextActivityIconCircle}>
+                <Ionicons
+                  name={activeAppointment ? "calendar" : "today-outline"}
+                  size={20}
+                  color={Palette.primary}
+                />
+              </View>
+              <View style={styles.nextActivityTexts}>
+                <Text style={styles.nextActivityTitle}>
+                  {activeAppointment
+                    ? `Consultation with ${formatDoctorName(
+                        typeof activeAppointment.doctorId === "object" &&
+                          activeAppointment.doctorId?.name
+                          ? activeAppointment.doctorId.name
+                          : activeAppointment.doctorName,
+                        "Doctor",
+                      )}`
+                    : "Smart Care Planner"}
+                </Text>
+                <Text style={styles.nextActivitySubtitle}>
+                  {activeAppointment
+                    ? `${activeAppointment.slotTime || "Scheduled"} · ${activeAppointment.consultationType === "video" ? "Video Meet" : "In-Clinic"} (${formatDDMMYYYY(activeAppointment.slotDate)})`
+                    : "Plan your appointments, follow-ups, and pre-visit preparations"}
+                </Text>
+              </View>
+              <Button
+                title="Open"
+                variant="primary"
+                onPress={() => router.push("/care-planner" as never)}
+                style={{ paddingHorizontal: Spacing.md }}
+              />
+            </View>
+          </Card>
+        </View>
+
         {/* 5. Active Visit Care Journey Lifecycle Tracker */}
         {activeAppointment && journeyStages.length > 0 && (
           <View style={styles.sectionContainer}>
@@ -927,6 +984,52 @@ export default function CareCommandCenterScreen() {
               <Text style={styles.walletLabel}>Digital Passes</Text>
             </Pressable>
           </View>
+        </View>
+
+        {/* Recent Healthcare Activity & Insights */}
+        <View style={styles.sectionContainer}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleRow}>
+              <Ionicons
+                name="pulse-outline"
+                size={18}
+                color={Palette.primary}
+              />
+              <Text style={styles.sectionTitle}>Recent Healthcare Activity</Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="View all healthcare activity"
+              onPress={() => router.push("/health/activity" as never)}
+            >
+              <Text style={styles.sectionActionText}>View All ›</Text>
+            </Pressable>
+          </View>
+
+          <Card style={styles.activitySummaryCard}>
+            <View style={styles.activitySummaryRow}>
+              <View style={styles.activitySummaryIconWrap}>
+                <Ionicons name="time" size={20} color={Palette.primary} />
+              </View>
+              <View style={styles.activitySummaryTextCol}>
+                <Text style={styles.activitySummaryTitle}>
+                  Personal Care Highlights
+                </Text>
+                <Text style={styles.activitySummarySubtitle}>
+                  {appointments.length} appointment{appointments.length === 1 ? "" : "s"} · {walletCounts.reports} report{walletCounts.reports === 1 ? "" : "s"} · {walletCounts.prescriptions} prescription{walletCounts.prescriptions === 1 ? "" : "s"}
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Open Activity Center"
+                onPress={() => router.push("/health/activity" as never)}
+                style={styles.activitySummaryBtn}
+              >
+                <Text style={styles.activitySummaryBtnText}>Open</Text>
+                <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
+              </Pressable>
+            </View>
+          </Card>
         </View>
 
         {/* 9. AI Healthcare Assistant Quick Cockpit */}
@@ -1505,10 +1608,12 @@ const styles = StyleSheet.create({
   },
   walletGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.sm,
   },
   walletItem: {
     flex: 1,
+    minWidth: 70,
     backgroundColor: Palette.surface,
     padding: Spacing.sm,
     borderRadius: Radius.md,
@@ -1591,11 +1696,13 @@ const styles = StyleSheet.create({
   },
   discoveryRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.sm,
     marginTop: Spacing.sm,
   },
   discoveryCard: {
     flex: 1,
+    minWidth: 130,
     backgroundColor: Palette.surface,
     padding: Spacing.md,
     borderRadius: Radius.md,
@@ -1633,5 +1740,88 @@ const styles = StyleSheet.create({
     color: Palette.textMuted,
     marginTop: 4,
     textAlign: "center",
+  },
+  activitySummaryCard: {
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+  },
+  activitySummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: Spacing.sm,
+  },
+  activitySummaryIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
+    backgroundColor: "rgba(37, 99, 235, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  activitySummaryTextCol: {
+    flex: 1,
+    minWidth: 160,
+    gap: 2,
+  },
+  activitySummaryTitle: {
+    ...Typography.body,
+    fontWeight: "700",
+    color: Palette.text,
+  },
+  activitySummarySubtitle: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+  },
+  activitySummaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Palette.primary,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 7,
+    borderRadius: Radius.pill,
+    flexShrink: 0,
+    alignSelf: "center",
+  },
+  activitySummaryBtnText: {
+    ...Typography.caption,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  nextActivityCard: {
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+  },
+  nextActivityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  nextActivityIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.pill,
+    backgroundColor: "rgba(37, 99, 235, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  nextActivityTexts: {
+    flex: 1,
+    minWidth: 160,
+    gap: 2,
+  },
+  nextActivityTitle: {
+    ...Typography.body,
+    fontWeight: "700",
+    color: Palette.text,
+  },
+  nextActivitySubtitle: {
+    ...Typography.caption,
+    color: Palette.textMuted,
   },
 });

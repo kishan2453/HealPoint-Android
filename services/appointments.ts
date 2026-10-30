@@ -622,6 +622,7 @@ export interface SaveQuestionsPayload {
   questions?: PatientQuestionItem[];
   question?: string;
   sharedWithDoctor?: boolean;
+  isDiscussed?: boolean;
 }
 
 export interface SaveQuestionsResponse {
@@ -649,6 +650,7 @@ export interface UpdateChecklistPayload {
   checklistCompleted?: string[];
   instructionsAcknowledged?: boolean;
   symptomsNotes?: string;
+  privatePatientNotes?: string;
 }
 
 export interface UpdateChecklistResponse {
@@ -724,7 +726,11 @@ export async function getPatientMedicationReminders(
  */
 export async function createMedicationReminder(
   payload: CreateMedicationReminderPayload,
-): Promise<{ success: boolean; message?: string; reminder: MedicationReminder }> {
+): Promise<{
+  success: boolean;
+  message?: string;
+  reminder: MedicationReminder;
+}> {
   return api.post<{
     success: boolean;
     message?: string;
@@ -738,14 +744,22 @@ export async function createMedicationReminder(
 export async function recordMedicationAction(
   reminderId: string,
   payload: RecordMedicationActionPayload,
-): Promise<{ success: boolean; message?: string; reminder: MedicationReminder }> {
+): Promise<{
+  success: boolean;
+  message?: string;
+  reminder: MedicationReminder;
+}> {
   return api.patch<{
     success: boolean;
     message?: string;
     reminder: MedicationReminder;
-  }>(`/appointment/patient/medication-reminders/${reminderId}/action`, payload, {
-    auth: true,
-  });
+  }>(
+    `/appointment/patient/medication-reminders/${reminderId}/action`,
+    payload,
+    {
+      auth: true,
+    },
+  );
 }
 
 /**

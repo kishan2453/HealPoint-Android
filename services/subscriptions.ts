@@ -346,6 +346,10 @@ export async function getPatientSubscriptionEntitlement(): Promise<UserSubscript
         .catch(() => null),
     ]);
 
+    if (subRes && (subRes as any).entitlement) {
+      return (subRes as any).entitlement;
+    }
+
     const subscription = subRes?.subscription || null;
     const plans =
       plansRes?.plans && plansRes.plans.length > 0

@@ -24,15 +24,72 @@ export function toDDMMYYYY(date: Date): string {
   return `${d}-${m}-${date.getFullYear()}`;
 }
 
-/** Human-friendly display from a `DD-MM-YYYY` string -> e.g. `19 Aug 2026`. */
+/** Human-friendly display from a `DD-MM-YYYY` string or ISO timestamp -> e.g. `19 Aug 2026`. */
 export function formatDDMMYYYY(value?: string, fallback = "-"): string {
   if (!value) return fallback;
-  const match = /^(\d{2})-(\d{2})-(\d{4})$/.exec(value.trim());
-  if (!match) return value;
-  const [, dd, mm, yyyy] = match;
-  const monthIndex = Number(mm) - 1;
-  const month = MONTHS_SHORT[monthIndex] || mm;
-  return `${Number(dd)} ${month} ${yyyy}`;
+  const trimmed = value.trim();
+
+  // 1. DD-MM-YYYY match
+  const match = /^(\d{2})-(\d{2})-(\d{4})$/.exec(trimmed);
+  if (match) {
+    const [, dd, mm, yyyy] = match;
+    const monthIndex = Number(mm) - 1;
+    const month = MONTHS_SHORT[monthIndex] || mm;
+    return `${Number(dd)} ${month} ${yyyy}`;
+  }
+
+  // 2. YYYY-MM-DD match (e.g. 2026-10-30 or ISO timestamp)
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
+  if (isoMatch) {
+    const [, yyyy, mm, dd] = isoMatch;
+    const monthIndex = Number(mm) - 1;
+    const month = MONTHS_SHORT[monthIndex] || mm;
+    return `${Number(dd)} ${month} ${yyyy}`;
+  }
+
+  // 3. Fallback to JS Date if valid
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    return `${parsed.getDate()} ${MONTHS_SHORT[parsed.getMonth()]} ${parsed.getFullYear()}`;
+  }
+
+  return trimmed;
+}
+
+/**
+ * Formats any date or ISO string into a human-friendly "DD Mon YYYY · H:MM AM/PM".
+ * Example: `30 Oct 2026 · 9:01 AM`
+ */
+export function formatSmartDateTime(
+  value?: string | Date | null,
+  fallback = "-",
+): string {
+  if (!value) return fallback;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return formatDDMMYYYY(
+      typeof value === "string" ? value : undefined,
+      fallback,
+    );
+  }
+  const datePart = `${date.getDate()} ${MONTHS_SHORT[date.getMonth()]} ${date.getFullYear()}`;
+
+  // If input was a string without time components
+  if (
+    typeof value === "string" &&
+    !value.includes("T") &&
+    !value.includes(":")
+  ) {
+    return datePart;
+  }
+
+  let hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const timePart = `${hours}:${minutes} ${ampm}`;
+  return `${datePart} · ${timePart}`;
 }
 
 /** `24 Aug` style label for a date row in the date picker. */

@@ -683,3 +683,151 @@ export async function getHospitalAdminFinancialOverview(
     { auth: true },
   );
 }
+
+// ---------------------------------------------------------------------------
+// Hospital Operations Command Center 2.0 (Strictly Real-time Hospital Scoped)
+// ---------------------------------------------------------------------------
+export interface OperationsKPIs {
+  total: number;
+  pending: number;
+  confirmed: number;
+  checkedIn: number;
+  inQueue: number;
+  inConsultation: number;
+  completed: number;
+  cancelled: number;
+  rescheduled: number;
+  delayed: number;
+  onlineConsultations: number;
+  inPersonConsultations: number;
+  availableDoctors: number;
+  totalDoctors: number;
+  followUpsAdvised: number;
+}
+
+export interface DoctorOperationalSummary {
+  doctor: Doctor;
+  status:
+    | "available"
+    | "in_consultation"
+    | "busy"
+    | "on_leave"
+    | "not_available";
+  todayAppointmentsCount: number;
+  completedCount: number;
+  pendingCount: number;
+  waitingCount: number;
+  hasDelay: boolean;
+  activePatient?: {
+    _id: string;
+    appointmentId?: string;
+    patientName: string;
+    queueToken?: string;
+    slotTime: string;
+  } | null;
+  nextPatient?: {
+    _id: string;
+    appointmentId?: string;
+    patientName: string;
+    queueToken?: string;
+    slotTime: string;
+  } | null;
+}
+
+export interface DepartmentOperationalSummary {
+  name: string;
+  totalToday: number;
+  waitingCount: number;
+  checkedInCount: number;
+  completedCount: number;
+  assignedDoctorsCount: number;
+  availableDoctorsCount: number;
+  delayedCount: number;
+  queueSize: number;
+  loadState: "Normal" | "Busy" | "High Load" | "No Activity";
+  loadVariant: "success" | "warning" | "error" | "neutral";
+}
+
+export interface LiveQueueWaitingPatient {
+  _id: string;
+  appointmentId?: string;
+  patientName: string;
+  queueToken: string;
+  slotTime: string;
+  checkInAt?: string | null;
+  waitMinutes: number;
+  queueStatus: string;
+  isDelayed: boolean;
+}
+
+export interface LiveQueueDoctorView {
+  doctorId: string;
+  doctorName: string;
+  speciality: string;
+  department: string;
+  status: string;
+  currentServingToken?: string | null;
+  currentPatient?: {
+    _id: string;
+    appointmentId?: string;
+    patientName: string;
+    queueToken?: string;
+    slotTime: string;
+  } | null;
+  waitingCount: number;
+  waitingList: LiveQueueWaitingPatient[];
+}
+
+export interface OperationalAlert {
+  id: string;
+  severity: "INFO" | "WARNING" | "CRITICAL";
+  title: string;
+  message: string;
+  count?: number;
+  actionTab?: string;
+  actionRoute?: string;
+}
+
+export interface OperationsCommandCenterParams {
+  date?: string; // DD-MM-YYYY
+  department?: string;
+  doctorId?: string;
+  status?: string;
+  consultationType?: string;
+  search?: string;
+}
+
+export interface OperationsCommandCenterResponse {
+  success: boolean;
+  hospitalName: string;
+  queryDate: string;
+  kpis: OperationsKPIs;
+  doctorOperations: DoctorOperationalSummary[];
+  departmentOperations: DepartmentOperationalSummary[];
+  liveQueue: LiveQueueDoctorView[];
+  smartAlerts: OperationalAlert[];
+  appointments: Appointment[];
+}
+
+export async function getHospitalAdminOperationsCommandCenter(
+  params?: OperationsCommandCenterParams,
+): Promise<OperationsCommandCenterResponse> {
+  const query = new URLSearchParams();
+  if (params?.date) query.set("date", params.date);
+  if (params?.department && params.department !== "all")
+    query.set("department", params.department);
+  if (params?.doctorId && params.doctorId !== "all")
+    query.set("doctorId", params.doctorId);
+  if (params?.status && params.status !== "all")
+    query.set("status", params.status);
+  if (params?.consultationType && params.consultationType !== "all")
+    query.set("consultationType", params.consultationType);
+  if (params?.search && params.search.trim())
+    query.set("search", params.search.trim());
+
+  const qs = query.toString();
+  return api.get<OperationsCommandCenterResponse>(
+    `/hospital-admin/operations/command-center${qs ? `?${qs}` : ""}`,
+    { auth: true },
+  );
+}

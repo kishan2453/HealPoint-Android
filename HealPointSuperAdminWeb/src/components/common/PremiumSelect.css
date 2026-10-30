@@ -1,0 +1,159 @@
+.premium-select-container {
+  position: relative;
+  width: 100%;
+  font-family: inherit;
+  color: #333;
+}
+
+.premium-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-height: 48px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.premium-select-trigger:hover {
+  border-color: #5f6caf;
+  box-shadow: 0 4px 8px rgba(95, 108, 175, 0.08);
+}
+
+.premium-select-trigger.open {
+  border-color: #5f6caf;
+  box-shadow: 0 0 0 3px rgba(95, 108, 175, 0.15);
+}
+
+.premium-select-trigger .placeholder-text {
+  color: #888;
+  font-size: 0.95rem;
+}
+
+.premium-select-trigger .selected-text {
+  color: #222;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.premium-select-arrow {
+  color: #666;
+  transition: transform 0.3s ease;
+}
+
+.premium-select-arrow.open {
+  transform: rotate(180deg);
+  color: #5f6caf;
+}
+
+.premium-select-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #eaeaea;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+  z-index: 1000;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.premium-select-search {
+  padding: 12px;
+  border-bottom: 1px solid #eaeaea;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fafafa;
+}
+
+.premium-select-search .search-icon {
+  color: #888;
+}
+
+.premium-select-search input {
+  border: none;
+  background: transparent;
+  outline: none;
+  width: 100%;
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.premium-select-search input::placeholder {
+  color: #aaa;
+}
+
+.premium-select-options {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+/* Custom Scrollbar for Options */
+.premium-select-options::-webkit-scrollbar {
+  width: 6px;
+}
+.premium-select-options::-webkit-scrollbar-track {
+  background: transparent;
+}
+.premium-select-options::-webkit-scrollbar-thumb {
+  background: #d0d0d0;
+  border-radius: 10px;
+}
+.premium-select-options::-webkit-scrollbar-thumb:hover {
+  background: #b0b0b0;
+}
+
+.premium-select-option {
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.95rem;
+  color: #444;
+  transition: all 0.2s ease;
+  margin-bottom: 2px;
+}
+
+.premium-select-option:last-child {
+  margin-bottom: 0;
+}
+
+.premium-select-option:hover {
+  background: #f4f6fb;
+  color: #5f6caf;
+}
+
+.premium-select-option.selected {
+  background: #5f6caf;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.premium-select-option.selected .check-icon {
+  color: #ffffff;
+}
+
+.premium-select-no-results {
+  padding: 12px 14px;
+  color: #888;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+/* Dark mode compatibility if needed, using general variables if exist, otherwise standard */
+@media (prefers-color-scheme: dark) {
+  /* It might be safer to keep it light or use project variables if any. For now, matching the general style. */
+}

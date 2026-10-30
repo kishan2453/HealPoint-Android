@@ -177,7 +177,7 @@ export function ReviewModal({
                   <Text style={styles.title}>Rate Your Consultation</Text>
                   {doctorName ? (
                     <Text style={styles.doctorName}>
-                      with Dr. {doctorName.replace(/^Dr\.\s*/i, "")}
+                      with {formatDoctorName(doctorName)}
                     </Text>
                   ) : null}
                 </View>

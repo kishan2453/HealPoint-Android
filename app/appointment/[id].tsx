@@ -783,88 +783,91 @@ export default function AppointmentDetailScreen() {
         />
 
         {/* ---------------- Smart Appointment Preparation & Pre-Consultation Card ---------------- */}
-        <Card padded style={styles.preparationCard}>
-          <View style={styles.preparationHeaderRow}>
-            <View style={styles.preparationIconBox}>
-              <Ionicons
-                name="clipboard-outline"
-                size={24}
-                color={Palette.primary}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={styles.preparationBadgeRow}>
-                <Text style={styles.preparationTitle}>
-                  Pre-Consultation Center
-                </Text>
-                <Badge
-                  label={
-                    appointment.preparation?.instructionsAcknowledged
-                      ? "Guidelines Ready"
-                      : "Action Advised"
-                  }
-                  variant={
-                    appointment.preparation?.instructionsAcknowledged
-                      ? "success"
-                      : "primary"
-                  }
+        {appointment.bookingStatus !== "cancel" ? (
+          <Card padded style={styles.preparationCard}>
+            <View style={styles.preparationHeaderRow}>
+              <View style={styles.preparationIconBox}>
+                <Ionicons
+                  name="clipboard-outline"
+                  size={24}
+                  color={Palette.primary}
                 />
               </View>
-              <Text style={styles.preparationSubtitle}>
-                Review guidelines, attach lab reports, and prepare symptoms &
-                questions for Dr. {appointment.doctorName || "your doctor"}.
-              </Text>
+              <View style={{ flex: 1 }}>
+                <View style={styles.preparationBadgeRow}>
+                  <Text style={styles.preparationTitle}>
+                    Pre-Consultation Center
+                  </Text>
+                  <Badge
+                    label={
+                      appointment.preparation?.instructionsAcknowledged
+                        ? "Guidelines Ready"
+                        : "Action Advised"
+                    }
+                    variant={
+                      appointment.preparation?.instructionsAcknowledged
+                        ? "success"
+                        : "primary"
+                    }
+                  />
+                </View>
+                <Text style={styles.preparationSubtitle}>
+                  Review guidelines, attach lab reports, and prepare symptoms &
+                  questions for{" "}
+                  {formatDoctorName(appointment.doctorName, "your doctor")}.
+                </Text>
+              </View>
             </View>
-          </View>
 
-          {/* Quick Stats Pill */}
-          <View style={styles.prepStatsRow}>
-            <View style={styles.prepStatPill}>
-              <Ionicons
-                name="chatbubble-ellipses-outline"
-                size={14}
-                color={Palette.primary}
-              />
-              <Text style={styles.prepStatText}>
-                {appointment.preparation?.patientQuestions?.length || 0}{" "}
-                Questions Prepared
-              </Text>
+            {/* Quick Stats Pill */}
+            <View style={styles.prepStatsRow}>
+              <View style={styles.prepStatPill}>
+                <Ionicons
+                  name="chatbubble-ellipses-outline"
+                  size={14}
+                  color={Palette.primary}
+                />
+                <Text style={styles.prepStatText}>
+                  {appointment.preparation?.patientQuestions?.length || 0}{" "}
+                  Questions Prepared
+                </Text>
+              </View>
+              <View style={styles.prepStatPill}>
+                <Ionicons
+                  name={
+                    appointment.preparation?.instructionsAcknowledged
+                      ? "checkmark-circle-outline"
+                      : "alert-circle-outline"
+                  }
+                  size={14}
+                  color={
+                    appointment.preparation?.instructionsAcknowledged
+                      ? Palette.success
+                      : Palette.textMuted
+                  }
+                />
+                <Text style={styles.prepStatText}>
+                  {appointment.preparation?.instructionsAcknowledged
+                    ? "Instructions Ready"
+                    : "Guidelines Pending"}
+                </Text>
+              </View>
             </View>
-            <View style={styles.prepStatPill}>
-              <Ionicons
-                name={
-                  appointment.preparation?.instructionsAcknowledged
-                    ? "checkmark-circle-outline"
-                    : "alert-circle-outline"
-                }
-                size={14}
-                color={
-                  appointment.preparation?.instructionsAcknowledged
-                    ? Palette.success
-                    : Palette.textMuted
-                }
-              />
-              <Text style={styles.prepStatText}>
-                {appointment.preparation?.instructionsAcknowledged
-                  ? "Instructions Ready"
-                  : "Guidelines Pending"}
-              </Text>
-            </View>
-          </View>
 
-          <Button
-            title="Prepare for Appointment"
-            variant="primary"
-            icon="shield-checkmark-outline"
-            onPress={() =>
-              router.push({
-                pathname: "/appointment/prepare/[id]" as any,
-                params: { id: String(appointment._id || id) },
-              })
-            }
-            style={{ marginTop: Spacing.sm }}
-          />
-        </Card>
+            <Button
+              title="Prepare for Appointment"
+              variant="primary"
+              icon="shield-checkmark-outline"
+              onPress={() =>
+                router.push({
+                  pathname: "/appointment/prepare/[id]" as any,
+                  params: { id: String(appointment._id || id) },
+                })
+              }
+              style={{ marginTop: Spacing.sm }}
+            />
+          </Card>
+        ) : null}
 
         {/* ---------------- Smart QR Check-In & Live Queue Section ---------------- */}
         {appointment.checkedIn ? (

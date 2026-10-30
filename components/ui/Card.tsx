@@ -1,19 +1,45 @@
 /**
  * HealPoint - reusable card surface.
  */
-import React from 'react';
-import { StyleSheet, View, ViewProps } from 'react-native';
+import React from "react";
+import { StyleSheet, View, ViewProps } from "react-native";
 
-import { Palette, Radius, Shadows } from '@/constants/theme';
+import { Glass, Radius, Shadows } from "@/constants/theme";
 
 interface CardProps extends ViewProps {
   padded?: boolean;
   elevated?: boolean;
+  level?: 1 | 2 | 3 | 4;
 }
 
-export function Card({ padded = true, elevated = true, style, children, ...props }: CardProps) {
+export function Card({
+  padded = true,
+  elevated = false,
+  level = 2,
+  style,
+  children,
+  ...props
+}: CardProps) {
+  const glassStyle =
+    level === 1
+      ? styles.level1
+      : level === 3
+        ? styles.level3
+        : level === 4
+          ? styles.level4
+          : styles.level2;
+
   return (
-    <View style={[styles.card, padded && styles.padded, elevated && styles.elevated, style]} {...props}>
+    <View
+      style={[
+        styles.card,
+        glassStyle,
+        padded && styles.padded,
+        elevated && styles.elevated,
+        style,
+      ]}
+      {...props}
+    >
       {children}
     </View>
   );
@@ -21,12 +47,13 @@ export function Card({ padded = true, elevated = true, style, children, ...props
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Palette.surface,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Palette.border,
-    overflow: 'hidden',
+    borderRadius: Radius.xl,
+    overflow: "hidden",
   },
+  level1: Glass.level1,
+  level2: Glass.level2,
+  level3: Glass.level3,
+  level4: Glass.level4,
   padded: {
     padding: 16,
   },

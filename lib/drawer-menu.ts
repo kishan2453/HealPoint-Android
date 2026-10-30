@@ -23,91 +23,31 @@ export interface DrawerMenuSection {
 export function patientDrawerMenu(): DrawerMenuSection[] {
   return [
     {
-      title: "Patient",
+      title: "Main",
       items: [
         { label: "Home", icon: "home-outline", href: "/(drawer)" as Href },
-        {
-          label: "Care Command Center",
-          icon: "pulse-outline",
-          href: "/command-center" as Href,
-        },
-        {
-          label: "AI Assistant",
-          icon: "sparkles-outline",
-          href: "/ai-assistant" as Href,
-        },
-        {
-          label: "Consult Online",
-          icon: "videocam-outline",
-          href: "/consult-online" as Href,
-        },
-        {
-          label: "My Consultations",
-          icon: "chatbubbles-outline",
-          href: "/consultations" as Href,
-        },
-        {
-          label: "Find Doctors",
-          icon: "search-outline",
-          href: "/doctors" as Href,
-        },
-        {
-          label: "Hospitals",
-          icon: "business-outline",
-          href: "/hospitals" as Href,
-        },
         {
           label: "My Appointments",
           icon: "calendar-outline",
           href: "/appointments" as Href,
         },
         {
-          label: "Reviews & Ratings",
-          icon: "star-outline",
-          href: "/reviews" as Href,
-        },
-        {
-          label: "Favorites",
-          icon: "heart-outline",
-          href: "/favorites" as Href,
-        },
-        {
-          label: "Emergency Help",
-          icon: "alert-circle-outline",
-          href: "/emergency" as Href,
-        },
-      ],
-    },
-    {
-      title: "Health",
-      items: [
-        {
-          label: "Care Passport",
-          icon: "id-card-outline",
-          href: "/care-passport" as Href,
-        },
-        {
-          label: "Digital Health Wallet",
-          icon: "wallet-outline",
-          href: "/health-wallet" as Href,
-        },
-        {
-          label: "Health Timeline",
+          label: "Recent Health Activity",
           icon: "time-outline",
           href: "/health/timeline" as Href,
         },
         {
-          label: "Continuity Graph",
-          icon: "git-branch-outline",
-          href: "/health/continuity-graph" as Href,
+          label: "Health Document Center",
+          icon: "document-attach-outline",
+          href: "/health/documents" as Href,
         },
         {
-          label: "Health Records",
+          label: "Medical Records",
           icon: "folder-open-outline",
           href: "/health/records" as Href,
         },
         {
-          label: "Prescriptions & Reminders",
+          label: "Prescriptions",
           icon: "document-text-outline",
           href: "/health/prescriptions" as Href,
         },
@@ -117,50 +57,15 @@ export function patientDrawerMenu(): DrawerMenuSection[] {
           href: "/health/reports" as Href,
         },
         {
-          label: "Follow-Ups & Care Plans",
-          icon: "refresh-outline",
-          href: "/health/follow-ups" as Href,
+          label: "Digital Health Wallet",
+          icon: "wallet-outline",
+          href: "/health-wallet" as Href,
         },
         {
-          label: "Specialist Referrals",
-          icon: "git-network-outline",
-          href: "/health/referrals" as Href,
+          label: "Saved Doctors & Hospitals",
+          icon: "heart-outline",
+          href: "/favorites" as Href,
         },
-        {
-          label: "Health Goals",
-          icon: "trophy-outline",
-          href: "/health/goals" as Href,
-        },
-        {
-          label: "Family Members",
-          icon: "people-outline",
-          href: "/health/family" as Href,
-        },
-        {
-          label: "Health Data & Export",
-          icon: "cloud-download-outline",
-          href: "/health/export" as Href,
-        },
-      ],
-    },
-    {
-      title: "Payments",
-      items: [
-        {
-          label: "Subscription & Plans",
-          icon: "shield-checkmark-outline",
-          href: "/subscription" as Href,
-        },
-        {
-          label: "Payment History",
-          icon: "card-outline",
-          href: "/payments/history" as Href,
-        },
-      ],
-    },
-    {
-      title: "Other",
-      items: [
         {
           label: "Notifications",
           icon: "notifications-outline",
@@ -176,12 +81,66 @@ export function patientDrawerMenu(): DrawerMenuSection[] {
           icon: "settings-outline",
           href: "/settings" as Href,
         },
+      ],
+    },
+    {
+      title: "Care Services",
+      items: [
         {
-          label: "Privacy & Consent Center",
-          icon: "shield-checkmark-outline",
-          href: "/privacy" as Href,
+          label: "Emergency Help",
+          icon: "alert-circle-outline",
+          href: "/emergency" as Href,
         },
-        { label: "Terms", icon: "reader-outline", href: "/terms" as Href },
+        {
+          label: "Care Command Center",
+          icon: "pulse-outline",
+          href: "/command-center" as Href,
+        },
+        {
+          label: "Smart Care Planner",
+          icon: "today-outline",
+          href: "/care-planner" as Href,
+        },
+        {
+          label: "Consult Online",
+          icon: "videocam-outline",
+          href: "/consult-online" as Href,
+        },
+        {
+          label: "Find Doctors",
+          icon: "search-outline",
+          href: "/doctors" as Href,
+        },
+        {
+          label: "Hospitals",
+          icon: "business-outline",
+          href: "/hospitals" as Href,
+        },
+        {
+          label: "Care Passport",
+          icon: "id-card-outline",
+          href: "/care-passport" as Href,
+        },
+        {
+          label: "Care Continuity",
+          icon: "repeat-outline",
+          href: "/care-continuity" as Href,
+        },
+        {
+          label: "Health Goals",
+          icon: "trophy-outline",
+          href: "/health/goals" as Href,
+        },
+        {
+          label: "Family Members",
+          icon: "people-outline",
+          href: "/health/family" as Href,
+        },
+        {
+          label: "Subscription & Plans",
+          icon: "shield-checkmark-outline",
+          href: "/subscription" as Href,
+        },
       ],
     },
   ];

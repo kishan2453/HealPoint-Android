@@ -66,10 +66,32 @@ function resolveNativeModule(): RazorpayNativeModule | null {
   return null;
 }
 
-/** True when this platform can render the native Razorpay Checkout. */
+/** True when this platform can render the native or web Razorpay Checkout. */
 export function isRazorpayCheckoutAvailable(): boolean {
+  if (Platform.OS === 'web') return true;
   if (Platform.OS !== 'android' && Platform.OS !== 'ios') return false;
   return resolveNativeModule() !== null;
+}
+
+function loadRazorpayWebScript(): Promise<void> {
+  if (typeof window === 'undefined') return Promise.reject(new Error('Window not available'));
+  if ((window as unknown as { Razorpay?: unknown }).Razorpay) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve());
+      existing.addEventListener('error', () => reject(new Error('Failed to load Razorpay payment SDK')));
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () =>
+      reject(new Error('Failed to load Razorpay payment SDK. Please check your internet connection.'));
+    document.body.appendChild(script);
+  });
 }
 
 /**
@@ -132,19 +154,81 @@ function logPaymentError(error: RazorpayPaymentError) {
  *
  * Resolves with `{ razorpay_payment_id, razorpay_order_id, razorpay_signature }`
  * on success and rejects with a `RazorpayPaymentError` on failure/cancellation.
- * Rejects if the native module is unavailable (e.g. Expo Go or an unsupported
- * platform), if the order creation already failed, or on timeout.
+ * Supports Web via checkout.js and Native Android/iOS via RNRazorpayCheckout.
  */
 export function openRazorpayCheckout(options: RazorpayCheckoutOptions): Promise<RazorpayPaymentResponse> {
+  if (Platform.OS === 'web') {
+    return loadRazorpayWebScript().then(() => {
+      return new Promise<RazorpayPaymentResponse>((resolve, reject) => {
+        const RazorpayCtor = (window as unknown as {
+          Razorpay?: new (opts: unknown) => {
+            open: () => void;
+            on: (event: string, handler: (err: unknown) => void) => void;
+          };
+        }).Razorpay;
+
+        if (!RazorpayCtor) {
+          reject(new Error('Razorpay SDK is not available in the browser.'));
+          return;
+        }
+
+        let settled = false;
+
+        const webOptions = {
+          ...options,
+          handler: (response: {
+            razorpay_payment_id: string;
+            razorpay_order_id?: string;
+            razorpay_signature?: string;
+          }) => {
+            if (settled) return;
+            settled = true;
+            resolve({
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id || options.order_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+          },
+          modal: {
+            confirm_close: true,
+            ondismiss: () => {
+              if (settled) return;
+              settled = true;
+              reject(
+                normalizeError({
+                  code: 2,
+                  description: 'Payment was cancelled by the user.',
+                }),
+              );
+            },
+          },
+        };
+
+        const rzp = new RazorpayCtor(webOptions);
+        rzp.on('payment.failed', (resp: unknown) => {
+          if (settled) return;
+          settled = true;
+          const errObj = ((resp as { error?: Record<string, unknown> })?.error) || {};
+          reject(
+            normalizeError({
+              code: (errObj.code as number) || 0,
+              description: (errObj.description as string) || 'Payment failed.',
+              reason: errObj.reason as string,
+              source: errObj.source as string,
+              step: errObj.step as string,
+              metadata: errObj.metadata as Record<string, unknown>,
+            }),
+          );
+        });
+
+        rzp.open();
+      });
+    });
+  }
+
   const module = resolveNativeModule();
   if (!module) {
-    return Promise.reject(
-      new Error(
-        Platform.OS === 'web'
-          ? 'Online payment is not available in the web app yet.'
-          : unavailableMessage(),
-      ),
-    );
+    return Promise.reject(new Error(unavailableMessage()));
   }
 
   return new Promise<RazorpayPaymentResponse>((resolve, reject) => {

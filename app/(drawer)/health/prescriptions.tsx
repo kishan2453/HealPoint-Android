@@ -1276,7 +1276,8 @@ export default function PrescriptionsScreen() {
                     </Text>
                   </View>
                   <Text style={styles.prescribedDoctor}>
-                    Dr. {modalTarget.doctorName} • {modalTarget.hospitalName}
+                    {formatDoctorName(modalTarget.doctorName)} •{" "}
+                    {modalTarget.hospitalName}
                   </Text>
                   {modalTarget.instructions ? (
                     <Text style={styles.prescribedInstructions}>

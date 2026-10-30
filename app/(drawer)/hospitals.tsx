@@ -147,7 +147,10 @@ export default function HospitalsScreen() {
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <DrawerToggleButton />
+          <DrawerToggleButton
+            color={Palette.text}
+            backgroundColor="rgba(37, 99, 235, 0.08)"
+          />
           <View style={styles.headerTexts}>
             <Text style={styles.title}>Explore Hospitals</Text>
             <Text style={styles.subtitle}>
@@ -440,6 +443,10 @@ export default function HospitalsScreen() {
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          initialNumToRender={6}
+          maxToRenderPerBatch={8}
+          windowSize={5}
+          removeClippedSubviews={true}
           ListFooterComponent={
             <View style={{ height: compareCount > 0 ? 140 : Spacing.xxl }} />
           }

@@ -31,6 +31,7 @@ import { Palette, Radius, Spacing, Typography } from "@/constants/theme";
 import {
   dateLabel,
   formatDDMMYYYY,
+  formatDoctorName,
   toDDMMYYYY,
   weekdayLabel,
 } from "@/lib/format";
@@ -201,7 +202,7 @@ export function RescheduleModal({
                     color={Palette.textMuted}
                   />
                   <Text style={styles.metaText}>
-                    Dr. {doctorName.replace(/^(?:dr\.?|doctor)\s+/gi, "")}
+                    {formatDoctorName(doctorName)}
                   </Text>
                 </View>
                 <View style={styles.metaRow}>

@@ -1,0 +1,704 @@
+/* ============================================================================
+   HealPoint Hospital Admin — Compliance & Governance Center
+   ============================================================================ */
+
+.compliance-center {
+  padding: 24px;
+  max-width: 1440px;
+  margin: 0 auto;
+  font-family: "Manrope", "Inter", system-ui, -apple-system, sans-serif;
+  color: #0f172a;
+}
+
+/* 1. Page Header */
+.compliance-center .premier-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.compliance-center .header-left .breadcrumb-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.compliance-center .header-left .breadcrumb-line .separator {
+  color: #cbd5e1;
+}
+
+.compliance-center .header-left .breadcrumb-line .current {
+  color: #2563eb;
+}
+
+.compliance-center .header-left h1 {
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.025em;
+  margin: 0 0 6px 0;
+}
+
+.compliance-center .header-left p {
+  color: #64748b;
+  font-size: 0.95rem;
+  margin: 0;
+  max-width: 650px;
+}
+
+.compliance-center .actions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.compliance-center .live-socket-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 8px 14px;
+  border-radius: 9999px;
+  font-size: 0.82rem;
+  color: #065f46;
+  font-weight: 600;
+}
+
+.compliance-center .pulse-dot {
+  font-size: 8px;
+  color: #10b981;
+}
+
+.compliance-center .pulse-dot.active {
+  animation: pulse-green 1.8s infinite;
+}
+
+@keyframes pulse-green {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0.6;
+  }
+}
+
+.compliance-center .premier-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: #2563eb;
+  border: 1px solid #1d4ed8;
+  color: #ffffff;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.compliance-center .premier-btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+}
+
+.compliance-center .premier-btn-primary:disabled {
+  background: #94a3b8;
+  border-color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.compliance-center .premier-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  color: #334155;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.compliance-center .premier-btn-secondary:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+/* 2. Summary KPI Metric Cards */
+.compliance-center .premier-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1024px) {
+  .compliance-center .premier-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .compliance-center .premier-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.compliance-center .kpi-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.compliance-center .kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+}
+
+.compliance-center .kpi-icon-box {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.compliance-center .kpi-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.compliance-center .kpi-title {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 2px;
+}
+
+.compliance-center .kpi-value {
+  font-size: 1.85rem;
+  font-weight: 900;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: 2px 0 3px 0;
+}
+
+.compliance-center .kpi-subtext {
+  display: block;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 3. Sub-Navigation Tabs */
+.compliance-center .compliance-tab-nav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 2px;
+  flex-wrap: wrap;
+}
+
+.compliance-center .compliance-tab-nav .tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border-radius: 10px 10px 0 0;
+  border: none;
+  background: transparent;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.compliance-center .compliance-tab-nav .tab-btn:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+.compliance-center .compliance-tab-nav .tab-btn.active {
+  color: #2563eb;
+  border-bottom: 3px solid #2563eb;
+  background: #ffffff;
+  font-weight: 800;
+}
+
+/* 4. Search and Filters Card */
+.compliance-center .premier-filter-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: #ffffff;
+  padding: 18px 20px;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+  margin-bottom: 20px;
+}
+
+.compliance-center .search-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 10px 14px;
+  transition: all 0.2s ease;
+}
+
+.compliance-center .search-input-wrapper:focus-within {
+  border-color: #2563eb;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.compliance-center .search-input-wrapper .search-icon {
+  color: #94a3b8;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.compliance-center .search-input-wrapper input {
+  border: none;
+  background: transparent;
+  outline: none;
+  width: 100%;
+  font-size: 0.92rem;
+  color: #0f172a;
+  font-family: inherit;
+}
+
+.compliance-center .search-input-wrapper .clear-search-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 6px;
+}
+
+.compliance-center .filter-controls-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.compliance-center .filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 160px;
+}
+
+.compliance-center .filter-item label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+}
+
+.compliance-center .filter-item select {
+  padding: 10px 14px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #334155;
+  background: #ffffff;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.compliance-center .filter-item select:focus {
+  border-color: #2563eb;
+}
+
+/* 5. Main Audit Table Card */
+.compliance-center .premier-table-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+}
+
+.compliance-center .table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.compliance-center .premier-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.88rem;
+}
+
+.compliance-center .premier-table th {
+  background: #f8fafc;
+  padding: 12px 16px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.compliance-center .premier-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+  color: #334155;
+}
+
+.compliance-center .audit-row {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.compliance-center .audit-row:hover td {
+  background: #f8fafc;
+}
+
+.compliance-center .timestamp-cell {
+  white-space: nowrap;
+  font-size: 0.82rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.compliance-center .action-cell .event-title {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 2px;
+}
+
+.compliance-center .action-cell .event-desc {
+  font-size: 0.78rem;
+  color: #64748b;
+  max-width: 320px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.compliance-center .actor-cell strong {
+  display: block;
+  font-size: 0.88rem;
+  color: #0f172a;
+}
+
+.compliance-center .actor-cell .role-sub {
+  font-size: 0.74rem;
+  color: #64748b;
+}
+
+.compliance-center .appointment-chip {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-family: monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.compliance-center .resource-chip {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.compliance-center .doctor-hint {
+  display: block;
+  font-size: 0.74rem;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.compliance-center .transition-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+.compliance-center .transition-preview .transition-from {
+  color: #94a3b8;
+  text-decoration: line-through;
+}
+
+.compliance-center .transition-preview .transition-arrow-icon {
+  color: #2563eb;
+  font-size: 0.75rem;
+}
+
+.compliance-center .transition-preview .transition-to {
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.compliance-center .inspect-btn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.compliance-center .inspect-btn:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+/* Status Badges */
+.compliance-center .status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.compliance-center .status-badge.status-critical {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.compliance-center .status-badge.status-warning {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.compliance-center .status-badge.status-notice {
+  background: #e0e7ff;
+  color: #3730a3;
+  border: 1px solid #c7d2fe;
+}
+
+.compliance-center .status-badge.status-info {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+.compliance-center .status-badge.status-confirmed {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+/* Category Tags */
+.compliance-center .category-tag {
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.compliance-center .category-tag.category-clinical {
+  background: #dcfce7;
+  color: #15803d;
+}
+.compliance-center .category-tag.category-appointment {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+.compliance-center .category-tag.category-doctor {
+  background: #fef3c7;
+  color: #b45309;
+}
+.compliance-center .category-tag.category-hospital {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+.compliance-center .category-tag.category-security {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.compliance-center .category-tag.category-financial {
+  background: #ccfbf1;
+  color: #0f766e;
+}
+.compliance-center .category-tag.category-administrative {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+/* Empty & Loading States */
+.compliance-center .premier-empty-state {
+  padding: 56px 24px;
+  text-align: center;
+  color: #64748b;
+}
+
+.compliance-center .premier-empty-state .empty-icon {
+  font-size: 42px;
+  color: #94a3b8;
+  margin-bottom: 14px;
+}
+
+.compliance-center .premier-empty-state h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 6px 0;
+}
+
+.compliance-center .premier-empty-state p {
+  font-size: 0.88rem;
+  margin: 0 0 16px 0;
+}
+
+.compliance-center .premier-loading-skeleton {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.compliance-center .skeleton-row {
+  height: 40px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.compliance-center .skeleton-row.header {
+  height: 32px;
+  background: #e2e8f0;
+}
+
+@keyframes skeleton-pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+/* Server Pagination */
+.compliance-center .premier-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-top: 1px solid #f1f5f9;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.compliance-center .pagination-info {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.compliance-center .pagination-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.compliance-center .pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.compliance-center .pagination-btn:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.compliance-center .pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.compliance-center .spin {
+  animation: hp-rotate 1s linear infinite;
+}
+

@@ -34,7 +34,7 @@ export default function DrawerLayout() {
           drawerActiveBackgroundColor: Palette.primaryLight,
           sceneStyle: { backgroundColor: Palette.background },
           swipeEdgeWidth: 60,
-          overlayColor: "rgba(9, 20, 18, 0.45)",
+          overlayColor: Palette.overlay,
         }}
       >
         {/* Main screens — reached directly, hidden from the default list since
@@ -45,6 +45,10 @@ export default function DrawerLayout() {
         <Drawer.Screen
           name="command-center"
           options={{ title: "Care Command Center", ...hidden }}
+        />
+        <Drawer.Screen
+          name="care-center"
+          options={{ title: "Patient Care Center", ...hidden }}
         />
         <Drawer.Screen
           name="doctors"
@@ -85,12 +89,28 @@ export default function DrawerLayout() {
           options={{ title: "Favorites", ...hidden }}
         />
         <Drawer.Screen
+          name="care-passport"
+          options={{ title: "Smart Care Passport", ...hidden }}
+        />
+        <Drawer.Screen
+          name="care-continuity"
+          options={{ title: "Care Continuity", ...hidden }}
+        />
+        <Drawer.Screen
+          name="care-planner"
+          options={{ title: "Smart Care Planner", ...hidden }}
+        />
+        <Drawer.Screen
           name="health-wallet"
           options={{ title: "Digital Health Wallet", ...hidden }}
         />
         <Drawer.Screen
           name="health/timeline"
           options={{ title: "Health Timeline", ...hidden }}
+        />
+        <Drawer.Screen
+          name="health/activity"
+          options={{ title: "Healthcare Activity & Insights", ...hidden }}
         />
         <Drawer.Screen
           name="health/records"
@@ -101,8 +121,28 @@ export default function DrawerLayout() {
           options={{ title: "Prescriptions & Reminders", ...hidden }}
         />
         <Drawer.Screen
+          name="health/documents"
+          options={{ title: "Health Document Center", ...hidden }}
+        />
+        <Drawer.Screen
           name="health/reports"
           options={{ title: "Reports", ...hidden }}
+        />
+        <Drawer.Screen
+          name="health/continuity-graph"
+          options={{ title: "Care Continuity Graph", ...hidden }}
+        />
+        <Drawer.Screen
+          name="health/care-gaps"
+          options={{ title: "Care Gaps & Continuity", ...hidden }}
+        />
+        <Drawer.Screen
+          name="health/referrals"
+          options={{ title: "Referrals", ...hidden }}
+        />
+        <Drawer.Screen
+          name="health/follow-ups"
+          options={{ title: "Follow-Ups", ...hidden }}
         />
         <Drawer.Screen
           name="health/goals"

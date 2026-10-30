@@ -153,12 +153,107 @@ export function subscribeToNotificationSync(
     try {
       callback(data);
     } catch (e) {
-      console.error("[Socket.IO] Error handling notification:new:", e);
+      console.error("[Socket.IO] Error handling notification event:", e);
     }
   };
 
   socketInstance.on("notification:new", handler);
+  socketInstance.on("notification:sync", handler);
   return () => {
     socketInstance?.off("notification:new", handler);
+    socketInstance?.off("notification:sync", handler);
+  };
+}
+
+export interface ConsultationSyncPayload {
+  eventType?: string;
+  appointmentId?: string;
+  status?: string;
+  meetingLink?: string;
+  timestamp?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Subscribe to real-time online consultation events (started, completed, link available).
+ */
+export function subscribeToConsultationSync(
+  callback: (payload: ConsultationSyncPayload) => void,
+): () => void {
+  if (!socketInstance) return () => {};
+
+  const handler = (data: ConsultationSyncPayload) => {
+    try {
+      callback(data);
+    } catch (e) {
+      console.error("[Socket.IO] Error handling consultation:sync:", e);
+    }
+  };
+
+  socketInstance.on("consultation:sync", handler);
+  return () => {
+    socketInstance?.off("consultation:sync", handler);
+  };
+}
+
+export interface ClinicalDocSyncPayload {
+  eventType?: string;
+  type?: "prescription" | "report" | string;
+  appointmentId?: string;
+  patientId?: string;
+  documentId?: string;
+  timestamp?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Subscribe to real-time clinical document updates (prescriptions, diagnostic lab reports).
+ */
+export function subscribeToClinicalDocSync(
+  callback: (payload: ClinicalDocSyncPayload) => void,
+): () => void {
+  if (!socketInstance) return () => {};
+
+  const handler = (data: ClinicalDocSyncPayload) => {
+    try {
+      callback(data);
+    } catch (e) {
+      console.error("[Socket.IO] Error handling clinical-doc:sync:", e);
+    }
+  };
+
+  socketInstance.on("clinical-doc:sync", handler);
+  return () => {
+    socketInstance?.off("clinical-doc:sync", handler);
+  };
+}
+
+export interface ReviewSyncPayload {
+  doctorId?: string;
+  rating?: number;
+  review?: unknown;
+  timestamp?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Subscribe to real-time doctor review updates.
+ */
+export function subscribeToReviewSync(
+  callback: (payload: ReviewSyncPayload) => void,
+): () => void {
+  if (!socketInstance) return () => {};
+
+  const handler = (data: ReviewSyncPayload) => {
+    try {
+      callback(data);
+    } catch (e) {
+      console.error("[Socket.IO] Error handling review:sync:", e);
+    }
+  };
+
+  socketInstance.on("review:sync", handler);
+  return () => {
+    socketInstance?.off("review:sync", handler);
   };
 }

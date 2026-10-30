@@ -23,6 +23,8 @@ export type ApiErrorCode =
   | "UNAUTHORIZED"
   | "FORBIDDEN"
   | "NOT_FOUND"
+  | "CONFLICT"
+  | "RATE_LIMIT"
   | "VALIDATION"
   | "SERVER"
   | "UNKNOWN";
@@ -34,6 +36,8 @@ export type ApiErrorCategory =
   | "UNAUTHORIZED"
   | "FORBIDDEN"
   | "NOT_FOUND"
+  | "CONFLICT"
+  | "RATE_LIMIT"
   | "SERVER"
   | "VALIDATION"
   | "UNKNOWN";
@@ -531,6 +535,7 @@ export interface PatientQuestionItem {
   _id?: string;
   question: string;
   sharedWithDoctor: boolean;
+  isDiscussed?: boolean;
   createdAt?: string;
 }
 
@@ -539,6 +544,7 @@ export interface AppointmentPreparationState {
   checklistCompleted: string[];
   instructionsAcknowledged: boolean;
   symptomsNotes: string;
+  privatePatientNotes?: string;
   updatedAt?: string | null;
 }
 
@@ -596,9 +602,35 @@ export interface PreparationHistoryItem {
   medicalReports?: AppointmentMedicalReportItem[];
 }
 
+export interface PreparationSmartNextAction {
+  key: string;
+  label: string;
+  description: string;
+  variant:
+    | "primary"
+    | "secondary"
+    | "outline"
+    | "danger"
+    | "warning"
+    | "neutral";
+  icon: string;
+  actionType:
+    | "rebook"
+    | "records"
+    | "payment"
+    | "meet"
+    | "pass"
+    | "documents"
+    | "none";
+}
+
 export interface AppointmentPreparationResponse {
   success: boolean;
   message?: string;
+  isToday?: boolean;
+  checkInEligible?: boolean;
+  doctorAccepted?: boolean;
+  smartNextAction?: PreparationSmartNextAction | null;
   appointment: {
     _id: string;
     appointmentId?: string;
@@ -799,7 +831,82 @@ export interface FollowUpOverviewItem {
   linkedAppointmentTime?: string;
   linkedAppointmentStatus?: string;
   linkedDisplayAppointmentId?: string;
+  medicines?: {
+    name: string;
+    dosage?: string;
+    frequency?: string;
+    duration?: string;
+    route?: string;
+    timing?: string;
+    instructions?: string;
+  }[];
+  reportStatus?: "available" | "pending" | "none";
+  isEligibleForRebook?: boolean;
+  referral?: {
+    id: string;
+    displayId?: string;
+    status: string;
+    department?: string;
+    targetSpeciality?: string;
+    receivingDoctorName?: string;
+    receivingHospitalName?: string;
+    canBook?: boolean;
+  };
+  handover?: {
+    id: string;
+    displayId?: string;
+    status: string;
+    handoverType?: string;
+    receivingDoctorName?: string;
+  };
   videoQuotaAvailable?: boolean;
+}
+
+export type ContinuityCareState =
+  | "Consultation Completed"
+  | "Prescription Available"
+  | "Report Pending"
+  | "Report Available"
+  | "Follow-Up Scheduled"
+  | "Follow-Up Required"
+  | "Referral Pending"
+  | "No Active Follow-Up";
+
+export interface ContinuitySmartNextAction {
+  key: string;
+  label: string;
+  description: string;
+  variant: "primary" | "secondary" | "outline" | "ghost" | "danger";
+  icon: keyof typeof import("@expo/vector-icons").Ionicons.glyphMap;
+  route?: string;
+  params?: Record<string, any>;
+}
+
+export interface CareContinuityOverview {
+  activeState: ContinuityCareState | string;
+  smartNextAction: ContinuitySmartNextAction;
+  latestCompletedConsultation: {
+    appointmentId: string;
+    displayAppointmentId?: string;
+    doctorId: string;
+    doctorName: string;
+    doctorSpecialty: string;
+    hospitalName: string;
+    slotDate: string;
+    slotTime: string;
+    consultationType: ConsultationType;
+    hasPrescription: boolean;
+    hasReports: boolean;
+    reportStatus: "available" | "pending" | "none";
+  } | null;
+  stats: {
+    totalFollowUps: number;
+    pendingBooking: number;
+    scheduled: number;
+    completed: number;
+    activeReferrals?: number;
+    activeHandovers?: number;
+  };
 }
 
 export interface FollowUpCenterResponse {
@@ -812,6 +919,7 @@ export interface FollowUpCenterResponse {
     scheduled: number;
     completed: number;
   };
+  continuityOverview?: CareContinuityOverview;
   patient: {
     _id: string;
     name: string;
@@ -1045,7 +1153,9 @@ export type TimelineFilterType =
   | "consultations"
   | "prescriptions"
   | "reports"
-  | "followups";
+  | "documents"
+  | "followups"
+  | "reviews";
 
 export type PatientTimelineEventType =
   | "appointment"
@@ -1053,7 +1163,17 @@ export type PatientTimelineEventType =
   | "consultation"
   | "prescription"
   | "report"
-  | "followup";
+  | "followup"
+  | "hospital_checkin"
+  | "queue_waiting"
+  | "doctor_accepted"
+  | "appointment_rescheduled"
+  | "appointment_cancelled"
+  | "document"
+  | "referral"
+  | "review"
+  | "medication_reminder"
+  | "medication_dose";
 
 export interface PatientTimelineDoctor {
   _id?: string;
@@ -1078,7 +1198,7 @@ export interface PatientTimelineAction {
   route: string;
   params?: Record<string, string>;
   icon?: string;
-  variant?: "primary" | "secondary" | "danger";
+  variant?: "primary" | "secondary" | "danger" | "outline";
 }
 
 export interface PatientTimelineEvent {
@@ -1105,8 +1225,8 @@ export interface PatientTimelineEvent {
   icon: string;
   iconBg: string;
   iconColor: string;
-  doctor: PatientTimelineDoctor;
-  hospital: PatientTimelineHospital;
+  doctor?: PatientTimelineDoctor;
+  hospital?: PatientTimelineHospital;
   department?: string;
   consultationType?: "clinic" | "video";
   prescriptionDetails?: {
@@ -1133,8 +1253,65 @@ export interface PatientTimelineEvent {
     filename?: string;
     mimeType?: string;
   };
+  queueDetails?: {
+    token?: string;
+    status?: string;
+    calledAt?: string;
+  };
   followUpAdvice?: string;
   actions: PatientTimelineAction[];
+}
+
+export interface PatientCurrentCareStatus {
+  key:
+    | "ready_checkin"
+    | "in_queue"
+    | "consultation_available"
+    | "waiting_doctor"
+    | "upcoming_appointment"
+    | "prescription_ready"
+    | "followup_due"
+    | "no_active_episode";
+  title: string;
+  description: string;
+  badgeLabel: string;
+  badgeVariant: "primary" | "success" | "warning" | "error" | "neutral";
+  actionLabel?: string;
+  actionRoute?: string;
+  actionParams?: Record<string, string>;
+  queueToken?: string;
+  queueStatus?: string;
+  doctorName?: string;
+  hospitalName?: string;
+}
+
+export interface PatientRecentActivitySummary {
+  latestAppointment?: {
+    id: string;
+    displayId?: string;
+    doctorName: string;
+    date: string;
+    time: string;
+    status: string;
+  } | null;
+  latestPrescription?: PatientTimelineEvent | null;
+  latestReport?: PatientTimelineEvent | null;
+  latestDocument?: {
+    id: string;
+    title: string;
+    category?: string;
+    date: string;
+  } | null;
+  latestConsultation?: {
+    appointmentId: string;
+    displayAppointmentId?: string;
+    date: string;
+    time: string;
+    doctorName: string;
+    hospitalName: string;
+    diagnosis?: string;
+  } | null;
+  latestFollowUp?: PatientTimelineEvent | null;
 }
 
 export interface PatientTimelineSummary {
@@ -1144,6 +1321,8 @@ export interface PatientTimelineSummary {
   totalPrescriptions: number;
   totalReports: number;
   totalFollowUps: number;
+  totalDocuments?: number;
+  totalReviews?: number;
   nextAppointment?: {
     appointmentId: string;
     displayAppointmentId?: string;
@@ -1162,6 +1341,8 @@ export interface PatientTimelineSummary {
     hospitalName: string;
     diagnosis?: string;
   } | null;
+  smartCurrentStatus?: PatientCurrentCareStatus;
+  recentActivity?: PatientRecentActivitySummary;
 }
 
 export interface PatientTimelinePagination {
@@ -6843,7 +7024,12 @@ export type ServiceCriticality = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 export interface CriticalDependency {
   id: string;
   name: string;
-  category: "core" | "financial" | "communication" | "ai_document" | "infrastructure";
+  category:
+    | "core"
+    | "financial"
+    | "communication"
+    | "ai_document"
+    | "infrastructure";
   criticality: ServiceCriticality;
   operationalState: ServiceOperationalState;
   failoverReadiness: FailoverReadinessStatus;
@@ -6860,7 +7046,11 @@ export interface CriticalDependency {
     severity: string;
     status: string;
   }>;
-  manualOverride: "AUTOMATIC" | "FORCE_DEGRADED" | "FORCE_FAILOVER" | "FORCE_MAINTENANCE";
+  manualOverride:
+    | "AUTOMATIC"
+    | "FORCE_DEGRADED"
+    | "FORCE_FAILOVER"
+    | "FORCE_MAINTENANCE";
   lastChecked: string;
 }
 
@@ -6914,7 +7104,15 @@ export interface RecoveryQueueItem {
   eventId: string;
   eventType: string;
   aggregateType?: string;
-  state: "RECEIVED" | "PROCESSED" | "FAILED" | "RETRYING" | "RECOVERED" | "MANUAL_REVIEW" | "REPLAYED" | "IGNORED";
+  state:
+    | "RECEIVED"
+    | "PROCESSED"
+    | "FAILED"
+    | "RETRYING"
+    | "RECOVERED"
+    | "MANUAL_REVIEW"
+    | "REPLAYED"
+    | "IGNORED";
   failureCategory: string;
   errorMessage?: string;
   retryCount: number;
@@ -6946,4 +7144,3 @@ export interface RecoveryVerificationResult {
   fallbackAvailable: boolean;
   verifiedAt: string;
 }
-

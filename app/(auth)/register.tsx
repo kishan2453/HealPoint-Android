@@ -25,6 +25,7 @@ import {
   getPasswordValidation,
   isValidEmail,
   isValidStrongPassword,
+  validateAdultDob,
 } from "@/lib/validation";
 import { ApiClientError, toErrorMessage } from "@/services/api";
 import { isGoogleSignInConfigured, useGoogleSignIn } from "@/services/google";
@@ -54,6 +55,7 @@ export default function RegisterScreen() {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [dob, setDob] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -64,6 +66,7 @@ export default function RegisterScreen() {
   const [fieldErrors, setFieldErrors] = useState<{
     name?: string;
     email?: string;
+    dob?: string;
     password?: string;
     confirm?: string;
     terms?: string;
@@ -194,11 +197,43 @@ export default function RegisterScreen() {
     });
   };
 
+  const handleDobChange = (text: string) => {
+    setDob(text);
+    if (fieldErrors.dob) {
+      const check = validateAdultDob(text);
+      if (check.isValid) {
+        setFieldErrors((prev) => {
+          const next = { ...prev };
+          delete next.dob;
+          return next;
+        });
+      }
+    }
+  };
+
+  const handleDobBlur = () => {
+    if (dob.trim().length > 0) {
+      const check = validateAdultDob(dob);
+      if (!check.isValid) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          dob: check.error || "You must be at least 18 years old to create an account.",
+        }));
+      }
+    }
+  };
+
   const validate = (): boolean => {
     const errors: typeof fieldErrors = {};
     if (!name.trim()) errors.name = "Full name is required";
     if (!isValidEmail(email.trim()))
       errors.email = "Enter a valid email address";
+    const dobCheck = validateAdultDob(dob);
+    if (!dobCheck.isValid) {
+      errors.dob =
+        dobCheck.error ||
+        "You must be at least 18 years old to create an account.";
+    }
     const pwdValidation = getPasswordValidation(password);
     if (!pwdValidation.isValid) {
       errors.password = pwdValidation.errorMessage || PASSWORD_HELP;
@@ -220,6 +255,7 @@ export default function RegisterScreen() {
         name: name.trim(),
         email: email.trim().toLowerCase(),
         password,
+        dob: dob.trim(),
       });
       router.replace({ pathname: "/login", params: { registered: "1" } });
     } catch (error) {
@@ -250,9 +286,11 @@ export default function RegisterScreen() {
 
   const googleLoading = google.status.status === "loading";
   const pwdValidation = getPasswordValidation(password);
+  const dobValidation = validateAdultDob(dob);
   const isFormValid = Boolean(
     name.trim() &&
     isValidEmail(email.trim()) &&
+    dobValidation.isValid &&
     pwdValidation.isValid &&
     password === confirm &&
     accepted,
@@ -281,7 +319,7 @@ export default function RegisterScreen() {
 
           <Input
             label="Full Name"
-            placeholder="Kishan Rajput"
+            placeholder="Your name"
             value={name}
             onChangeText={handleNameChange}
             autoCapitalize="words"
@@ -289,6 +327,20 @@ export default function RegisterScreen() {
             textContentType="name"
             leftIcon="person-outline"
             error={fieldErrors.name}
+            variant="filled"
+          />
+
+          <Input
+            label="Date of Birth"
+            placeholder="DD-MM-YYYY (Must be 18+)"
+            value={dob}
+            onChangeText={handleDobChange}
+            onBlur={handleDobBlur}
+            keyboardType="numbers-and-punctuation"
+            autoCapitalize="none"
+            autoCorrect={false}
+            leftIcon="calendar-outline"
+            error={fieldErrors.dob}
             variant="filled"
           />
 

@@ -30,6 +30,7 @@ import {
   Typography,
 } from "@/constants/theme";
 import { useHospitalComparison } from "@/hooks/use-hospital-comparison";
+import { useUserLocation } from "@/hooks/use-user-location";
 import { formatDoctorName, formatINR, formatISODate } from "@/lib/format";
 import { getDoctorImage } from "@/lib/image";
 import { toErrorMessage } from "@/services/api";
@@ -41,6 +42,7 @@ export default function HospitalDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { isInComparison, toggleHospital, canCompare, selectedIds } =
     useHospitalComparison();
+  const { calculateDistanceTo } = useUserLocation();
   const inCompare = id ? isInComparison(String(id)) : false;
   const [hospital, setHospital] = useState<Hospital | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,9 +50,22 @@ export default function HospitalDetailScreen() {
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(
     null,
   );
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "doctors" | "facilities" | "reviews" | "photos"
+  >("overview");
   const [lightbox, setLightbox] = useState<number | null>(null);
 
   const { width } = useWindowDimensions();
+
+  const distanceStr = useMemo(() => {
+    if (
+      typeof hospital?.location?.lat === "number" &&
+      typeof hospital?.location?.lng === "number"
+    ) {
+      return calculateDistanceTo(hospital.location.lat, hospital.location.lng);
+    }
+    return null;
+  }, [hospital?.location?.lat, hospital?.location?.lng, calculateDistanceTo]);
 
   const loadData = useCallback(() => {
     if (!id) return;
@@ -209,98 +224,109 @@ export default function HospitalDetailScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      {/* ---------------- Top App Bar ---------------- */}
-      <View style={styles.topBar}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          onPress={() =>
-            router.canGoBack() ? router.back() : router.replace("/")
-          }
-          style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}
-          hitSlop={8}
-        >
-          <Ionicons name="chevron-back" size={22} color={Palette.text} />
-        </Pressable>
-        <Text style={styles.topBarTitle} numberOfLines={1}>
-          Hospital Details
-        </Text>
-        <View style={styles.topBarActions}>
-          {phone ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Call hospital"
-              onPress={handleCall}
-              style={({ pressed }) => [
-                styles.iconBtn,
-                pressed && styles.pressed,
-              ]}
-              hitSlop={8}
-            >
-              <Ionicons name="call-outline" size={20} color={Palette.primary} />
-            </Pressable>
-          ) : null}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Share hospital"
-            onPress={handleShare}
-            style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}
-            hitSlop={8}
-          >
-            <Ionicons
-              name="share-social-outline"
-              size={20}
-              color={Palette.text}
-            />
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={
-              inCompare
-                ? `Remove ${hospital.name} from comparison`
-                : `Add ${hospital.name} to comparison`
-            }
-            onPress={() => hospital && toggleHospital(hospital)}
-            style={({ pressed }) => [
-              styles.iconBtn,
-              inCompare && styles.iconBtnActive,
-              pressed && styles.pressed,
-            ]}
-            hitSlop={8}
-          >
-            <Ionicons
-              name={inCompare ? "git-compare" : "git-compare-outline"}
-              size={20}
-              color={inCompare ? Palette.primary : Palette.text}
-            />
-          </Pressable>
-          {id ? (
-            <FavoriteButton
-              hospitalId={String(id)}
-              size={20}
-              style={styles.iconBtn}
-            />
-          ) : null}
-        </View>
-      </View>
-
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
         {/* ---------------- Hero Cover Image ---------------- */}
-        <View style={styles.coverWrap}>
+        <View style={styles.hero}>
           <HospitalImage
             hospital={hospital}
-            style={styles.cover}
+            style={styles.heroImage}
             contentFit="cover"
             accessibilityLabel={`${hospital.name} photo`}
           />
-          <View style={styles.coverGradient} />
-          <View style={styles.coverBadges}>
+          <View style={styles.heroShadeTop} />
+
+          {/* Floating Navigation Controls */}
+          <View style={styles.heroTopBar}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              onPress={() =>
+                router.canGoBack() ? router.back() : router.replace("/")
+              }
+              style={({ pressed }) => [styles.fab, pressed && styles.pressed]}
+              hitSlop={8}
+            >
+              <Ionicons name="chevron-back" size={24} color="#0F172A" />
+            </Pressable>
+            <View style={styles.topRightActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Share hospital"
+                onPress={handleShare}
+                style={({ pressed }) => [styles.fab, pressed && styles.pressed]}
+                hitSlop={8}
+              >
+                <Ionicons
+                  name="share-social-outline"
+                  size={22}
+                  color="#0F172A"
+                />
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  inCompare
+                    ? `Remove ${hospital.name} from comparison`
+                    : `Add ${hospital.name} to comparison`
+                }
+                onPress={() => hospital && toggleHospital(hospital)}
+                style={({ pressed }) => [
+                  styles.fab,
+                  inCompare && styles.fabActive,
+                  pressed && styles.pressed,
+                ]}
+                hitSlop={8}
+              >
+                <Ionicons
+                  name={inCompare ? "git-compare" : "git-compare-outline"}
+                  size={22}
+                  color={inCompare ? "#2563EB" : "#0F172A"}
+                />
+              </Pressable>
+              {id ? (
+                <View style={styles.fab}>
+                  <FavoriteButton hospitalId={String(id)} size={22} />
+                </View>
+              ) : null}
+            </View>
+          </View>
+
+          {/* Photo Counter Pill on Hero bottom-right */}
+          {gallery.length > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="View photos"
+              onPress={() => setLightbox(0)}
+              style={styles.heroPhotoPill}
+            >
+              <Ionicons name="images-outline" size={14} color="#FFFFFF" />
+              <Text style={styles.heroPhotoPillText}>1/{gallery.length}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+
+        {/* ---------------- Floating Hospital Info Card ---------------- */}
+        <View style={styles.hospitalFloatingCard}>
+          <View style={styles.hospitalTitleRow}>
+            <Text style={styles.hospitalTitleText} numberOfLines={1}>
+              {hospital.name}
+            </Text>
             {verified ? (
-              <Badge label="Verified Facility" variant="primary" />
+              <Ionicons name="checkmark-circle" size={20} color="#2563EB" />
             ) : null}
+          </View>
+
+          <View style={styles.hospitalRatingRow}>
+            <View style={styles.starBadge}>
+              <Ionicons name="star" size={13} color={Palette.gold} />
+              <Text style={styles.ratingText}>{ratingVal.toFixed(1)}</Text>
+            </View>
+            <Text style={styles.reviewSummary}>
+              ({reviewsCount} {reviewsCount === 1 ? "review" : "reviews"})
+            </Text>
             {hospital.emergencyFacility ? (
               <Badge label="24/7 Emergency" variant="error" />
             ) : null}
@@ -308,438 +334,708 @@ export default function HospitalDetailScreen() {
               <Badge label="ICU Available" variant="warning" />
             ) : null}
           </View>
-        </View>
 
-        {/* ---------------- Title & Location Block ---------------- */}
-        <View style={styles.titleBlock}>
-          <Text style={styles.name}>{hospital.name}</Text>
-          <View style={styles.ratingRow}>
-            <View style={styles.starBadge}>
-              <Ionicons name="star" size={14} color={Palette.gold} />
-              <Text style={styles.ratingText}>{ratingVal.toFixed(1)}</Text>
-            </View>
-            <Text style={styles.reviewSummary}>
-              ({reviewsCount}{" "}
-              {reviewsCount === 1 ? "patient review" : "patient reviews"})
-            </Text>
-          </View>
           {address ? (
-            <View style={styles.locRow}>
-              <Ionicons name="location" size={16} color={Palette.primary} />
-              <Text style={styles.locText} numberOfLines={2}>
-                {address}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Location: ${address}`}
+              onPress={handleDirections}
+              style={({ pressed }) => [
+                styles.hospitalLocationRow,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Ionicons name="location" size={15} color="#2563EB" />
+              <Text style={styles.hospitalLocationText} numberOfLines={1}>
+                {distanceStr
+                  ? `Current Location • ${distanceStr} away`
+                  : address}
               </Text>
-            </View>
-          ) : null}
-        </View>
-
-        {/* ---------------- Key Stats Strip ---------------- */}
-        <View style={styles.statsRow}>
-          <View style={styles.stat}>
-            <Ionicons name="people-outline" size={20} color={Palette.primary} />
-            <Text style={styles.statValue}>
-              {hospital.doctorCount || doctors.length || 0}
-            </Text>
-            <Text style={styles.statLabel}>Doctors</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
-            <Ionicons
-              name="checkmark-circle-outline"
-              size={20}
-              color={Palette.success}
-            />
-            <Text style={styles.statValue}>
-              {hospital.availableDoctorCount ??
-                hospital.doctorCount ??
-                doctors.length ??
-                0}
-            </Text>
-            <Text style={styles.statLabel}>Available</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
-            <Ionicons name="bed-outline" size={20} color={Palette.info} />
-            <Text style={styles.statValue}>{hospital.beds || 0}</Text>
-            <Text style={styles.statLabel}>Beds</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
-            <Ionicons name="pulse-outline" size={20} color={Palette.warning} />
-            <Text style={styles.statValue}>{hospital.icuBeds || 0}</Text>
-            <Text style={styles.statLabel}>ICU Beds</Text>
-          </View>
-        </View>
-
-        {/* ---------------- Quick Action Row ---------------- */}
-        <View style={styles.quickActionRow}>
-          {phone ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={handleCall}
-              style={({ pressed }) => [
-                styles.quickActionBtn,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Ionicons name="call" size={16} color={Palette.primary} />
-              <Text style={styles.quickActionLabel}>Call Hospital</Text>
+              <Ionicons name="chevron-forward" size={13} color="#64748B" />
             </Pressable>
           ) : null}
-          <Pressable
-            accessibilityRole="button"
-            onPress={handleDirections}
-            style={({ pressed }) => [
-              styles.quickActionBtn,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Ionicons name="navigate" size={16} color={Palette.primary} />
-            <Text style={styles.quickActionLabel}>Directions</Text>
-          </Pressable>
-          {hospital.contact?.email ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={handleEmail}
-              style={({ pressed }) => [
-                styles.quickActionBtn,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Ionicons name="mail" size={16} color={Palette.primary} />
-              <Text style={styles.quickActionLabel}>Email</Text>
-            </Pressable>
-          ) : null}
-          {hospital.contact?.website ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={handleWebsite}
-              style={({ pressed }) => [
-                styles.quickActionBtn,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Ionicons name="globe" size={16} color={Palette.primary} />
-              <Text style={styles.quickActionLabel}>Website</Text>
-            </Pressable>
-          ) : null}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={
-              inCompare
-                ? `Remove ${hospital.name} from comparison`
-                : `Add ${hospital.name} to comparison`
-            }
-            onPress={() => hospital && toggleHospital(hospital)}
-            style={({ pressed }) => [
-              styles.quickActionBtn,
-              inCompare && styles.quickActionBtnActive,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Ionicons
-              name={inCompare ? "checkmark-circle" : "git-compare-outline"}
-              size={16}
-              color={inCompare ? Palette.primaryDark : Palette.primary}
-            />
-            <Text
-              style={[
-                styles.quickActionLabel,
-                inCompare && styles.quickActionLabelActive,
-              ]}
-            >
-              {inCompare ? "Comparing" : "Compare"}
-            </Text>
-          </Pressable>
-        </View>
 
-        {/* ---------------- Comparison Banner ---------------- */}
-        {inCompare ? (
-          <View style={styles.comparisonBanner}>
-            <View style={styles.comparisonBannerLeft}>
-              <Ionicons
-                name="git-compare"
-                size={18}
-                color={Palette.primaryDark}
-              />
-              <Text style={styles.comparisonBannerText}>
-                {canCompare
-                  ? `Comparing with ${selectedIds.length - 1} other hospital${selectedIds.length > 2 ? "s" : ""}`
-                  : "Added to comparison. Select 1 more hospital."}
-              </Text>
-            </View>
-            {canCompare ? (
+          {/* 4 Quick Action Buttons */}
+          <View style={styles.quickActionRow}>
+            {phone ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="View hospital comparison"
-                onPress={() =>
-                  router.push({
-                    pathname: "/hospital/compare" as never,
-                    params: { ids: selectedIds.join(",") },
-                  })
-                }
+                accessibilityLabel="Call hospital"
+                onPress={handleCall}
                 style={({ pressed }) => [
-                  styles.comparisonBannerCta,
+                  styles.actionCircleBtn,
                   pressed && styles.pressed,
                 ]}
               >
-                <Text style={styles.comparisonBannerCtaText}>View</Text>
-                <Ionicons
-                  name="arrow-forward"
-                  size={14}
-                  color={Palette.white}
-                />
+                <View style={styles.actionCircleIcon}>
+                  <Ionicons name="call" size={18} color="#2563EB" />
+                </View>
+                <Text style={styles.actionCircleLabel}>Call</Text>
               </Pressable>
             ) : null}
-          </View>
-        ) : null}
 
-        {/* ---------------- Consultation & Timings ---------------- */}
-        <Card padded style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Consultation & Facilities</Text>
-          <View style={styles.infoGrid}>
-            <View style={styles.infoCell}>
-              <View style={styles.infoIconWrap}>
-                <Ionicons
-                  name="time-outline"
-                  size={18}
-                  color={Palette.primary}
-                />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Get directions"
+              onPress={handleDirections}
+              style={({ pressed }) => [
+                styles.actionCircleBtn,
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.actionCircleIcon}>
+                <Ionicons name="navigate" size={18} color="#2563EB" />
               </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.infoCellLabel}>OPD Timings</Text>
-                <Text style={styles.infoCellValue}>
-                  {hospital.opdTimings || "9:00 AM - 8:00 PM"}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.infoCell}>
-              <View style={styles.infoIconWrap}>
-                <Ionicons
-                  name="cash-outline"
-                  size={18}
-                  color={Palette.primary}
-                />
-              </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.infoCellLabel}>Avg Consultation</Text>
-                <Text style={styles.infoCellValue}>
-                  {hospital.consultationFee
-                    ? `${formatINR(hospital.consultationFee)} avg`
-                    : "Varies by doctor"}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.infoCell}>
-              <View style={styles.infoIconWrap}>
-                <Ionicons
-                  name="medkit-outline"
-                  size={18}
-                  color={Palette.primary}
-                />
-              </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.infoCellLabel}>Emergency Care</Text>
-                <Text style={styles.infoCellValue}>
-                  {hospital.emergencyFacility
-                    ? "24/7 Service"
-                    : "During OPD hours"}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.infoCell}>
-              <View style={styles.infoIconWrap}>
-                <Ionicons
-                  name="car-outline"
-                  size={18}
-                  color={Palette.primary}
-                />
-              </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.infoCellLabel}>Ambulance Service</Text>
-                <Text style={styles.infoCellValue}>
-                  {hospital.facilitiesInfo?.ambulance
-                    ? "Available 24x7"
-                    : "On Request"}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </Card>
+              <Text style={styles.actionCircleLabel}>Direction</Text>
+            </Pressable>
 
-        {/* ---------------- About Hospital ---------------- */}
-        {hospital.about ? (
-          <Card padded style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>About {hospital.name}</Text>
-            <Text style={styles.bodyText}>{hospital.about}</Text>
-          </Card>
-        ) : null}
-
-        {/* ---------------- Departments (Interactive Filter) ---------------- */}
-        {hospital.departments && hospital.departments.length > 0 ? (
-          <Card padded style={styles.sectionCard}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>
-                Departments ({hospital.departments.length})
-              </Text>
-              {selectedDepartment ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setSelectedDepartment(null)}
-                  hitSlop={8}
-                >
-                  <Text style={styles.clearFilterText}>Show All</Text>
-                </Pressable>
-              ) : null}
-            </View>
-            <Text style={styles.sectionSubtitle}>
-              Tap a department to filter doctors affiliated with this hospital:
-            </Text>
-            <View style={styles.chipRow}>
+            {hospital.contact?.website ? (
               <Pressable
                 accessibilityRole="button"
-                onPress={() => setSelectedDepartment(null)}
+                accessibilityLabel="Visit website"
+                onPress={handleWebsite}
                 style={({ pressed }) => [
-                  styles.filterChip,
-                  selectedDepartment === null && styles.filterChipActive,
+                  styles.actionCircleBtn,
                   pressed && styles.pressed,
                 ]}
               >
-                <Text
-                  style={[
-                    styles.filterChipText,
-                    selectedDepartment === null && styles.filterChipTextActive,
+                <View style={styles.actionCircleIcon}>
+                  <Ionicons name="globe" size={18} color="#2563EB" />
+                </View>
+                <Text style={styles.actionCircleLabel}>Website</Text>
+              </Pressable>
+            ) : null}
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Share hospital"
+              onPress={handleShare}
+              style={({ pressed }) => [
+                styles.actionCircleBtn,
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.actionCircleIcon}>
+                <Ionicons name="share-social" size={18} color="#2563EB" />
+              </View>
+              <Text style={styles.actionCircleLabel}>Share</Text>
+            </Pressable>
+          </View>
+
+          {/* 4 Key Statistics Strip */}
+          <View style={styles.statsRow}>
+            <View style={styles.stat}>
+              <Ionicons name="people-outline" size={18} color="#2563EB" />
+              <Text style={styles.statValue}>
+                {hospital.doctorCount || doctors.length || 0}
+              </Text>
+              <Text style={styles.statLabel}>Doctors</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.stat}>
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={18}
+                color={Palette.success}
+              />
+              <Text style={styles.statValue}>
+                {hospital.availableDoctorCount ??
+                  hospital.doctorCount ??
+                  doctors.length ??
+                  0}
+              </Text>
+              <Text style={styles.statLabel}>Available</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.stat}>
+              <Ionicons name="bed-outline" size={18} color={Palette.info} />
+              <Text style={styles.statValue}>{hospital.beds || 0}</Text>
+              <Text style={styles.statLabel}>Beds</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.stat}>
+              <Ionicons
+                name="pulse-outline"
+                size={18}
+                color={Palette.warning}
+              />
+              <Text style={styles.statValue}>{hospital.icuBeds || 0}</Text>
+              <Text style={styles.statLabel}>ICU Beds</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ---------------- Segmented Tabs ---------------- */}
+        <View style={styles.tabContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabScrollContent}
+          >
+            {(
+              [
+                { key: "overview", label: "Overview" },
+                { key: "doctors", label: `Doctors (${doctors.length})` },
+                { key: "facilities", label: "Facilities" },
+                { key: "reviews", label: `Reviews (${reviewsCount})` },
+                { key: "photos", label: `Photos (${gallery.length})` },
+              ] as const
+            ).map((tab) => {
+              const isActive = activeTab === tab.key;
+              return (
+                <Pressable
+                  key={tab.key}
+                  accessibilityRole="button"
+                  accessibilityLabel={tab.label}
+                  onPress={() => setActiveTab(tab.key)}
+                  style={({ pressed }) => [
+                    styles.tabPill,
+                    isActive && styles.tabPillActive,
+                    pressed && styles.pressed,
                   ]}
                 >
-                  All ({doctors.length})
-                </Text>
-              </Pressable>
-              {hospital.departments.map((dept) => {
-                const count = departmentCounts[dept] || 0;
-                const isSelected =
-                  selectedDepartment?.toLowerCase() === dept.toLowerCase();
-                return (
+                  <Text
+                    style={[
+                      styles.tabPillText,
+                      isActive && styles.tabPillTextActive,
+                    ]}
+                  >
+                    {tab.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* ---------------- Tab Content ---------------- */}
+        {activeTab === "overview" ? (
+          <>
+            {/* Comparison Banner */}
+            {inCompare ? (
+              <View style={styles.comparisonBanner}>
+                <View style={styles.comparisonBannerLeft}>
+                  <Ionicons
+                    name="git-compare"
+                    size={18}
+                    color={Palette.primaryDark}
+                  />
+                  <Text style={styles.comparisonBannerText}>
+                    {canCompare
+                      ? `Comparing with ${selectedIds.length - 1} other hospital${selectedIds.length > 2 ? "s" : ""}`
+                      : "Added to comparison. Select 1 more hospital."}
+                  </Text>
+                </View>
+                {canCompare ? (
                   <Pressable
-                    key={dept}
                     accessibilityRole="button"
+                    accessibilityLabel="View hospital comparison"
                     onPress={() =>
-                      setSelectedDepartment(isSelected ? null : dept)
+                      router.push({
+                        pathname: "/hospital/compare" as never,
+                        params: { ids: selectedIds.join(",") },
+                      })
                     }
                     style={({ pressed }) => [
+                      styles.comparisonBannerCta,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={styles.comparisonBannerCtaText}>View</Text>
+                    <Ionicons
+                      name="arrow-forward"
+                      size={14}
+                      color={Palette.white}
+                    />
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+
+            {/* Consultation & Timings */}
+            <Card padded style={styles.sectionCard}>
+              <Text style={styles.sectionTitle}>Consultation & Facilities</Text>
+              <View style={styles.infoGrid}>
+                <View style={styles.infoCell}>
+                  <View style={styles.infoIconWrap}>
+                    <Ionicons name="time-outline" size={18} color="#2563EB" />
+                  </View>
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoCellLabel}>OPD Timings</Text>
+                    <Text style={styles.infoCellValue}>
+                      {hospital.opdTimings || "9:00 AM - 8:00 PM"}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.infoCell}>
+                  <View style={styles.infoIconWrap}>
+                    <Ionicons name="cash-outline" size={18} color="#2563EB" />
+                  </View>
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoCellLabel}>Avg Consultation</Text>
+                    <Text style={styles.infoCellValue}>
+                      {hospital.consultationFee
+                        ? `${formatINR(hospital.consultationFee)} avg`
+                        : "Varies by doctor"}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.infoCell}>
+                  <View style={styles.infoIconWrap}>
+                    <Ionicons name="medkit-outline" size={18} color="#2563EB" />
+                  </View>
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoCellLabel}>Emergency Care</Text>
+                    <Text style={styles.infoCellValue}>
+                      {hospital.emergencyFacility
+                        ? "24/7 Service"
+                        : "During OPD hours"}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.infoCell}>
+                  <View style={styles.infoIconWrap}>
+                    <Ionicons name="car-outline" size={18} color="#2563EB" />
+                  </View>
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoCellLabel}>Ambulance Service</Text>
+                    <Text style={styles.infoCellValue}>
+                      {hospital.facilitiesInfo?.ambulance
+                        ? "Available 24x7"
+                        : "On Request"}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </Card>
+
+            {/* About Hospital */}
+            {hospital.about ? (
+              <Card padded style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>About {hospital.name}</Text>
+                <Text style={styles.bodyText}>{hospital.about}</Text>
+              </Card>
+            ) : null}
+
+            {/* Contact & Location */}
+            <Card padded style={styles.sectionCard}>
+              <Text style={styles.sectionTitle}>Contact & Location</Text>
+              {address ? (
+                <View style={styles.contactRow}>
+                  <View style={styles.contactIconWrap}>
+                    <Ionicons name="location" size={18} color="#2563EB" />
+                  </View>
+                  <View style={styles.contactTextWrap}>
+                    <Text style={styles.contactLabel}>Address</Text>
+                    <Text style={styles.bodyText}>{address}</Text>
+                  </View>
+                </View>
+              ) : null}
+              {phone ? (
+                <View style={styles.contactRow}>
+                  <View style={styles.contactIconWrap}>
+                    <Ionicons name="call" size={18} color="#2563EB" />
+                  </View>
+                  <View style={styles.contactTextWrap}>
+                    <Text style={styles.contactLabel}>
+                      Reception & Inquiries
+                    </Text>
+                    <Text style={styles.bodyText}>{phone}</Text>
+                  </View>
+                </View>
+              ) : null}
+              {hospital.contact?.emergency ? (
+                <View style={styles.contactRow}>
+                  <View
+                    style={[
+                      styles.contactIconWrap,
+                      { backgroundColor: "rgba(239, 68, 68, 0.12)" },
+                    ]}
+                  >
+                    <Ionicons
+                      name="alert-circle"
+                      size={18}
+                      color={Palette.error}
+                    />
+                  </View>
+                  <View style={styles.contactTextWrap}>
+                    <Text style={styles.contactLabel}>Emergency Helpline</Text>
+                    <Text
+                      style={[
+                        styles.bodyText,
+                        { color: Palette.error, fontWeight: "700" },
+                      ]}
+                    >
+                      {hospital.contact.emergency}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
+              {hospital.contact?.email ? (
+                <View style={styles.contactRow}>
+                  <View style={styles.contactIconWrap}>
+                    <Ionicons name="mail" size={18} color="#2563EB" />
+                  </View>
+                  <View style={styles.contactTextWrap}>
+                    <Text style={styles.contactLabel}>Official Email</Text>
+                    <Text style={styles.bodyText}>
+                      {hospital.contact.email}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
+              {hospital.contact?.website ? (
+                <View style={styles.contactRow}>
+                  <View style={styles.contactIconWrap}>
+                    <Ionicons name="globe" size={18} color="#2563EB" />
+                  </View>
+                  <View style={styles.contactTextWrap}>
+                    <Text style={styles.contactLabel}>Website</Text>
+                    <Text style={styles.bodyText}>
+                      {hospital.contact.website}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
+
+              <View style={styles.contactActions}>
+                <Button
+                  title="Get Directions"
+                  variant="outline"
+                  icon="navigate-outline"
+                  onPress={handleDirections}
+                  style={styles.contactBtn}
+                />
+                {phone ? (
+                  <Button
+                    title="Call Reception"
+                    variant="outline"
+                    icon="call-outline"
+                    onPress={handleCall}
+                    style={styles.contactBtn}
+                  />
+                ) : null}
+              </View>
+            </Card>
+          </>
+        ) : null}
+
+        {activeTab === "doctors" ? (
+          <>
+            {/* Departments Filter */}
+            {hospital.departments && hospital.departments.length > 0 ? (
+              <Card padded style={styles.sectionCard}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionTitle}>
+                    Departments ({hospital.departments.length})
+                  </Text>
+                  {selectedDepartment ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => setSelectedDepartment(null)}
+                      hitSlop={8}
+                    >
+                      <Text style={styles.clearFilterText}>Show All</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+                <Text style={styles.sectionSubtitle}>
+                  Filter doctors by department or specialty:
+                </Text>
+                <View style={styles.chipRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setSelectedDepartment(null)}
+                    style={({ pressed }) => [
                       styles.filterChip,
-                      isSelected && styles.filterChipActive,
+                      selectedDepartment === null && styles.filterChipActive,
                       pressed && styles.pressed,
                     ]}
                   >
                     <Text
                       style={[
                         styles.filterChipText,
-                        isSelected && styles.filterChipTextActive,
+                        selectedDepartment === null &&
+                          styles.filterChipTextActive,
                       ]}
                     >
-                      {dept} {count > 0 ? `(${count})` : ""}
+                      All ({doctors.length})
                     </Text>
                   </Pressable>
-                );
-              })}
-            </View>
-          </Card>
-        ) : null}
-
-        {/* ---------------- Doctors at this Hospital ---------------- */}
-        <Card padded style={styles.sectionCard}>
-          <View style={styles.sectionHeaderRow}>
-            <View>
-              <Text style={styles.sectionTitle}>
-                Doctors ({filteredDoctors.length}
-                {selectedDepartment ? ` in ${selectedDepartment}` : ""})
-              </Text>
-              {selectedDepartment ? (
-                <Text style={styles.sectionSubtitle}>
-                  Showing specialists in {selectedDepartment}
-                </Text>
-              ) : null}
-            </View>
-            {doctors.length > 3 ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={browseAllDoctors}
-                hitSlop={8}
-              >
-                <Text style={styles.viewAllText}>View all</Text>
-              </Pressable>
-            ) : null}
-          </View>
-
-          {filteredDoctors.length === 0 ? (
-            <View style={styles.emptyDoctorBlock}>
-              <Ionicons
-                name="medical-outline"
-                size={32}
-                color={Palette.textMuted}
-              />
-              <Text style={styles.emptyDoctorTitle}>No doctors found</Text>
-              <Text style={styles.bodyText}>
-                {selectedDepartment
-                  ? `There are currently no doctors listed under ${selectedDepartment} at this hospital.`
-                  : "No doctors are currently listed for this hospital."}
-              </Text>
-              {selectedDepartment ? (
-                <Button
-                  title="Clear Department Filter"
-                  variant="outline"
-                  onPress={() => setSelectedDepartment(null)}
-                  style={styles.emptyActionBtn}
-                />
-              ) : null}
-            </View>
-          ) : (
-            <View style={styles.doctorList}>
-              {filteredDoctors.map((doctor) => (
-                <DoctorItemCard
-                  key={String(doctor._id)}
-                  doctor={doctor}
-                  onPressDetails={() =>
-                    router.push({
-                      pathname: "/doctor/[id]",
-                      params: { id: String(doctor._id) },
-                    })
-                  }
-                  onPressBook={() =>
-                    router.push({
-                      pathname: "/booking/[doctorId]",
-                      params: { doctorId: String(doctor._id) },
-                    })
-                  }
-                />
-              ))}
-            </View>
-          )}
-        </Card>
-
-        {/* ---------------- Services ---------------- */}
-        {hospital.services && hospital.services.length > 0 ? (
-          <Card padded style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>
-              Clinical Services ({hospital.services.length})
-            </Text>
-            <View style={styles.chipRow}>
-              {hospital.services.map((service) => (
-                <View key={service} style={styles.serviceChip}>
-                  <Ionicons
-                    name="shield-checkmark"
-                    size={14}
-                    color={Palette.primary}
-                  />
-                  <Text style={styles.serviceChipText}>{service}</Text>
+                  {hospital.departments.map((dept) => {
+                    const count = departmentCounts[dept] || 0;
+                    const isSelected =
+                      selectedDepartment?.toLowerCase() === dept.toLowerCase();
+                    return (
+                      <Pressable
+                        key={dept}
+                        accessibilityRole="button"
+                        onPress={() =>
+                          setSelectedDepartment(isSelected ? null : dept)
+                        }
+                        style={({ pressed }) => [
+                          styles.filterChip,
+                          isSelected && styles.filterChipActive,
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.filterChipText,
+                            isSelected && styles.filterChipTextActive,
+                          ]}
+                        >
+                          {dept} {count > 0 ? `(${count})` : ""}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
-              ))}
+              </Card>
+            ) : null}
+
+            {/* Doctors List */}
+            <Card padded style={styles.sectionCard}>
+              <View style={styles.sectionHeaderRow}>
+                <View>
+                  <Text style={styles.sectionTitle}>
+                    Doctors ({filteredDoctors.length}
+                    {selectedDepartment ? ` in ${selectedDepartment}` : ""})
+                  </Text>
+                  {selectedDepartment ? (
+                    <Text style={styles.sectionSubtitle}>
+                      Showing specialists in {selectedDepartment}
+                    </Text>
+                  ) : null}
+                </View>
+                {doctors.length > 3 ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={browseAllDoctors}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.viewAllText}>View all</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+
+              {filteredDoctors.length === 0 ? (
+                <View style={styles.emptyDoctorBlock}>
+                  <Ionicons
+                    name="medical-outline"
+                    size={32}
+                    color={Palette.textMuted}
+                  />
+                  <Text style={styles.emptyDoctorTitle}>No doctors found</Text>
+                  <Text style={styles.bodyText}>
+                    {selectedDepartment
+                      ? `There are currently no doctors listed under ${selectedDepartment} at this hospital.`
+                      : "No doctors are currently listed for this hospital."}
+                  </Text>
+                  {selectedDepartment ? (
+                    <Button
+                      title="Clear Department Filter"
+                      variant="outline"
+                      onPress={() => setSelectedDepartment(null)}
+                      style={styles.emptyActionBtn}
+                    />
+                  ) : null}
+                </View>
+              ) : (
+                <View style={styles.doctorList}>
+                  {filteredDoctors.map((doctor) => (
+                    <DoctorItemCard
+                      key={String(doctor._id)}
+                      doctor={doctor}
+                      onPressDetails={() =>
+                        router.push({
+                          pathname: "/doctor/[id]",
+                          params: { id: String(doctor._id) },
+                        })
+                      }
+                      onPressBook={() =>
+                        router.push({
+                          pathname: "/booking/[doctorId]",
+                          params: { doctorId: String(doctor._id) },
+                        })
+                      }
+                    />
+                  ))}
+                </View>
+              )}
+            </Card>
+          </>
+        ) : null}
+
+        {activeTab === "facilities" ? (
+          <>
+            {/* Services */}
+            {hospital.services && hospital.services.length > 0 ? (
+              <Card padded style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>
+                  Clinical Services ({hospital.services.length})
+                </Text>
+                <View style={styles.chipRow}>
+                  {hospital.services.map((service) => (
+                    <View key={service} style={styles.serviceChip}>
+                      <Ionicons
+                        name="shield-checkmark"
+                        size={14}
+                        color="#2563EB"
+                      />
+                      <Text style={styles.serviceChipText}>{service}</Text>
+                    </View>
+                  ))}
+                </View>
+              </Card>
+            ) : null}
+
+            {/* Facilities Highlights */}
+            <Card padded style={styles.sectionCard}>
+              <Text style={styles.sectionTitle}>Facility Highlights</Text>
+              <View style={styles.infoGrid}>
+                <View style={styles.infoCell}>
+                  <View style={styles.infoIconWrap}>
+                    <Ionicons name="bed-outline" size={18} color="#2563EB" />
+                  </View>
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoCellLabel}>Total Capacity</Text>
+                    <Text style={styles.infoCellValue}>
+                      {hospital.beds || 0} Inpatient Beds
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.infoCell}>
+                  <View style={styles.infoIconWrap}>
+                    <Ionicons name="pulse-outline" size={18} color="#2563EB" />
+                  </View>
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoCellLabel}>Intensive Care</Text>
+                    <Text style={styles.infoCellValue}>
+                      {hospital.icuBeds || 0} ICU Beds
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.infoCell}>
+                  <View style={styles.infoIconWrap}>
+                    <Ionicons name="car-outline" size={18} color="#2563EB" />
+                  </View>
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoCellLabel}>Emergency Fleet</Text>
+                    <Text style={styles.infoCellValue}>
+                      {hospital.facilitiesInfo?.ambulance
+                        ? "24x7 Ambulance"
+                        : "On Request"}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.infoCell}>
+                  <View style={styles.infoIconWrap}>
+                    <Ionicons
+                      name="fitness-outline"
+                      size={18}
+                      color="#2563EB"
+                    />
+                  </View>
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoCellLabel}>Trauma Care</Text>
+                    <Text style={styles.infoCellValue}>
+                      {hospital.emergencyFacility
+                        ? "24/7 Emergency Care"
+                        : "OPD Hours"}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </Card>
+          </>
+        ) : null}
+
+        {activeTab === "reviews" ? (
+          <Card padded style={styles.sectionCard}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>
+                Patient Reviews ({reviewsCount})
+              </Text>
+              {ratingVal > 0 ? (
+                <View style={styles.ratingBadge}>
+                  <Ionicons name="star" size={13} color={Palette.gold} />
+                  <Text style={styles.ratingBadgeText}>
+                    {ratingVal.toFixed(1)} / 5.0
+                  </Text>
+                </View>
+              ) : null}
             </View>
+            {!hospital.reviews || hospital.reviews.length === 0 ? (
+              <View style={styles.emptyReviewBlock}>
+                <Ionicons
+                  name="chatbubbles-outline"
+                  size={28}
+                  color={Palette.textMuted}
+                />
+                <Text style={styles.bodyText}>
+                  No patient reviews recorded for this hospital yet. Reviews
+                  appear automatically as verified patients complete
+                  consultations with affiliated specialists.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.reviewsList}>
+                {hospital.reviews.map((review, idx) => (
+                  <View
+                    key={String(review._id || idx)}
+                    style={[
+                      styles.reviewItem,
+                      idx === (hospital.reviews?.length || 0) - 1 &&
+                        styles.lastReviewItem,
+                    ]}
+                  >
+                    <View style={styles.reviewHeader}>
+                      <View style={styles.reviewUser}>
+                        <View style={styles.reviewAvatar}>
+                          <Text style={styles.reviewAvatarText}>
+                            {(review.name || "P")[0]?.toUpperCase()}
+                          </Text>
+                        </View>
+                        <View>
+                          <Text style={styles.reviewName}>
+                            {review.name || "Verified Patient"}
+                          </Text>
+                          {review.createdAt ? (
+                            <Text style={styles.reviewDate}>
+                              {formatISODate(review.createdAt)}
+                            </Text>
+                          ) : null}
+                        </View>
+                      </View>
+                      <View style={styles.reviewStars}>
+                        <Ionicons name="star" size={14} color={Palette.gold} />
+                        <Text style={styles.reviewRating}>
+                          {Number(review.rating).toFixed(1)}
+                        </Text>
+                      </View>
+                    </View>
+                    {review.title ? (
+                      <Text style={styles.reviewTitle}>{review.title}</Text>
+                    ) : null}
+                    <Text style={styles.reviewComment}>{review.comment}</Text>
+                    {review.tags && review.tags.length > 0 ? (
+                      <View style={styles.reviewTagsRow}>
+                        {review.tags.map((tag) => (
+                          <View key={tag} style={styles.reviewTagBadge}>
+                            <Text style={styles.reviewTagText}>{tag}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            )}
           </Card>
         ) : null}
 
-        {/* ---------------- Gallery ---------------- */}
-        {gallery.length > 0 ? (
+        {activeTab === "photos" ? (
           <Card padded style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>
               Hospital Gallery ({gallery.length})
@@ -747,36 +1043,49 @@ export default function HospitalDetailScreen() {
             <Text style={styles.sectionSubtitle}>
               Tap an image to view full facility photos:
             </Text>
-            <View style={styles.galleryGrid}>
-              {gallery.map((item, index) => (
-                <Pressable
-                  key={`${String(item.src)}-${index}`}
-                  accessibilityRole="button"
-                  accessibilityLabel={`View photo ${index + 1}`}
-                  onPress={() => setLightbox(index)}
-                  style={({ pressed }) => [
-                    styles.galleryItem,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <HospitalImage
-                    source={item.src}
-                    style={[
-                      styles.galleryImage,
-                      { width: galleryCell, height: galleryCell * 0.85 },
+            {gallery.length === 0 ? (
+              <View style={styles.emptyReviewBlock}>
+                <Ionicons
+                  name="images-outline"
+                  size={28}
+                  color={Palette.textMuted}
+                />
+                <Text style={styles.bodyText}>
+                  No additional photos available for this hospital.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.galleryGrid}>
+                {gallery.map((item, index) => (
+                  <Pressable
+                    key={`${String(item.src)}-${index}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View photo ${index + 1}`}
+                    onPress={() => setLightbox(index)}
+                    style={({ pressed }) => [
+                      styles.galleryItem,
+                      pressed && styles.pressed,
                     ]}
-                    contentFit="cover"
-                  />
-                  {item.category ? (
-                    <View style={styles.galleryTag}>
-                      <Text style={styles.galleryTagText} numberOfLines={1}>
-                        {item.category}
-                      </Text>
-                    </View>
-                  ) : null}
-                </Pressable>
-              ))}
-            </View>
+                  >
+                    <HospitalImage
+                      source={item.src}
+                      style={[
+                        styles.galleryImage,
+                        { width: galleryCell, height: galleryCell * 0.85 },
+                      ]}
+                      contentFit="cover"
+                    />
+                    {item.category ? (
+                      <View style={styles.galleryTag}>
+                        <Text style={styles.galleryTagText} numberOfLines={1}>
+                          {item.category}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </Pressable>
+                ))}
+              </View>
+            )}
           </Card>
         ) : null}
 
@@ -869,199 +1178,27 @@ export default function HospitalDetailScreen() {
           </View>
         </Modal>
 
-        {/* ---------------- Contact & Location Card ---------------- */}
-        <Card padded style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Contact & Location</Text>
-          {address ? (
-            <View style={styles.contactRow}>
-              <View style={styles.contactIconWrap}>
-                <Ionicons name="location" size={18} color={Palette.primary} />
-              </View>
-              <View style={styles.contactTextWrap}>
-                <Text style={styles.contactLabel}>Address</Text>
-                <Text style={styles.bodyText}>{address}</Text>
-              </View>
-            </View>
-          ) : null}
-          {phone ? (
-            <View style={styles.contactRow}>
-              <View style={styles.contactIconWrap}>
-                <Ionicons name="call" size={18} color={Palette.primary} />
-              </View>
-              <View style={styles.contactTextWrap}>
-                <Text style={styles.contactLabel}>Reception & Inquiries</Text>
-                <Text style={styles.bodyText}>{phone}</Text>
-              </View>
-            </View>
-          ) : null}
-          {hospital.contact?.emergency ? (
-            <View style={styles.contactRow}>
-              <View
-                style={[
-                  styles.contactIconWrap,
-                  { backgroundColor: "rgba(217, 67, 91, 0.12)" },
-                ]}
-              >
-                <Ionicons name="alert-circle" size={18} color={Palette.error} />
-              </View>
-              <View style={styles.contactTextWrap}>
-                <Text style={styles.contactLabel}>Emergency Helpline</Text>
-                <Text
-                  style={[
-                    styles.bodyText,
-                    { color: Palette.error, fontWeight: "700" },
-                  ]}
-                >
-                  {hospital.contact.emergency}
-                </Text>
-              </View>
-            </View>
-          ) : null}
-          {hospital.contact?.email ? (
-            <View style={styles.contactRow}>
-              <View style={styles.contactIconWrap}>
-                <Ionicons name="mail" size={18} color={Palette.primary} />
-              </View>
-              <View style={styles.contactTextWrap}>
-                <Text style={styles.contactLabel}>Official Email</Text>
-                <Text style={styles.bodyText}>{hospital.contact.email}</Text>
-              </View>
-            </View>
-          ) : null}
-          {hospital.contact?.website ? (
-            <View style={styles.contactRow}>
-              <View style={styles.contactIconWrap}>
-                <Ionicons name="globe" size={18} color={Palette.primary} />
-              </View>
-              <View style={styles.contactTextWrap}>
-                <Text style={styles.contactLabel}>Website</Text>
-                <Text style={styles.bodyText}>{hospital.contact.website}</Text>
-              </View>
-            </View>
-          ) : null}
-
-          <View style={styles.contactActions}>
-            <Button
-              title="Get Directions"
-              variant="outline"
-              icon="navigate-outline"
-              onPress={handleDirections}
-              style={styles.contactBtn}
-            />
-            {phone ? (
-              <Button
-                title="Call Reception"
-                variant="outline"
-                icon="call-outline"
-                onPress={handleCall}
-                style={styles.contactBtn}
-              />
-            ) : null}
-          </View>
-        </Card>
-
-        {/* ---------------- Reviews ---------------- */}
-        <Card padded style={styles.sectionCard}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>
-              Patient Reviews ({reviewsCount})
-            </Text>
-            {ratingVal > 0 ? (
-              <View style={styles.ratingBadge}>
-                <Ionicons name="star" size={13} color={Palette.gold} />
-                <Text style={styles.ratingBadgeText}>
-                  {ratingVal.toFixed(1)} / 5.0
-                </Text>
-              </View>
-            ) : null}
-          </View>
-          {!hospital.reviews || hospital.reviews.length === 0 ? (
-            <View style={styles.emptyReviewBlock}>
-              <Ionicons
-                name="chatbubbles-outline"
-                size={28}
-                color={Palette.textMuted}
-              />
-              <Text style={styles.bodyText}>
-                No patient reviews recorded for this hospital yet. Reviews
-                appear automatically as verified patients complete consultations
-                with affiliated specialists.
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.reviewsList}>
-              {hospital.reviews.map((review, idx) => (
-                <View
-                  key={String(review._id || idx)}
-                  style={[
-                    styles.reviewItem,
-                    idx === (hospital.reviews?.length || 0) - 1 &&
-                      styles.lastReviewItem,
-                  ]}
-                >
-                  <View style={styles.reviewHeader}>
-                    <View style={styles.reviewUser}>
-                      <View style={styles.reviewAvatar}>
-                        <Text style={styles.reviewAvatarText}>
-                          {(review.name || "P")[0]?.toUpperCase()}
-                        </Text>
-                      </View>
-                      <View>
-                        <Text style={styles.reviewName}>
-                          {review.name || "Verified Patient"}
-                        </Text>
-                        {review.createdAt ? (
-                          <Text style={styles.reviewDate}>
-                            {formatISODate(review.createdAt)}
-                          </Text>
-                        ) : null}
-                      </View>
-                    </View>
-                    <View style={styles.reviewStars}>
-                      <Ionicons name="star" size={14} color={Palette.gold} />
-                      <Text style={styles.reviewRating}>
-                        {Number(review.rating).toFixed(1)}
-                      </Text>
-                    </View>
-                  </View>
-                  {review.title ? (
-                    <Text style={styles.reviewTitle}>{review.title}</Text>
-                  ) : null}
-                  <Text style={styles.reviewComment}>{review.comment}</Text>
-                  {review.tags && review.tags.length > 0 ? (
-                    <View style={styles.reviewTagsRow}>
-                      {review.tags.map((tag) => (
-                        <View key={tag} style={styles.reviewTagBadge}>
-                          <Text style={styles.reviewTagText}>{tag}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  ) : null}
-                </View>
-              ))}
-            </View>
-          )}
-        </Card>
-
         {/* Space at bottom for sticky bar */}
         <View style={{ height: 80 }} />
       </ScrollView>
 
       {/* ---------------- Sticky Bottom Action Bar ---------------- */}
       <View style={styles.stickyBottomBar}>
-        <View style={styles.stickyInfo}>
-          <Text style={styles.stickyLabel}>Consultation</Text>
-          <Text style={styles.stickyValue}>
-            {doctors.length} {doctors.length === 1 ? "Doctor" : "Doctors"}{" "}
-            Available
-          </Text>
-        </View>
+        {phone ? (
+          <Button
+            title="Call Hospital"
+            variant="outline"
+            icon="call-outline"
+            onPress={handleCall}
+            style={styles.stickyCallBtn}
+          />
+        ) : null}
         <Button
-          title="Browse Doctors"
+          title="Book Appointment"
           variant="primary"
           icon="calendar-outline"
           onPress={browseAllDoctors}
-          style={styles.stickyBtn}
+          style={styles.stickyBookBtn}
         />
       </View>
     </SafeAreaView>
@@ -1159,78 +1296,193 @@ function DoctorItemCard({
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: Palette.background,
-  },
-  topBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    backgroundColor: Palette.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Palette.border,
-    zIndex: 10,
-  },
-  topBarTitle: {
-    ...Typography.h4,
-    color: Palette.text,
-    flex: 1,
-    textAlign: "center",
-    marginHorizontal: Spacing.sm,
-  },
-  topBarActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-  },
-  iconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: Radius.pill,
-    backgroundColor: Palette.background,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: Palette.border,
-  },
-  iconBtnActive: {
-    backgroundColor: Palette.primaryLight,
-    borderColor: Palette.primary,
+    backgroundColor: "#F0F6FE",
   },
   container: {
     paddingBottom: Spacing.xxxl,
     gap: Spacing.lg,
   },
   pressed: {
-    opacity: 0.82,
+    opacity: 0.85,
     transform: [{ scale: 0.985 }],
   },
-  coverWrap: {
-    height: 220,
+  hero: {
+    height: 270,
+    backgroundColor: Palette.primaryDark,
+    overflow: "hidden",
     position: "relative",
+    justifyContent: "space-between",
+  },
+  heroImage: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: Palette.primaryLight,
   },
-  cover: {
-    width: "100%",
-    height: "100%",
-  },
-  coverGradient: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.25)",
-  },
-  coverBadges: {
+  heroShadeTop: {
     position: "absolute",
-    bottom: Spacing.md,
-    left: Spacing.lg,
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 90,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+  },
+  heroTopBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    zIndex: 10,
+  },
+  topRightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  fab: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.pill,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    alignItems: "center",
+    justifyContent: "center",
+    ...Shadows.card,
+  },
+  fabActive: {
+    backgroundColor: "rgba(37, 99, 235, 0.15)",
+    borderWidth: 1,
+    borderColor: "#2563EB",
+  },
+  heroPhotoPill: {
+    position: "absolute",
+    bottom: Spacing.xl,
     right: Spacing.lg,
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.xs,
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(15, 23, 42, 0.65)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radius.pill,
+    zIndex: 10,
   },
-  titleBlock: {
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.xs,
+  heroPhotoPillText: {
+    ...Typography.caption,
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  hospitalFloatingCard: {
+    marginHorizontal: Spacing.lg,
+    marginTop: -32,
+    padding: Spacing.lg,
+    borderRadius: 24,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    borderWidth: 1,
+    borderColor: "rgba(191, 219, 254, 0.6)",
+    ...Shadows.card,
+    gap: 10,
+    zIndex: 20,
+  },
+  hospitalTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  hospitalTitleText: {
+    ...Typography.h2,
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#0F172A",
+    flex: 1,
+  },
+  hospitalRatingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  hospitalLocationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(37, 99, 235, 0.08)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: Radius.pill,
+    alignSelf: "flex-start",
+    marginTop: 2,
+    borderWidth: 1,
+    borderColor: "rgba(37, 99, 235, 0.15)",
+  },
+  hospitalLocationText: {
+    ...Typography.caption,
+    fontSize: 13,
+    color: "#2563EB",
+    fontWeight: "600",
+    flexShrink: 1,
+  },
+  quickActionRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginTop: 4,
+    justifyContent: "space-between",
+  },
+  actionCircleBtn: {
+    alignItems: "center",
+    gap: 4,
+    flex: 1,
+  },
+  actionCircleIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(240, 246, 254, 0.9)",
+    borderWidth: 1,
+    borderColor: "rgba(191, 219, 254, 0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionCircleLabel: {
+    ...Typography.caption,
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#334155",
+  },
+  tabContainer: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.xs,
+  },
+  tabScrollContent: {
+    flexDirection: "row",
+    gap: 8,
+    paddingVertical: 4,
+  },
+  tabPill: {
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: Radius.pill,
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    borderWidth: 1,
+    borderColor: "rgba(191, 219, 254, 0.6)",
+  },
+  tabPillActive: {
+    backgroundColor: "#2563EB",
+    borderColor: "#2563EB",
+    ...Shadows.sm,
+  },
+  tabPillText: {
+    ...Typography.bodySmall,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  tabPillTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   name: {
     ...Typography.h1,
@@ -1301,11 +1553,6 @@ const styles = StyleSheet.create({
     width: 1,
     height: 36,
     backgroundColor: Palette.border,
-  },
-  quickActionRow: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
   },
   quickActionBtn: {
     flex: 1,
@@ -1816,27 +2063,21 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: Palette.surface,
+    gap: Spacing.md,
+    backgroundColor: "rgba(255, 255, 255, 0.94)",
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderTopWidth: 1,
-    borderTopColor: Palette.border,
+    borderTopColor: "rgba(191, 219, 254, 0.6)",
     ...Shadows.navbar,
   },
-  stickyInfo: {
-    gap: 2,
+  stickyCallBtn: {
+    flex: 1,
+    borderRadius: Radius.pill,
   },
-  stickyLabel: {
-    ...Typography.caption,
-    color: Palette.textMuted,
-  },
-  stickyValue: {
-    ...Typography.bodyMedium,
-    fontWeight: "700",
-    color: Palette.text,
-  },
-  stickyBtn: {
-    minWidth: 170,
+  stickyBookBtn: {
+    flex: 1.4,
+    borderRadius: Radius.pill,
+    backgroundColor: "#2563EB",
   },
 });

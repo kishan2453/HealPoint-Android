@@ -533,6 +533,24 @@ export default function DigitalHealthWalletScreen() {
     const isPass = item.type === "pass";
     const isRecord = item.type === "record";
 
+    const hasRxDetails = Boolean(
+      item.diagnosis ||
+      (item.medicines && item.medicines.length > 0) ||
+      item.prescription ||
+      item.followUpAdvice,
+    );
+    const hasRecordVitals = Boolean(
+      item.vitals &&
+      (item.vitals.bloodPressure ||
+        item.vitals.heartRate ||
+        item.vitals.spO2 ||
+        item.vitals.temperature),
+    );
+    const hasRecordDetails = Boolean(item.diagnosis || hasRecordVitals);
+    const hasConsultationDetails = Boolean(
+      item.consultationType || item.diagnosis,
+    );
+
     return (
       <Card padded style={styles.itemCard}>
         {/* Card Header */}
@@ -635,7 +653,7 @@ export default function DigitalHealthWalletScreen() {
         </View>
 
         {/* Prescription Specific Details */}
-        {isRx && (
+        {isRx && hasRxDetails && (
           <View style={styles.contentBox}>
             {item.diagnosis ? (
               <View style={styles.tagRow}>
@@ -726,7 +744,7 @@ export default function DigitalHealthWalletScreen() {
               <View style={styles.tagRow}>
                 <Text style={styles.tagLabel}>Doctor:</Text>
                 <Text style={styles.tagValue} numberOfLines={1}>
-                  {item.extractedMetadata.doctorName}
+                  {formatDoctorName(item.extractedMetadata.doctorName)}
                 </Text>
               </View>
             ) : null}
@@ -809,7 +827,7 @@ export default function DigitalHealthWalletScreen() {
         )}
 
         {/* Consultation Specific Details */}
-        {isConsultation && (
+        {isConsultation && hasConsultationDetails && (
           <View style={styles.contentBox}>
             <View style={styles.tagRow}>
               <Text style={styles.tagLabel}>Consultation Type:</Text>
@@ -846,7 +864,7 @@ export default function DigitalHealthWalletScreen() {
         )}
 
         {/* EMR Record Specific Details */}
-        {isRecord && (
+        {isRecord && hasRecordDetails && (
           <View style={styles.contentBox}>
             {item.diagnosis ? (
               <View style={styles.tagRow}>
@@ -1014,7 +1032,7 @@ export default function DigitalHealthWalletScreen() {
               </Pressable>
               <Button
                 title="Appointment"
-                variant="secondary"
+                variant="outline"
                 onPress={() =>
                   router.push(`/appointment/${item.appointmentId}` as never)
                 }
@@ -1102,7 +1120,10 @@ export default function DigitalHealthWalletScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <DrawerToggleButton color={Palette.text} />
+          <DrawerToggleButton
+            color={Palette.text}
+            backgroundColor="rgba(37, 99, 235, 0.08)"
+          />
           <View style={styles.headerTitleWrap}>
             <Text style={styles.title}>Digital Health Wallet</Text>
             <Text style={styles.subtitle}>
@@ -1793,9 +1814,11 @@ export default function DigitalHealthWalletScreen() {
                   <View style={styles.entityRow}>
                     <Text style={styles.entityLabel}>Doctor / Specialist</Text>
                     <Text style={styles.entityValue}>
-                      {selectedDocForDetails?.extractedMetadata?.doctorName ||
-                        selectedDocForDetails?.doctor?.name ||
-                        "Not detected"}
+                      {formatDoctorName(
+                        selectedDocForDetails?.extractedMetadata?.doctorName ||
+                          selectedDocForDetails?.doctor?.name,
+                        "Not detected",
+                      )}
                     </Text>
                   </View>
                   <View style={styles.entityRow}>
@@ -2617,15 +2640,18 @@ const styles = StyleSheet.create({
   },
   actionsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
-    gap: Spacing.sm,
+    gap: Spacing.xs,
     marginTop: Spacing.sm,
   },
   actionBtn: {
     flex: 1,
+    minWidth: 110,
   },
   actionBtnSmall: {
-    minWidth: 90,
+    flex: 1,
+    minWidth: 80,
   },
   iconActionBtn: {
     width: 38,
@@ -2636,6 +2662,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: Palette.surface,
+    flexShrink: 0,
   },
   modalOverlay: {
     flex: 1,
@@ -2790,8 +2817,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     backgroundColor: "#F0FDFA",
-    borderLeftWidth: 3,
-    borderLeftColor: "#0D9488",
+    borderWidth: 1,
+    borderColor: "rgba(13, 148, 136, 0.25)",
     padding: Spacing.xs,
     borderRadius: Radius.sm,
     marginBottom: Spacing.xs,
@@ -2888,8 +2915,8 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.surfaceAlt,
     padding: Spacing.sm,
     borderRadius: Radius.md,
-    borderLeftWidth: 3,
-    borderLeftColor: Palette.primary,
+    borderWidth: 1,
+    borderColor: Palette.border,
   },
   testResultName: {
     ...Typography.body,

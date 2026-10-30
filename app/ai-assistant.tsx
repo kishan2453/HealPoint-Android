@@ -82,6 +82,21 @@ const QUICK_PROMPTS = [
     icon: "bar-chart" as const,
   },
   {
+    label: "Care Planner",
+    query: "What healthcare activities and visits do I have today?",
+    icon: "calendar" as const,
+  },
+  {
+    label: "Healthcare Activity",
+    query: "Show my healthcare activity and insights this month",
+    icon: "pulse" as const,
+  },
+  {
+    label: "Health Documents",
+    query: "Show my health documents and reports",
+    icon: "document-text" as const,
+  },
+  {
     label: "Find a Doctor",
     query: "I want to find a doctor",
     icon: "search" as const,
@@ -252,6 +267,92 @@ export default function AiAssistantScreen() {
     } catch (error) {
       const q = query.toLowerCase();
       if (
+        q.includes("report") ||
+        q.includes("document") ||
+        q.includes("prescription") ||
+        q.includes("rx") ||
+        q.includes("lab") ||
+        q.includes("scan")
+      ) {
+        const docFallbackMsg: AiChatMessage = {
+          id: `ai-${Date.now()}`,
+          sender: "ai",
+          text: "You can view your verified diagnostic reports, lab results, prescriptions, and uploaded medical documents in the Health Document Center.",
+          disclaimer: "Factual document retrieval • Not a medical diagnosis.",
+          actions: [
+            {
+              label: "Open Health Documents",
+              route: "/health/documents",
+              icon: "document-text",
+              variant: "primary",
+            },
+          ],
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        };
+        setMessages((prev) => [...prev, docFallbackMsg]);
+        return;
+      }
+      if (
+        q.includes("activity") ||
+        q.includes("insight") ||
+        q.includes("summary") ||
+        q.includes("frequency")
+      ) {
+        const activityFallbackMsg: AiChatMessage = {
+          id: `ai-${Date.now()}`,
+          sender: "ai",
+          text: "Here is your factual healthcare activity summary. You can inspect your appointments, completed consultations, reports, prescriptions, follow-ups, and payments in the Healthcare Activity & Insights Center.",
+          disclaimer: "Factual healthcare records summary • Zero medical diagnosis or risk scoring.",
+          actions: [
+            {
+              label: "Open Activity & Insights",
+              route: "/health/activity",
+              icon: "pulse",
+              variant: "primary",
+            },
+          ],
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        };
+        setMessages((prev) => [...prev, activityFallbackMsg]);
+        return;
+      }
+      if (
+        q.includes("planner") ||
+        q.includes("schedule") ||
+        q.includes("calendar") ||
+        q.includes("what do i have today") ||
+        q.includes("what is my next") ||
+        q.includes("upcoming visit") ||
+        q.includes("care plan")
+      ) {
+        const plannerFallbackMsg: AiChatMessage = {
+          id: `ai-${Date.now()}`,
+          sender: "ai",
+          text: "Here is your unified Smart Care Planner. You can view your scheduled doctor visits, follow-up consultations, and pre-visit preparations for today and upcoming dates.",
+          disclaimer: "Factual healthcare planner • Zero medical diagnosis or risk scoring.",
+          actions: [
+            {
+              label: "Open Care Planner",
+              route: "/care-planner",
+              icon: "calendar",
+              variant: "primary",
+            },
+          ],
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        };
+        setMessages((prev) => [...prev, plannerFallbackMsg]);
+        return;
+      }
+      if (
         q.includes("family") ||
         q.includes("daughter") ||
         q.includes("son") ||
@@ -278,6 +379,35 @@ export default function AiAssistantScreen() {
           }),
         };
         setMessages((prev) => [...prev, familyFallbackMsg]);
+        return;
+      }
+      if (
+        q.includes("emergency") ||
+        q.includes("ambulance") ||
+        q.includes("108") ||
+        q.includes("112") ||
+        q.includes("urgent care") ||
+        q.includes("trauma")
+      ) {
+        const emergencyFallbackMsg: AiChatMessage = {
+          id: `ai-${Date.now()}`,
+          sender: "ai",
+          text: "For immediate, life-threatening medical emergencies, please dial 108 or 112 directly. You can find verified nearby emergency hospital desks, on-site ambulances, and emergency contacts in Emergency Help.",
+          disclaimer: "Emergency Navigation Service • Not medical triage or diagnosis.",
+          actions: [
+            {
+              label: "Open Emergency Help",
+              route: "/emergency",
+              icon: "alert-circle",
+              variant: "primary",
+            },
+          ],
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        };
+        setMessages((prev) => [...prev, emergencyFallbackMsg]);
         return;
       }
       if (

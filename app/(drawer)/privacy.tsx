@@ -44,7 +44,11 @@ import {
   Typography,
 } from "@/constants/theme";
 import { useAuth } from "@/hooks/use-auth";
-import { formatDDMMYYYY, formatDoctorName } from "@/lib/format";
+import {
+  formatDDMMYYYY,
+  formatDoctorName,
+  formatSmartDateTime,
+} from "@/lib/format";
 import { toErrorMessage } from "@/services/api";
 import * as consentService from "@/services/consent";
 import * as doctorService from "@/services/doctors";
@@ -393,7 +397,7 @@ export default function PrivacyScreen() {
         : consent.doctorName || "care provider";
     Alert.alert(
       "Revoke Health Data Access",
-      `Are you sure you want to revoke access granted to Dr. ${docName}? They will no longer be able to view your historical records.`,
+      `Are you sure you want to revoke access granted to ${formatDoctorName(docName)}? They will no longer be able to view your historical records.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -409,7 +413,7 @@ export default function PrivacyScreen() {
               if (res.success) {
                 Alert.alert(
                   "Access Revoked",
-                  `Dr. ${docName}'s access to your medical records has been terminated.`,
+                  `${formatDoctorName(docName)}'s access to your medical records has been terminated.`,
                 );
                 await loadAll();
               }
@@ -519,7 +523,7 @@ export default function PrivacyScreen() {
       if (res.success) {
         Alert.alert(
           "Consent Granted",
-          `Access granted successfully to Dr. ${res.consent.doctorName || "Doctor"}.`,
+          `Access granted successfully to ${formatDoctorName(res.consent.doctorName)}.`,
         );
         setActiveTab("active");
         await loadAll();
@@ -928,7 +932,7 @@ export default function PrivacyScreen() {
                         >
                           <View style={{ flex: 1 }}>
                             <Text style={styles.docNameText}>
-                              Dr. {docName}
+                              {formatDoctorName(docName)}
                             </Text>
                             <Text style={styles.docSpecialityText}>
                               {speciality} · {hospName}
@@ -1136,7 +1140,9 @@ export default function PrivacyScreen() {
                       </View>
                       <View style={styles.docInfoTexts}>
                         <View style={styles.docTitleRow}>
-                          <Text style={styles.docNameText}>Dr. {docName}</Text>
+                          <Text style={styles.docNameText}>
+                            {formatDoctorName(docName)}
+                          </Text>
                           <Badge label="Active" variant="success" />
                         </View>
                         <Text style={styles.docSpecialityText}>
@@ -1192,7 +1198,7 @@ export default function PrivacyScreen() {
                         />
                         <Text style={styles.expiryText}>
                           {consent.expiresAt
-                            ? `Valid until ${formatDDMMYYYY(consent.expiresAt)}`
+                            ? `Valid until ${formatSmartDateTime(consent.expiresAt)}`
                             : "Ongoing Access"}
                         </Text>
                       </View>
@@ -1233,7 +1239,9 @@ export default function PrivacyScreen() {
                   return (
                     <View key={c._id} style={styles.historyRow}>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.historyDocName}>Dr. {name}</Text>
+                        <Text style={styles.historyDocName}>
+                          {formatDoctorName(name)}
+                        </Text>
                         <Text style={styles.historyDetails}>
                           {c.status === "revoked"
                             ? "Revoked by patient"
@@ -1286,7 +1294,9 @@ export default function PrivacyScreen() {
                         />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.docNameText}>Dr. {docName}</Text>
+                        <Text style={styles.docNameText}>
+                          {formatDoctorName(docName)}
+                        </Text>
                         <Text style={styles.docSpecialityText}>
                           {req.doctorSpeciality || "Specialist"} •{" "}
                           {req.hospitalName || "HealPoint Hospital"}
@@ -1488,7 +1498,7 @@ export default function PrivacyScreen() {
                             isSelected && styles.doctorSelectChipNameActive,
                           ]}
                         >
-                          Dr. {d.name}
+                          {formatDoctorName(d.name)}
                         </Text>
                         <Text style={styles.doctorSelectChipSpeciality}>
                           {d.speciality || "Specialist"}
@@ -1630,9 +1640,10 @@ export default function PrivacyScreen() {
                 </View>
                 <Text style={styles.heroTitle}>Your Health Data is Safe</Text>
                 <Text style={styles.heroDesc}>
-                  HealPoint adheres to modern healthcare data standards (HIPAA &
-                  DISHA compliance principles). Your clinical consultations,
-                  prescriptions, and identity remain completely private.
+                  Your healthcare data is protected with HealPoint's strict
+                  access controls and encrypted transport. Your clinical
+                  consultations, prescriptions, and identity remain completely
+                  confidential.
                 </Text>
               </View>
             </Card>
@@ -1793,7 +1804,7 @@ export default function PrivacyScreen() {
               <Text style={styles.modalTitle}>Extend Access Validity</Text>
             </View>
             <Text style={styles.modalSubtitle}>
-              Extend Dr. {selectedConsentToExtend?.doctorName || "Doctor"}'s
+              Extend {formatDoctorName(selectedConsentToExtend?.doctorName)}'s
               permission to access your health records.
             </Text>
 
@@ -1881,11 +1892,12 @@ export default function PrivacyScreen() {
               <View style={{ gap: Spacing.sm }}>
                 <View style={styles.authInfoCard}>
                   <Text style={styles.authInfoDoc}>
-                    Dr.{" "}
-                    {typeof selectedClinicalAuth.doctorId === "object" &&
-                    selectedClinicalAuth.doctorId
-                      ? selectedClinicalAuth.doctorId.name
-                      : "Attending Physician"}
+                    {formatDoctorName(
+                      typeof selectedClinicalAuth.doctorId === "object" &&
+                        selectedClinicalAuth.doctorId
+                        ? selectedClinicalAuth.doctorId.name
+                        : "Attending Physician",
+                    )}
                   </Text>
                   <Text style={styles.authInfoHospital}>
                     {typeof selectedClinicalAuth.hospitalId === "object" &&
@@ -1980,10 +1992,12 @@ const styles = StyleSheet.create({
   },
   metricsRow: {
     flexDirection: "row",
-    gap: Spacing.sm,
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    rowGap: Spacing.sm,
   },
   metricCard: {
-    flex: 1,
+    width: "48.5%",
     padding: Spacing.sm,
     borderRadius: Radius.md,
     borderLeftWidth: 3,
@@ -1999,6 +2013,7 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.primaryLight,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
   metricValue: {
     ...Typography.label,
@@ -2009,6 +2024,7 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     fontSize: 10,
     color: Palette.textMuted,
+    flexShrink: 1,
   },
   tabNavContainer: {
     borderBottomWidth: 1,
@@ -2044,10 +2060,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   badgeIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
     backgroundColor: Palette.warning,
+    marginLeft: 2,
   },
   content: {
     padding: Spacing.lg,

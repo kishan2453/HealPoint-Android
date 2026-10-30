@@ -24,6 +24,7 @@ import {
 import { AppointmentCard } from "@/components/AppointmentCard";
 import { AppointmentListSkeleton } from "@/components/AppointmentCardSkeleton";
 import { DrawerHeader } from "@/components/drawer/DrawerHeader";
+import { PatientBottomNav } from "@/components/PatientBottomNav";
 import { ReviewModal } from "@/components/ReviewModal";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -231,6 +232,8 @@ export default function AppointmentsScreen() {
           }}
         />
       ) : null}
+
+      <PatientBottomNav activeTab="appointments" />
     </View>
   );
 }
@@ -283,10 +286,10 @@ const styles = StyleSheet.create({
   tabs: {
     flexDirection: "row",
     gap: Spacing.xs,
-    backgroundColor: Palette.surface,
-    borderRadius: Radius.md,
+    backgroundColor: "rgba(255, 255, 255, 0.88)",
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Palette.border,
+    borderColor: "rgba(191, 219, 254, 0.50)",
     padding: 4,
   },
   tab: {
@@ -325,6 +328,6 @@ const styles = StyleSheet.create({
     height: Spacing.md,
   },
   listFooter: {
-    height: Spacing.xxl,
+    height: 95,
   },
 });

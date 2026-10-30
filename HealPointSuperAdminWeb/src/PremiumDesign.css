@@ -1,0 +1,317 @@
+/* ==========================================================================
+   Premium Design System - Doctor Appointment System (Admin & Client)
+   ========================================================================== */
+
+/* 1. Global Reset & Typography Enhancements */
+:root {
+  --premium-transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  --premium-transition-fast: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  --premium-shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --premium-shadow-md: 0 10px 25px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+  --premium-shadow-lg: 0 25px 50px -12px rgba(0, 0, 0, 0.12);
+  --premium-shadow-hover: 0 30px 60px -12px rgba(37, 99, 235, 0.15);
+  --premium-radius-sm: 8px;
+  --premium-radius-md: 12px;
+  --premium-radius-lg: 20px;
+  --premium-radius-xl: 30px;
+  --glass-bg: rgba(255, 255, 255, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.4);
+}
+
+body.site-dark, body.admin-dark {
+  --premium-shadow-hover: 0 30px 60px -12px rgba(37, 99, 235, 0.2);
+  --glass-bg: rgba(15, 23, 42, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
+}
+
+body {
+  font-family: 'Inter', 'Manrope', system-ui, -apple-system, sans-serif !important;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: -0.02em;
+  font-weight: 700 !important;
+}
+
+/* 2. Smooth Animations & Transitions */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+@keyframes shimmer { 
+  0% { background-position: -1000px 0; } 
+  100% { background-position: 1000px 0; } 
+}
+
+/* Apply staggered enter animations to main content areas */
+main > *, .admin-content > *, .container > *, .row > * {
+  animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.row > *:nth-child(1) { animation-delay: 0.1s; }
+.row > *:nth-child(2) { animation-delay: 0.2s; }
+.row > *:nth-child(3) { animation-delay: 0.3s; }
+.row > *:nth-child(4) { animation-delay: 0.4s; }
+
+/* 3. Premium Cards with Glassmorphism */
+.card, .doc-container .card, .metric-card, .review-card, .facility-card {
+  border-radius: var(--premium-radius-md) !important;
+  transition: var(--premium-transition) !important;
+  border: 1px solid var(--glass-border) !important;
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  box-shadow: var(--premium-shadow-sm) !important;
+  overflow: hidden;
+}
+
+.card:hover, .doc-container .card:hover, .metric-card:hover, .review-card:hover, .facility-card:hover {
+  transform: translateY(-6px) scale(1.01) !important;
+  box-shadow: var(--premium-shadow-hover) !important;
+  border-color: rgba(37, 99, 235, 0.3) !important;
+}
+
+/* 4. Button Enhancements (Micro-interactions) */
+.btn, button {
+  border-radius: var(--premium-radius-sm) !important;
+  transition: var(--premium-transition-fast) !important;
+  position: relative;
+  overflow: hidden;
+  font-weight: 600 !important;
+  letter-spacing: 0.01em;
+}
+
+.btn::after, button::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.4);
+  opacity: 0;
+  border-radius: 100%;
+  transform: scale(1, 1) translate(-50%);
+  transform-origin: 50% 50%;
+}
+
+.btn:active::after, button:active::after {
+  animation: ripple 0.6s ease-out;
+}
+
+@keyframes ripple {
+  0% { transform: scale(0, 0); opacity: 0.5; }
+  100% { transform: scale(40, 40); opacity: 0; }
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px -10px rgba(0,0,0,0.3) !important;
+}
+.btn:active {
+  transform: translateY(1px);
+}
+
+/* 5. Inputs and Forms (Floating Labels & Focus states) */
+.form-control, input, select, textarea {
+  border-radius: var(--premium-radius-sm) !important;
+  transition: var(--premium-transition-fast) !important;
+  padding: 0.75rem 1rem !important;
+  border: 1px solid rgba(0,0,0,0.1) !important;
+  background: rgba(255,255,255,0.9) !important;
+}
+body.site-dark .form-control, body.site-dark input, body.site-dark select, body.site-dark textarea,
+body.admin-dark .form-control, body.admin-dark input, body.admin-dark select, body.admin-dark textarea {
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  background: rgba(15,23,42,0.6) !important;
+  color: #fff !important;
+}
+
+.form-control:focus, input:focus, select:focus, textarea:focus {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15) !important;
+  transform: translateY(-1px);
+}
+
+/* Floating Label Concept for `.form-group` */
+.form-group {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+.form-group label {
+  transition: var(--premium-transition-fast);
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-bottom: 0.4rem;
+  display: inline-block;
+  color: #64748b;
+}
+.form-group:focus-within label {
+  color: #2563eb;
+  transform: translateX(2px);
+}
+body.site-dark .form-group:focus-within label, body.admin-dark .form-group:focus-within label {
+  color: #2563eb;
+}
+
+/* 6. Tables - Sticky Headers & Hover rows */
+.table-responsive, .table-container {
+  border-radius: var(--premium-radius-md);
+  overflow: hidden;
+  box-shadow: var(--premium-shadow-md);
+  border: 1px solid var(--glass-border);
+}
+.table {
+  margin-bottom: 0 !important;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(248, 250, 252, 0.95) !important;
+  backdrop-filter: blur(8px);
+  padding: 1rem !important;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  color: #475569 !important;
+  border-bottom: 2px solid #e2e8f0 !important;
+}
+body.site-dark .table thead th, body.admin-dark .table thead th {
+  background: rgba(15, 23, 42, 0.95) !important;
+  color: #94a3b8 !important;
+  border-bottom: 2px solid #334155 !important;
+}
+.table tbody tr {
+  transition: background-color 0.2s ease;
+}
+.table tbody tr:hover {
+  background-color: rgba(37, 99, 235, 0.04) !important;
+}
+body.site-dark .table tbody tr:hover, body.admin-dark .table tbody tr:hover {
+  background-color: rgba(37, 99, 235, 0.05) !important;
+}
+.table td {
+  padding: 1rem !important;
+  vertical-align: middle;
+}
+
+/* 7. Skeleton Loaders (Premium Shimmer) */
+.skeleton-loader {
+  animation: shimmer 2s infinite linear;
+  background: linear-gradient(to right, #f6f7f8 4%, #edeef1 25%, #f6f7f8 36%);
+  background-size: 1000px 100%;
+}
+body.site-dark .skeleton-loader, body.admin-dark .skeleton-loader {
+  background: linear-gradient(to right, #1e293b 4%, #334155 25%, #1e293b 36%);
+}
+
+/* 8. Doctor Profile / Listing Improvements */
+.doc-container img, .doctor-card img {
+  transition: transform 0.5s ease;
+  border-radius: var(--premium-radius-md) var(--premium-radius-md) 0 0;
+}
+.doc-container .card:hover img, .doctor-card:hover img {
+  transform: scale(1.05);
+}
+.doctor-status-badge {
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+/* 9. Appointment Flow Enhancements */
+.booking-step-grid article {
+  border-left: 4px solid transparent;
+  transition: var(--premium-transition);
+}
+.booking-step-grid article:hover, .booking-step-grid article.active {
+  border-left-color: #2563eb;
+  transform: translateX(5px);
+}
+
+/* 10. Modals & Dialogs */
+.modal-content, .app-confirm-dialog {
+  border-radius: var(--premium-radius-lg) !important;
+  box-shadow: var(--premium-shadow-lg) !important;
+  border: 1px solid rgba(255,255,255,0.2) !important;
+  backdrop-filter: blur(16px);
+  animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.modal-backdrop, .app-confirm-backdrop {
+  backdrop-filter: blur(5px);
+  background: rgba(15, 23, 42, 0.6) !important;
+}
+
+/* 11. Dashboard / Admin Layout Adjustments */
+.admin-sidebar {
+  border-right: 1px solid var(--glass-border);
+  box-shadow: 4px 0 24px rgba(0,0,0,0.02);
+}
+.admin-topbar {
+  box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+}
+.metric-card {
+  position: relative;
+  overflow: hidden;
+}
+.metric-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+  pointer-events: none;
+}
+
+/* Scrollbar customization */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.5);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.8);
+}
+
+/* Notification Toast Container (if not present) */
+.Toastify__toast {
+  border-radius: var(--premium-radius-sm) !important;
+  box-shadow: var(--premium-shadow-md) !important;
+  font-family: inherit;
+  font-weight: 500;
+  backdrop-filter: blur(10px);
+}
+
+/* Badges */
+.badge, .status-pill {
+  padding: 0.4em 0.8em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border-radius: 20px !important;
+}
+
+/* Dropdown menus */
+.dropdown-menu {
+  border-radius: var(--premium-radius-md);
+  box-shadow: var(--premium-shadow-lg);
+  border: 1px solid var(--glass-border);
+  animation: slideUp 0.2s ease forwards;
+  padding: 0.5rem;
+}
+.dropdown-item {
+  border-radius: var(--premium-radius-sm);
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+.dropdown-item:hover {
+  background-color: rgba(37, 99, 235, 0.08);
+  transform: translateX(4px);
+}

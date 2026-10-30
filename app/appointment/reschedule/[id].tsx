@@ -102,7 +102,9 @@ export default function RescheduleScreen() {
         if (!active) return;
         const details = res.appointmentDetails;
         setAppointment(details);
-        setDoctorId(String(details.doctorId || ""));
+        const rawDoc = details.doctorId || (details as any).docData || (details as any).doctor;
+        const docId = typeof rawDoc === "object" && rawDoc !== null ? String(rawDoc._id || "") : String(rawDoc || "");
+        setDoctorId(docId);
       })
       .catch((err) => {
         if (active)
@@ -151,6 +153,38 @@ export default function RescheduleScreen() {
     [availableSlots],
   );
 
+  const rawDoc = appointment
+    ? appointment.doctorId || (appointment as any).docData || (appointment as any).doctor
+    : null;
+  const currentDocName =
+    (typeof rawDoc === "object" && rawDoc !== null ? (rawDoc as any).name : null) ||
+    appointment?.doctorName ||
+    "Attending Doctor";
+
+  const rawHosp = appointment
+    ? appointment.hospitalId || (appointment as any).hospital
+    : null;
+  const currentHospName =
+    (typeof rawHosp === "object" && rawHosp !== null ? (rawHosp as any).name : null) ||
+    appointment?.hospitalName ||
+    "HealPoint Hospital";
+
+  const currentDateStr =
+    appointment?.slotDate ||
+    appointment?.bookingDate ||
+    (appointment as any)?.date ||
+    "";
+  const currentTimeStr =
+    appointment?.slotTime ||
+    appointment?.bookingTime ||
+    (appointment as any)?.time ||
+    "";
+
+  const isSameSlot =
+    selectedDateStr === currentDateStr && selectedSlot === currentTimeStr;
+  const canReschedule =
+    Boolean(selectedSlot) && !isSameSlot && !submitting && !slotsLoading;
+
   const confirmReschedule = async () => {
     setSubmitError("");
     if (!id || !selectedSlot) {
@@ -158,10 +192,7 @@ export default function RescheduleScreen() {
       return;
     }
 
-    if (
-      selectedDateStr === appointment?.bookingDate &&
-      selectedSlot === appointment?.bookingTime
-    ) {
+    if (isSameSlot) {
       setSubmitError("Please choose a different date or time slot.");
       return;
     }
@@ -240,8 +271,7 @@ export default function RescheduleScreen() {
           <View style={styles.headerTitleWrap}>
             <Text style={styles.headerTitle}>Reschedule Appointment</Text>
             <Text style={styles.headerSubtitle}>
-              Select an alternative slot with{" "}
-              {formatDoctorName(appointment.doctorName)}
+              Select an alternative slot with {formatDoctorName(currentDocName)}
             </Text>
           </View>
         </View>
@@ -257,11 +287,11 @@ export default function RescheduleScreen() {
             <Text style={styles.currentLabel}>Current Appointment</Text>
           </View>
           <Text style={styles.currentDoctor}>
-            {formatDoctorName(appointment.doctorName, "Attending Doctor")}
+            {formatDoctorName(currentDocName)} • {currentHospName}
           </Text>
           <Text style={styles.currentMeta}>
-            {formatDDMMYYYY(appointment.bookingDate)} at{" "}
-            {appointment.bookingTime}
+            {currentDateStr ? formatDDMMYYYY(currentDateStr) : "Scheduled date"} at{" "}
+            {currentTimeStr || "scheduled time"}
           </Text>
         </Card>
 
@@ -440,7 +470,7 @@ export default function RescheduleScreen() {
           icon="calendar"
           onPress={confirmReschedule}
           loading={submitting}
-          disabled={!selectedSlot}
+          disabled={!canReschedule}
           style={styles.confirmBtn}
         />
       </ScrollView>

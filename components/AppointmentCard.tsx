@@ -172,6 +172,16 @@ function AppointmentCardRaw({
 
   const isCompleted = status === "completed";
   const isCancelled = status === "cancel" || status === "missed";
+  const hasPrescription = Boolean(
+    appointment.prescription ||
+    (appointment.medicines && appointment.medicines.length > 0),
+  );
+  const hasReports = Boolean(
+    appointment.medicalReports && appointment.medicalReports.length > 0,
+  );
+  const hasFollowUp = Boolean(
+    appointment.followUpAdvice?.trim() || appointment.followUp?.required,
+  );
 
   return (
     <Pressable
@@ -371,6 +381,91 @@ function AppointmentCardRaw({
         </View>
       ) : null}
 
+      {/* ---- Secondary Continuity Shortcuts for Completed visits ---- */}
+      {isCompleted ? (
+        <View style={styles.secondaryShortcutsRow}>
+          <Pressable
+            hitSlop={6}
+            onPress={() =>
+              router.push({
+                pathname: "/care-continuity",
+                params: { appointmentId: appointment._id },
+              })
+            }
+            style={({ pressed }) => [
+              styles.secondaryLink,
+              pressed && styles.linkPressed,
+            ]}
+          >
+            <Ionicons
+              name="repeat-outline"
+              size={13}
+              color={Palette.primaryDark}
+            />
+            <Text style={styles.secondaryLinkText}>View Care</Text>
+          </Pressable>
+
+          {hasPrescription ? (
+            <Pressable
+              hitSlop={6}
+              onPress={() => router.push("/(drawer)/health/prescriptions")}
+              style={({ pressed }) => [
+                styles.secondaryLink,
+                pressed && styles.linkPressed,
+              ]}
+            >
+              <Ionicons
+                name="document-text-outline"
+                size={13}
+                color={Palette.primaryDark}
+              />
+              <Text style={styles.secondaryLinkText}>Prescription</Text>
+            </Pressable>
+          ) : null}
+
+          {hasReports ? (
+            <Pressable
+              hitSlop={6}
+              onPress={() => router.push("/(drawer)/health/reports")}
+              style={({ pressed }) => [
+                styles.secondaryLink,
+                pressed && styles.linkPressed,
+              ]}
+            >
+              <Ionicons
+                name="flask-outline"
+                size={13}
+                color={Palette.primaryDark}
+              />
+              <Text style={styles.secondaryLinkText}>Report</Text>
+            </Pressable>
+          ) : null}
+
+          {hasFollowUp ? (
+            <Pressable
+              hitSlop={6}
+              onPress={() =>
+                router.push({
+                  pathname: "/care-continuity",
+                  params: { appointmentId: appointment._id },
+                })
+              }
+              style={({ pressed }) => [
+                styles.secondaryLink,
+                pressed && styles.linkPressed,
+              ]}
+            >
+              <Ionicons
+                name="calendar-outline"
+                size={13}
+                color={Palette.primaryDark}
+              />
+              <Text style={styles.secondaryLinkText}>Follow-Up</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
       {/* ---- Secondary Actions for Cancelled / Past / Missed visits ---- */}
       {!isCompleted && isEligibleForRebook ? (
         <View style={styles.completedActionRow}>
@@ -385,9 +480,7 @@ function AppointmentCardRaw({
       ) : null}
 
       {/* ---- Secondary Shortcuts for Active visits ---- */}
-      {!isCompleted &&
-      !isCancelled &&
-      intelligence.nextAction.key !== "VIEW_DETAILS" ? (
+      {!isCompleted && !isCancelled ? (
         <View style={styles.secondaryShortcutsRow}>
           <Pressable
             hitSlop={6}
@@ -403,6 +496,27 @@ function AppointmentCardRaw({
               size={13}
               color={Palette.primaryDark}
             />
+          </Pressable>
+
+          <Pressable
+            hitSlop={6}
+            onPress={() =>
+              router.push({
+                pathname: "/appointment/prepare/[id]",
+                params: { id: appointment._id },
+              })
+            }
+            style={({ pressed }) => [
+              styles.secondaryLink,
+              pressed && styles.linkPressed,
+            ]}
+          >
+            <Ionicons
+              name="clipboard-outline"
+              size={13}
+              color={Palette.primaryDark}
+            />
+            <Text style={styles.secondaryLinkText}>Prepare</Text>
           </Pressable>
 
           {appointment.consultationType !== "video" && (
@@ -437,10 +551,10 @@ export const AppointmentCard = React.memo(AppointmentCardRaw);
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Palette.surface,
-    borderRadius: Radius.lg,
+    backgroundColor: "rgba(255, 255, 255, 0.90)",
+    borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: Palette.border,
+    borderColor: "rgba(191, 219, 254, 0.45)",
     padding: Spacing.lg,
     gap: Spacing.sm,
     ...Shadows.card,
@@ -607,11 +721,13 @@ const styles = StyleSheet.create({
   },
   completedActionRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.sm,
     marginTop: Spacing.xs,
   },
   completedBtn: {
     flex: 1,
+    minWidth: 120,
     minHeight: 42,
   },
   reviewedBadge: {
@@ -619,12 +735,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    backgroundColor: "rgba(14, 159, 142, 0.08)",
+    backgroundColor: "rgba(37, 99, 235, 0.08)",
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: "rgba(14, 159, 142, 0.20)",
+    borderColor: "rgba(37, 99, 235, 0.20)",
   },
   reviewedBadgeText: {
     ...Typography.caption,
@@ -633,8 +749,10 @@ const styles = StyleSheet.create({
   },
   secondaryShortcutsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: Spacing.xs,
     paddingTop: Spacing.xs,
   },
   secondaryLink: {

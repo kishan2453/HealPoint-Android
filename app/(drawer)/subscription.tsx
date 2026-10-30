@@ -18,7 +18,7 @@
  */
 
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -70,7 +70,8 @@ import type {
 type BillingViewTab = "monthly" | "yearly";
 
 export default function PatientSubscriptionScreen() {
-  const params = useLocalSearchParams<{ notice?: string }>();
+  const router = useRouter();
+  const params = useLocalSearchParams<{ notice?: string; returnDoctorId?: string }>();
 
   const [entitlement, setEntitlement] =
     useState<UserSubscriptionEntitlement | null>(null);
@@ -169,7 +170,7 @@ export default function PatientSubscriptionScreen() {
     if (params.notice === "subscription_required") {
       setNotice({
         type: "info",
-        text: "Video consultations are available with an active care plan. Choose a plan to consult doctors online.",
+        text: "Subscription Required – Please subscribe to continue with video consultation.",
       });
     } else if (params.notice === "quota_exhausted") {
       setNotice({
@@ -426,6 +427,24 @@ export default function PatientSubscriptionScreen() {
           text: `Payment verified! Your ${targetPlan.name} plan with ${getPlanVideoLimit(targetPlan)} video consultations/month is now active.${appliedCouponResult ? ` (Saved ₹${discount} with ${appliedCouponResult.code})` : ""}`,
         });
         await loadData();
+        if (params.returnDoctorId) {
+          Alert.alert(
+            "Subscription Activated",
+            `Your ${targetPlan.name} plan is now active! Would you like to continue booking your video consultation?`,
+            [
+              { text: "Stay Here", style: "cancel" },
+              {
+                text: "Continue to Booking",
+                onPress: () => {
+                  router.push({
+                    pathname: "/booking/[doctorId]",
+                    params: { doctorId: String(params.returnDoctorId), type: "video" },
+                  });
+                },
+              },
+            ],
+          );
+        }
       } else {
         throw new Error(
           verifyRes.message || "Payment verification incomplete.",

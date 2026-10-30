@@ -427,7 +427,7 @@ export default function FollowUpsScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.transferRole}>From Clinician</Text>
             <Text style={styles.transferDoctorName}>
-              Dr. {origDoctor?.name || "Doctor"}
+              {formatDoctorName(origDoctor?.name)}
             </Text>
             {origDoctor?.speciality ? (
               <Text style={styles.transferSpeciality}>
@@ -543,11 +543,12 @@ export default function FollowUpsScreen() {
               </Text>
             </View>
             <Text style={styles.patientAuthPromptText}>
-              Dr. {origDoctor?.name || "Your doctor"} has initiated a care
-              handover to Dr.{" "}
-              {recvDoctor?.name ||
-                item.toDepartment ||
-                "the receiving specialist"}
+              {formatDoctorName(origDoctor?.name, "Your doctor")} has initiated
+              a care handover to{" "}
+              {formatDoctorName(
+                recvDoctor?.name || item.toDepartment,
+                "the receiving specialist",
+              )}
               . Please authorize or decline this transfer.
             </Text>
 
@@ -920,10 +921,10 @@ export default function FollowUpsScreen() {
       <View style={styles.vaultBar}>
         <Pressable
           style={styles.vaultBarBtn}
-          onPress={() => router.push("/(drawer)/health-wallet" as never)}
+          onPress={() => router.push("/care-continuity")}
         >
-          <Ionicons name="wallet-outline" size={14} color={Palette.primary} />
-          <Text style={styles.vaultBarBtnText}>Health Wallet</Text>
+          <Ionicons name="repeat-outline" size={14} color={Palette.primary} />
+          <Text style={styles.vaultBarBtnText}>Care Continuity Hub</Text>
         </Pressable>
         <View style={styles.vaultBarDivider} />
         <Pressable
@@ -934,6 +935,14 @@ export default function FollowUpsScreen() {
           <Text style={[styles.vaultBarBtnText, { color: "#7C3AED" }]}>
             Timeline
           </Text>
+        </Pressable>
+        <View style={styles.vaultBarDivider} />
+        <Pressable
+          style={styles.vaultBarBtn}
+          onPress={() => router.push("/(drawer)/health-wallet" as never)}
+        >
+          <Ionicons name="wallet-outline" size={14} color={Palette.primary} />
+          <Text style={styles.vaultBarBtnText}>Health Wallet</Text>
         </Pressable>
         <View style={styles.vaultBarDivider} />
         <Pressable

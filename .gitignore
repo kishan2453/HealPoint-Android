@@ -43,3 +43,11 @@ app-example
 # generated native folders
 /ios
 /android
+
+.vercel
+.env*
+*.log
+*.err
+backups/
+_backup_*/
+.eas-inspect/

@@ -190,10 +190,10 @@ export const HospitalCard = React.memo(HospitalCardRaw);
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Palette.surface,
-    borderRadius: Radius.lg,
+    backgroundColor: "rgba(255, 255, 255, 0.90)",
+    borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: Palette.border,
+    borderColor: "rgba(191, 219, 254, 0.45)",
     overflow: "hidden",
     ...Shadows.card,
   },

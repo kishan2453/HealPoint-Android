@@ -1,0 +1,174 @@
+/* =============================================================================
+   HealPoint — Super Admin Portal · Professional SaaS Design System
+   Loaded LAST so it unifies all styles with Doctor and Hospital Admin portals.
+   Standardizes typography, colors, elevations, micro-animations and table polish.
+   ============================================================================= */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
+:root {
+  --hp-primary: #2563eb;
+  --hp-primary-dark: #1d4ed8;
+  --hp-primary-soft: #eff6ff;
+  --hp-primary-border: #bfdbfe;
+  --hp-secondary: #60a5fa;
+  --hp-text: #1e293b;
+  --hp-text-muted: #64748b;
+  --hp-border: #e2e8f0;
+  --hp-border-subtle: #f1f5f9;
+  --hp-bg: #f8fafc;
+  --hp-card: #ffffff;
+  --hp-success: #16a34a;
+  --hp-success-soft: #dcfce7;
+  --hp-warning: #f59e0b;
+  --hp-warning-soft: #fef3c7;
+  --hp-danger: #dc2626;
+  --hp-danger-soft: #fee2e2;
+  --hp-info: #2563eb;
+  --hp-info-soft: #dbeafe;
+  --hp-radius: 12px;
+  --hp-shadow:
+    0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
+  --hp-shadow-lg:
+    0 10px 25px -3px rgba(15, 23, 42, 0.08),
+    0 4px 6px -4px rgba(15, 23, 42, 0.03);
+}
+
+body,
+[data-sa-portal] {
+  font-family:
+    "Inter",
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif !important;
+  color: var(--hp-text);
+  background: var(--hp-bg);
+}
+
+/* Page entrance animation */
+[data-sa-portal] .admin-main {
+  animation: saasPageEntrance 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes saasPageEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Hero card polish */
+.sa-hero-card {
+  border-color: var(--hp-primary-border) !important;
+  box-shadow:
+    0 8px 24px -4px rgba(37, 99, 235, 0.08),
+    0 2px 6px -2px rgba(37, 99, 235, 0.04) !important;
+}
+
+.sa-hero-pill {
+  border-color: var(--hp-primary-border) !important;
+  color: var(--hp-primary-dark) !important;
+}
+
+/* Module & Stat Cards Hover Elevation */
+.sa-module-card,
+.sa-kpi-card,
+.sa-stat-chip {
+  transition:
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.sa-module-card:hover,
+.sa-kpi-card:hover {
+  transform: translateY(-2px) !important;
+  border-color: #cbd5e1 !important;
+  box-shadow:
+    0 8px 24px -2px rgba(15, 23, 42, 0.08),
+    0 2px 6px -2px rgba(15, 23, 42, 0.04) !important;
+}
+
+.sa-module-btn {
+  background: var(--hp-primary-soft) !important;
+  color: var(--hp-primary-dark) !important;
+  border: 1px solid var(--hp-primary-border) !important;
+  transition: all 0.16s ease !important;
+}
+
+.sa-module-btn:hover {
+  background: var(--hp-primary) !important;
+  color: #ffffff !important;
+  border-color: var(--hp-primary) !important;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25) !important;
+}
+
+/* Button active micro-press */
+button:active,
+.sa-btn:active,
+.sa-module-btn:active {
+  transform: scale(0.98) !important;
+}
+
+/* Status Badges */
+.sa-status-pill.active,
+.sa-badge-active {
+  background: var(--hp-success-soft) !important;
+  color: var(--hp-success) !important;
+  border: 1px solid #bbf7d0 !important;
+}
+
+.sa-status-pill.inactive,
+.sa-badge-inactive {
+  background: var(--hp-danger-soft) !important;
+  color: var(--hp-danger) !important;
+  border: 1px solid #fecaca !important;
+}
+
+/* Tables */
+.sa-table th {
+  background: #f8fafc !important;
+  color: #475569 !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.05em !important;
+  border-bottom: 1px solid var(--hp-border) !important;
+}
+
+.sa-table tbody tr {
+  transition: background-color 0.15s ease !important;
+}
+
+.sa-table tbody tr:hover {
+  background-color: #f8fafc !important;
+}
+
+.sa-table td {
+  border-bottom: 1px solid #f1f5f9 !important;
+  color: var(--hp-text) !important;
+}
+
+/* Shimmer skeleton utility */
+@keyframes saasShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.hp-skeleton {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: saasShimmer 1.5s infinite;
+  border-radius: 6px;
+}

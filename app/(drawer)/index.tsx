@@ -1,18 +1,38 @@
 /**
- * HealPoint - Home dashboard (redesigned patient home).
+ * HealPoint - Premium Patient-Side Home Dashboard (Redesigned Experience)
  *
- * A premium healthcare home built entirely from real backend data (doctors,
- * hospitals, appointments, notifications). Nothing on this screen is mocked:
- * availability is only ever shown when the backend confirms it, and every
- * button routes to a working screen.
+ * An ultra-premium, animated, world-class healthcare home screen built entirely
+ * from real backend data (doctors, hospitals, appointments, health metrics, notifications).
+ * Features:
+ *  - Dynamic greeting with personalized user name & online indicator
+ *  - Animated Hero Carousel with auto-advance & interactive pagination
+ *  - Modern Search Hero with live multi-entity matching & specialty chips
+ *  - Live Upcoming Appointment Card with countdown, doctor portrait & smart dual CTAs
+ *  - Health Summary with 4 soft pastel cards (Visits, Prescriptions, Reports, Diagnoses)
+ *  - Quick Actions 4x2 modern app icon grid with expander for all services
+ *  - Smart Care Continuity banner & 1-tap re-booking
+ *  - Recent Health Insights & real activity feed
+ *  - Available doctors with live filter tabs & nearby hospitals discovery
+ *  - Ambient 24/7 Emergency Assistance banner
+ *  - Floating AI Assistant launcher
  */
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { type Href, useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Alert,
   Animated,
+  Dimensions,
+  Easing,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -21,12 +41,16 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import { DoctorFeatureCard } from "@/components/DoctorFeatureCard";
 import { DoctorMiniCard } from "@/components/DoctorMiniCard";
 import { DrawerToggleButton } from "@/components/DrawerToggleButton";
 import { HospitalCard } from "@/components/HospitalCard";
+import { PatientBottomNav } from "@/components/PatientBottomNav";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -48,6 +72,7 @@ import { useHealthOverview } from "@/hooks/use-health-overview";
 import { useHospitals } from "@/hooks/use-hospitals";
 import { useNotificationBadge } from "@/hooks/use-notifications";
 import { useScreenFocus } from "@/hooks/use-screen-focus";
+import { useUserLocation } from "@/hooks/use-user-location";
 import {
   doctorHospitalName,
   doctorSearchableText,
@@ -56,7 +81,6 @@ import {
 } from "@/lib/doctor";
 import {
   cleanPatientFirstName,
-  firstName,
   formatDDMMYYYY,
   formatDoctorName,
   formatINR,
@@ -72,17 +96,13 @@ import {
 } from "@/lib/rebooking";
 import { toErrorMessage } from "@/services/api";
 import * as appointmentService from "@/services/appointments";
-import type {
-  Appointment,
-  AppointmentStatus,
-  HealthActivityItem,
-  PatientMedicalOverview,
-  User,
-} from "@/types";
+import type { Appointment, AppointmentStatus, User } from "@/types";
 
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const CAROUSEL_CARD_WIDTH = SCREEN_WIDTH - Spacing.lg * 2;
 const DOCTOR_POOL_SIZE = SHARED_CATALOG_LIMIT;
 const FEATURED_DOCTORS = 5;
-const SPECIALITY_CHIPS = 6;
+const SPECIALITY_CHIPS = 7;
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -100,7 +120,6 @@ function userLocationLabel(user?: User | null): string {
   return user?.address?.trim() || "";
 }
 
-/** Last comma-separated segment of the profile address serves as the user's city. */
 function userCity(user?: User | null): string {
   const city = (user?.address || "")
     .split(",")
@@ -133,13 +152,8 @@ function appointmentDoctorName(appointment: Appointment): string {
   return "Doctor";
 }
 
-function appointmentStatus(appointment: Appointment) {
-  const status = (appointment.status || "pending") as AppointmentStatus;
-  return APPOINTMENT_STATUS_LABEL[status] || APPOINTMENT_STATUS_LABEL.pending;
-}
-
 // ---------------------------------------------------------------------------
-// Static navigation maps (all routes exist and are fully functional)
+// Quick Action Items (8 primary + expanded more)
 // ---------------------------------------------------------------------------
 
 interface QuickAction {
@@ -148,42 +162,122 @@ interface QuickAction {
   subLabel?: string;
   icon: IconName;
   tint: string;
+  bgColor: string;
   path: Href;
   params?: Record<string, string>;
 }
 
-const QUICK_ACTIONS: QuickAction[] = [
+const PRIMARY_QUICK_ACTIONS: QuickAction[] = [
   {
-    key: "command_center",
-    label: "Care Cockpit",
-    subLabel: "Command Center",
-    icon: "pulse",
-    tint: "#0D9488",
-    path: "/command-center" as never,
+    key: "book",
+    label: "Book Appointment",
+    subLabel: "Top specialists",
+    icon: "calendar",
+    tint: "#2563EB",
+    bgColor: "#EFF6FF",
+    path: "/doctors",
   },
   {
-    key: "emergency",
-    label: "Emergency",
-    subLabel: "24/7 Help",
-    icon: "alert-circle",
-    tint: "#DC2626",
-    path: "/emergency",
+    key: "appointments",
+    label: "My Appointments",
+    subLabel: "Active schedule",
+    icon: "time",
+    tint: "#4F46E5",
+    bgColor: "#EEF2FF",
+    path: "/appointments",
+  },
+  {
+    key: "favorites",
+    label: "Saved",
+    subLabel: "Doctors & clinics",
+    icon: "heart",
+    tint: "#E11D48",
+    bgColor: "#FFF1F2",
+    path: "/favorites",
+  },
+  {
+    key: "records",
+    label: "Medical Records",
+    subLabel: "Vitals & history",
+    icon: "document-text",
+    tint: "#7C3AED",
+    bgColor: "#F5F3FF",
+    path: "/health/records",
+  },
+  {
+    key: "prescriptions",
+    label: "Prescriptions",
+    subLabel: "Digital Rx",
+    icon: "medkit",
+    tint: "#D97706",
+    bgColor: "#FFFBEB",
+    path: "/health/prescriptions",
+  },
+  {
+    key: "reports",
+    label: "Reports",
+    subLabel: "Diagnostics",
+    icon: "flask",
+    tint: "#0284C7",
+    bgColor: "#F0F9FF",
+    path: "/health/reports",
+  },
+  {
+    key: "wallet",
+    label: "Digital Wallet",
+    subLabel: "Vault & pass",
+    icon: "wallet",
+    tint: "#059669",
+    bgColor: "#ECFDF5",
+    path: "/health-wallet" as any,
+  },
+  {
+    key: "timeline",
+    label: "Past Activity",
+    subLabel: "Health timeline",
+    icon: "pulse",
+    tint: "#0D9488",
+    bgColor: "#F0FDFA",
+    path: "/health/timeline" as any,
+  },
+];
+
+const MORE_QUICK_ACTIONS: QuickAction[] = [
+  {
+    key: "find_doctors",
+    label: "Find Doctors",
+    subLabel: "Verified care",
+    icon: "search",
+    tint: "#0D9488",
+    bgColor: "#F0FDFA",
+    path: "/doctors",
+  },
+  {
+    key: "consult",
+    label: "Online Meet",
+    subLabel: "Telehealth call",
+    icon: "videocam",
+    tint: "#9333EA",
+    bgColor: "#FAF5FF",
+    path: "/consult-online",
   },
   {
     key: "ai_assistant",
     label: "AI Assistant",
-    subLabel: "Ask HealPoint",
+    subLabel: "Care guidance",
     icon: "sparkles",
-    tint: "#0284C7",
+    tint: "#E11D48",
+    bgColor: "#FFF1F2",
     path: "/ai-assistant",
   },
   {
-    key: "book",
-    label: "Book Visit",
-    subLabel: "Find doctors",
-    icon: "calendar",
-    tint: Palette.primary,
-    path: "/doctors",
+    key: "command_center",
+    label: "Care Cockpit",
+    subLabel: "Live status",
+    icon: "pulse",
+    tint: "#0D9488",
+    bgColor: "#F0FDFA",
+    path: "/command-center" as never,
   },
   {
     key: "hospitals",
@@ -191,94 +285,43 @@ const QUICK_ACTIONS: QuickAction[] = [
     subLabel: "7 Centres",
     icon: "business",
     tint: "#0E9F6E",
+    bgColor: "#ECFDF5",
     path: "/hospitals",
-  },
-  {
-    key: "appointments",
-    label: "My Bookings",
-    subLabel: "Appointments",
-    icon: "time",
-    tint: "#2F80ED",
-    path: "/appointments",
-  },
-  {
-    key: "favorites",
-    label: "Saved Care",
-    subLabel: "Saved items",
-    icon: "heart",
-    tint: "#E11D48",
-    path: "/favorites",
   },
   {
     key: "care_passport",
     label: "Care Passport",
-    subLabel: "Identity & QR",
+    subLabel: "Identity QR",
     icon: "id-card",
     tint: "#0E9F8E",
+    bgColor: "#F0FDFA",
     path: "/care-passport" as any,
-  },
-  {
-    key: "wallet",
-    label: "Health Wallet",
-    subLabel: "Vault & Rx",
-    icon: "wallet",
-    tint: "#0D9488",
-    path: "/health-wallet" as any,
-  },
-  {
-    key: "consult",
-    label: "Online Meet",
-    subLabel: "Telehealth",
-    icon: "videocam",
-    tint: "#9356D6",
-    path: "/consult-online",
-  },
-  {
-    key: "prescriptions",
-    label: "Prescriptions",
-    subLabel: "Digital Rx",
-    icon: "document-text",
-    tint: "#10B981",
-    path: "/health/prescriptions",
-  },
-  {
-    key: "records",
-    label: "Health EMR",
-    subLabel: "Records",
-    icon: "fitness",
-    tint: "#E89A3C",
-    path: "/health/records",
-  },
-  {
-    key: "reports",
-    label: "Lab Reports",
-    subLabel: "Diagnostics",
-    icon: "bar-chart",
-    tint: "#0284C7",
-    path: "/health/reports",
   },
   {
     key: "goals",
     label: "Health Goals",
-    subLabel: "Progress",
+    subLabel: "Wellness track",
     icon: "trophy",
-    tint: "#2F80ED",
+    tint: "#D97706",
+    bgColor: "#FFFBEB",
     path: "/health/goals" as never,
   },
   {
-    key: "notifications",
-    label: "Updates",
-    subLabel: "Alerts",
-    icon: "notifications",
-    tint: "#6366F1",
-    path: "/notification",
+    key: "emergency",
+    label: "Emergency",
+    subLabel: "24/7 Helpline",
+    icon: "alert-circle",
+    tint: "#DC2626",
+    bgColor: "#FEF2F2",
+    path: "/emergency",
   },
   {
     key: "support",
     label: "Support",
-    subLabel: "Help & Care",
+    subLabel: "Help center",
     icon: "help-buoy",
     tint: "#0D9488",
+    bgColor: "#F0FDFA",
     path: "/support",
   },
 ];
@@ -296,51 +339,80 @@ const DOCTOR_FILTER_TABS: {
   { id: "top", label: "Top Rated", icon: "star-outline" },
 ];
 
-interface Service {
-  key: string;
-  label: string;
-  caption: string;
+// ---------------------------------------------------------------------------
+// Hero Carousel Banners
+// ---------------------------------------------------------------------------
+
+interface HeroBanner {
+  id: string;
+  badge: string;
+  title: string;
+  highlightText: string;
+  subtitle: string;
+  ctaText: string;
   icon: IconName;
-  tint: string;
-  path: "/doctors" | "/hospitals" | "/consult-online";
-  params?: Record<string, string>;
+  bgGradient: [string, string];
+  accentColor: string;
+  route: Href;
 }
 
-const SERVICES: Service[] = [
+const HERO_BANNERS: HeroBanner[] = [
   {
-    key: "video",
-    label: "Video consult",
-    caption: "Consult a doctor online with Google Meet",
+    id: "doctors",
+    badge: "VERIFIED SPECIALISTS",
+    title: "Take Control of",
+    highlightText: "Your Health",
+    subtitle: "Book verified doctors & hospital visits in seconds",
+    ctaText: "Find Doctors",
+    icon: "shield-checkmark",
+    bgGradient: ["#1D4ED8", "#2563EB"],
+    accentColor: "#BFDBFE",
+    route: "/doctors",
+  },
+  {
+    id: "telehealth",
+    badge: "INSTANT TELEHEALTH",
+    title: "Consult Doctors",
+    highlightText: "Online 24/7",
+    subtitle: "High-definition video consultations with Google Meet",
+    ctaText: "Consult Online",
     icon: "videocam",
-    tint: "#2F80ED",
-    path: "/consult-online",
+    bgGradient: ["#4F46E5", "#6366F1"],
+    accentColor: "#C7D2FE",
+    route: "/consult-online",
   },
   {
-    key: "clinic",
-    label: "Clinic visit",
-    caption: "Book an in-person visit",
-    icon: "medical",
-    tint: Palette.primary,
-    path: "/doctors",
+    id: "wallet",
+    badge: "SMART HEALTH VAULT",
+    title: "Digital Health",
+    highlightText: "Wallet & Pass",
+    subtitle: "Prescriptions, reports, and QR hospital pass in one tap",
+    ctaText: "Open Wallet",
+    icon: "wallet",
+    bgGradient: ["#0284C7", "#0EA5E9"],
+    accentColor: "#BAE6FD",
+    route: "/health-wallet" as any,
   },
   {
-    key: "hospital",
-    label: "Hospital care",
-    caption: "Explore hospitals near you",
-    icon: "business",
-    tint: "#E89A3C",
-    path: "/hospitals",
-  },
-  {
-    key: "emergency",
-    label: "Emergency",
-    caption: "24/7 care & ICU support",
-    icon: "medkit",
-    tint: "#D9435B",
-    path: "/hospitals",
+    id: "cockpit",
+    badge: "REAL-TIME OPERATIONS",
+    title: "Smart Care",
+    highlightText: "Command Center",
+    subtitle: "Live queue tracking, consultation passes & updates",
+    ctaText: "Open Cockpit",
+    icon: "pulse",
+    bgGradient: ["#0D9488", "#059669"],
+    accentColor: "#99F6E4",
+    route: "/command-center" as never,
   },
 ];
+
+// ---------------------------------------------------------------------------
+// Main Screen Component
+// ---------------------------------------------------------------------------
+
 export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
   const {
@@ -359,18 +431,80 @@ export default function HomeScreen() {
       null
     );
   }, [completed, past]);
+
+  const latestCompletedAppointment = useMemo(() => {
+    return completed[0] || null;
+  }, [completed]);
+
+  const activeCareContinuityState = useMemo(() => {
+    if (!latestCompletedAppointment) return null;
+    const hasPrescription = Boolean(
+      latestCompletedAppointment.prescription ||
+      (latestCompletedAppointment.medicines &&
+        latestCompletedAppointment.medicines.length > 0),
+    );
+    const hasReports = Boolean(
+      latestCompletedAppointment.medicalReports &&
+      latestCompletedAppointment.medicalReports.length > 0,
+    );
+    const hasFollowUp = Boolean(
+      latestCompletedAppointment.followUpAdvice?.trim() ||
+      latestCompletedAppointment.followUp?.required,
+    );
+
+    if (
+      hasFollowUp &&
+      !latestCompletedAppointment.followUp?.linkedFollowUpAppointmentId
+    ) {
+      return {
+        label: "Follow-Up Required",
+        description: `Follow-up advised with Dr. ${formatDoctorName(latestCompletedAppointment.doctorName, "Doctor")}`,
+        actionLabel: "Book Follow-Up",
+        variant: "warning" as const,
+        icon: "calendar-outline" as const,
+      };
+    }
+    if (hasPrescription && !hasReports) {
+      return {
+        label: "Prescription Available",
+        description: "Digital prescription and dosage details ready",
+        actionLabel: "View Prescription",
+        variant: "success" as const,
+        icon: "document-text-outline" as const,
+      };
+    }
+    if (hasReports) {
+      return {
+        label: "Report Available",
+        description: "Diagnostic report available in health locker",
+        actionLabel: "View Report",
+        variant: "primary" as const,
+        icon: "flask-outline" as const,
+      };
+    }
+    return {
+      label: "Consultation Completed",
+      description: `Visit with Dr. ${formatDoctorName(latestCompletedAppointment.doctorName, "Doctor")} completed`,
+      actionLabel: "View Care Continuity",
+      variant: "neutral" as const,
+      icon: "checkmark-circle-outline" as const,
+    };
+  }, [latestCompletedAppointment]);
+
   const {
     doctors,
     loading: doctorsLoading,
     error: doctorsError,
     refetch: refetchDoctors,
   } = useDoctors({ limit: DOCTOR_POOL_SIZE });
+
   const {
     hospitals,
     loading: hospitalsLoading,
     error: hospitalsError,
     refetch: refetchHospitals,
   } = useHospitals();
+
   const { unreadCount, refresh: refreshNotifications } = useNotificationBadge();
   const {
     favoriteIds,
@@ -379,6 +513,7 @@ export default function HomeScreen() {
     savedHospitals,
     refresh: refreshFavorites,
   } = useFavorites();
+
   const {
     metrics: healthMetrics,
     recentConsultation,
@@ -388,20 +523,103 @@ export default function HomeScreen() {
     recentActivities,
     refresh: refreshHealthOverview,
   } = useHealthOverview();
+
   const [search, setSearch] = useState("");
   const [doctorFilter, setDoctorFilter] = useState<DoctorFilterTab>("all");
   const [refreshing, setRefreshing] = useState(false);
   const [cancellingApptId, setCancellingApptId] = useState<string | null>(null);
+  const [showAllQuickActions, setShowAllQuickActions] = useState(false);
+  const [activeBannerIndex, setActiveBannerIndex] = useState(0);
 
-  // A fresh appointment booked/cancelled elsewhere appears as soon as the
-  // Home tab regains focus (throttled to prevent network churn).
+  // Carousel ref & timer
+  const carouselScrollRef = useRef<ScrollView>(null);
+  const carouselTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isInteractingCarousel = useRef(false);
+
+  // Animation values
+  const entranceAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(entranceAnim, {
+        toValue: 1,
+        duration: 400,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.08,
+            duration: 1800,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1800,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ]),
+      ),
+    ]).start();
+  }, [entranceAnim, pulseAnim]);
+
+  // Carousel auto-advance
+  useEffect(() => {
+    carouselTimerRef.current = setInterval(() => {
+      if (isInteractingCarousel.current) return;
+      setActiveBannerIndex((prev) => {
+        const next = (prev + 1) % HERO_BANNERS.length;
+        carouselScrollRef.current?.scrollTo({
+          x: next * (CAROUSEL_CARD_WIDTH + Spacing.md),
+          animated: true,
+        });
+        return next;
+      });
+    }, 4500);
+
+    return () => {
+      if (carouselTimerRef.current) clearInterval(carouselTimerRef.current);
+    };
+  }, []);
+
+  const handleCarouselScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const offsetX = event.nativeEvent.contentOffset.x;
+      const index = Math.round(offsetX / (CAROUSEL_CARD_WIDTH + Spacing.md));
+      if (
+        index >= 0 &&
+        index < HERO_BANNERS.length &&
+        index !== activeBannerIndex
+      ) {
+        setActiveBannerIndex(index);
+      }
+    },
+    [activeBannerIndex],
+  );
+
+  // Screen Focus refetch
   useScreenFocus(() => {
     refetchAppointments();
     refreshFavorites();
   }, 10_000);
 
-  const city = userCity(user);
-  const locationLabel = userLocationLabel(user);
+  const {
+    displayLabel: locationDisplayLabel,
+    locality: userLocality,
+    city: userCityName,
+    openLocationModal,
+  } = useUserLocation();
+
+  const city = (userCityName || userCity(user) || "ahmedabad").toLowerCase();
+  const locationLabel =
+    locationDisplayLabel ||
+    userLocality ||
+    userLocationLabel(user) ||
+    "Ahmedabad, Gujarat";
   const nextAppointment = today[0] || upcoming[0];
   const nextIntelligence = useMemo(
     () =>
@@ -415,7 +633,7 @@ export default function HomeScreen() {
     user?.role === "doctor",
   );
 
-  // --- Multi-Entity Search: real client-side matching across doctors, hospitals, and specialties.
+  // --- Multi-Entity Search
   const normalizedQuery = search.trim().toLowerCase();
   const matchingDoctors = useMemo(() => {
     if (!normalizedQuery) return [];
@@ -446,7 +664,7 @@ export default function HomeScreen() {
   const hospitalSearchResults = matchingHospitals.slice(0, 2);
   const totalSearchMatches = matchingDoctors.length + matchingHospitals.length;
 
-  // --- Specialty chips derived from the real catalog (most common first).
+  // --- Specialty chips
   const specialities = useMemo(() => {
     const counts = new Map<string, number>();
     doctors.forEach((doctor) => {
@@ -459,7 +677,7 @@ export default function HomeScreen() {
       .map(([label]) => label);
   }, [doctors]);
 
-  // --- Doctor rows -----------------------------------------------------------
+  // --- Doctor filters
   const availableDoctors = useMemo(
     () => doctors.filter(isDoctorAvailable),
     [doctors],
@@ -473,9 +691,7 @@ export default function HomeScreen() {
   );
 
   const filteredDoctors = useMemo(() => {
-    if (doctorFilter === "available") {
-      return availableDoctors;
-    }
+    if (doctorFilter === "available") return availableDoctors;
     if (doctorFilter === "video") {
       return doctors.filter(
         (d) =>
@@ -484,13 +700,11 @@ export default function HomeScreen() {
           d.available === true,
       );
     }
-    if (doctorFilter === "top") {
-      return topDoctors;
-    }
+    if (doctorFilter === "top") return topDoctors;
     return availableDoctors.length ? availableDoctors : doctors.slice(0, 10);
   }, [doctorFilter, availableDoctors, doctors, topDoctors]);
 
-  // --- Nearby (only when the profile actually carries a location) ------------
+  // --- Nearby hospitals
   const nearbyHospitals = useMemo(() => {
     if (!city || !hospitals.length) return [];
     return hospitals.filter((hospital) => {
@@ -534,6 +748,7 @@ export default function HomeScreen() {
   };
 
   const handleCancelAppointment = (appointmentId: string) => {
+    if (cancellingApptId) return;
     Alert.alert(
       "Cancel Appointment",
       "Are you sure you want to cancel this appointment? This action cannot be undone.",
@@ -584,39 +799,104 @@ export default function HomeScreen() {
     }
   };
 
-  const openService = (service: Service) => {
-    if (service.params) {
-      router.push({ pathname: service.path, params: service.params });
-    } else {
-      router.push(service.path);
-    }
-  };
-
-  const entranceAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.timing(entranceAnim, {
-      toValue: 1,
-      duration: 340,
-      useNativeDriver: true,
-    }).start();
-  }, [entranceAnim]);
-
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.screen}>
       <ScrollView
-        style={styles.screen}
-        contentContainerStyle={styles.screenContent}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 110 + insets.bottom },
+        ]}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Palette.primary}
+            colors={[Palette.primary]}
+          />
         }
       >
-        {/* ---------------- Hero header ---------------- */}
-        <View style={styles.hero}>
-          <View style={styles.heroCircleA} />
-          <View style={styles.heroCircleB} />
-          <SafeAreaView edges={["top"]} style={styles.heroSafe}>
+        {/* ================================================================= */}
+        {/* 1. PERSONALIZED HEADER (Dynamic greeting, brand, notification, avatar) */}
+        {/* ================================================================= */}
+        <View
+          style={[
+            styles.headerContainer,
+            { paddingTop: Math.max(insets.top, 14) },
+          ]}
+        >
+          <View style={styles.headerSafe}>
+            {/* Top Row: [Menu]   HealPoint Logo/Name        [Notification] [Profile] */}
+            <View style={styles.headerTopRow}>
+              <DrawerToggleButton
+                color="#0F172A"
+                backgroundColor="rgba(255,255,255,0.92)"
+                style={styles.headerMenuBtn}
+              />
+
+              <View style={styles.brandLockup}>
+                <View style={styles.brandMark}>
+                  <View style={styles.brandCrossV} />
+                  <View style={styles.brandCrossH} />
+                </View>
+                <Text style={styles.brandWordmark}>HealPoint</Text>
+              </View>
+
+              <View style={styles.headerRightActions}>
+                {/* Notifications Bell */}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    unreadCount > 0
+                      ? `Healthcare Notifications, ${unreadCount} unread alert${unreadCount > 1 ? "s" : ""}`
+                      : "Healthcare Notifications"
+                  }
+                  onPress={() => router.push("/notification")}
+                  style={({ pressed }) => [
+                    styles.headerIconBtn,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Ionicons
+                    name="notifications-outline"
+                    size={20}
+                    color="#0F172A"
+                  />
+                  {unreadCount > 0 ? (
+                    <View style={styles.headerBadge}>
+                      <Text style={styles.headerBadgeText}>
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </Text>
+                    </View>
+                  ) : null}
+                </Pressable>
+
+                {/* User Avatar with active ring & dot */}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Profile"
+                  onPress={() => router.push("/profile")}
+                  style={({ pressed }) => [
+                    styles.headerAvatarBtn,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  {user?.image ? (
+                    <Image
+                      source={{ uri: getUserImage(user.image) }}
+                      style={styles.headerAvatarImg}
+                      contentFit="cover"
+                      transition={200}
+                    />
+                  ) : (
+                    <Ionicons name="person" size={20} color={Palette.primary} />
+                  )}
+                  <View style={styles.avatarOnlineDot} />
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Greeting & Subtitle */}
             <Animated.View
               style={{
                 opacity: entranceAnim,
@@ -624,137 +904,46 @@ export default function HomeScreen() {
                   {
                     translateY: entranceAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [8, 0],
+                      outputRange: [10, 0],
                     }),
                   },
                 ],
               }}
             >
-              <View style={styles.heroTopRow}>
-                <View style={styles.brandLockup}>
-                  <View style={styles.brandMark}>
-                    <View style={styles.brandCrossV} />
-                    <View style={styles.brandCrossH} />
-                  </View>
-                  <Text style={styles.brandWordmark}>HealPoint</Text>
-                </View>
-                <View style={styles.heroActions}>
-                  <DrawerToggleButton color={Palette.primaryDark} />
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Notifications"
-                    onPress={() => router.push("/notification")}
-                    style={({ pressed }) => [
-                      styles.heroIconButton,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <Ionicons
-                      name="notifications-outline"
-                      size={22}
-                      color={Palette.white}
-                    />
-                    {unreadCount > 0 ? (
-                      <View style={styles.heroBadge}>
-                        <Text style={styles.heroBadgeText}>
-                          {unreadCount > 9 ? "9+" : unreadCount}
-                        </Text>
-                      </View>
-                    ) : null}
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Open profile"
-                    onPress={() => router.push("/profile")}
-                    style={({ pressed }) => [
-                      styles.heroAvatarButton,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    {user?.image ? (
-                      <Image
-                        source={{ uri: getUserImage(user.image) }}
-                        style={styles.heroAvatar}
-                        contentFit="cover"
-                        transition={200}
-                      />
-                    ) : (
-                      <Ionicons
-                        name="person"
-                        size={20}
-                        color={Palette.primary}
-                      />
-                    )}
-                  </Pressable>
-                </View>
-              </View>
-
-              <Text style={styles.heroGreeting}>
+              <Text style={styles.greetingTitle}>
                 {greetingForHour(new Date().getHours())},{" "}
-                <Text style={styles.heroGreetingName}>
-                  {patientName || "there"}
-                </Text>{" "}
-                👋
+                {patientName || "Patient"} 👋
               </Text>
-              <Text style={styles.heroTagline}>
-                Find the right doctor and book your visit in seconds.
+              <Text style={styles.greetingCaption}>
+                Your healthcare, simplified.
               </Text>
 
-              {nextAppointment ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Upcoming appointment: ${appointmentDoctorName(nextAppointment)}`}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/appointment/[id]",
-                      params: { id: String(nextAppointment._id) },
-                    })
-                  }
-                  style={({ pressed }) => [
-                    styles.heroApptShortcut,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <View style={styles.heroApptShortcutDot} />
-                  <Text style={styles.heroApptShortcutText} numberOfLines={1}>
-                    Upcoming: {appointmentDoctorName(nextAppointment)} •{" "}
-                    {formatDDMMYYYY(nextAppointment.slotDate)} (
-                    {nextAppointment.slotTime})
-                  </Text>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={13}
-                    color="rgba(255,255,255,0.9)"
-                  />
-                </Pressable>
-              ) : null}
-
+              {/* Location Pill */}
               <Pressable
                 accessibilityRole="button"
-                onPress={() => router.push("/profile/edit")}
+                accessibilityLabel={`Current Location: ${locationLabel}`}
+                onPress={openLocationModal}
                 style={({ pressed }) => [
                   styles.locationPill,
                   pressed && styles.pressed,
                 ]}
               >
-                <Ionicons name="location" size={14} color={Palette.white} />
+                <Ionicons name="location" size={15} color="#2563EB" />
                 <Text style={styles.locationPillText} numberOfLines={1}>
-                  {locationLabel || "Set your location"}
+                  Current Location • {locationLabel}
                 </Text>
-                <Ionicons
-                  name="chevron-down"
-                  size={14}
-                  color="rgba(255,255,255,0.85)"
-                />
+                <Ionicons name="chevron-down" size={14} color="#64748B" />
               </Pressable>
             </Animated.View>
-          </SafeAreaView>
+          </View>
         </View>
 
-        {/* ---------------- Search ---------------- */}
+        {/* ================================================================= */}
+        {/* 2. SMART SEARCH HERO (Floating Card with Live Search & Specialties) */}
+        {/* ================================================================= */}
         <Animated.View
           style={[
-            styles.searchShell,
+            styles.searchSectionWrap,
             {
               opacity: entranceAnim,
               transform: [
@@ -768,9 +957,11 @@ export default function HomeScreen() {
             },
           ]}
         >
-          <Card style={styles.searchCard}>
-            <View style={styles.searchRow}>
-              <Ionicons name="search" size={22} color={Palette.primary} />
+          <View style={styles.searchCard}>
+            <View style={styles.searchBarRow}>
+              <View style={styles.searchIconWrap}>
+                <Ionicons name="search" size={20} color={Palette.primary} />
+              </View>
               <TextInput
                 style={styles.searchInput}
                 value={search}
@@ -780,7 +971,7 @@ export default function HomeScreen() {
                 returnKeyType="search"
                 autoCapitalize="none"
                 autoCorrect={false}
-                accessibilityLabel="Search doctors, specialties, hospitals, locations"
+                accessibilityLabel="Search doctors, specialties, hospitals"
               />
               {search.length > 0 ? (
                 <Pressable
@@ -788,6 +979,7 @@ export default function HomeScreen() {
                   accessibilityLabel="Clear search"
                   onPress={() => setSearch("")}
                   hitSlop={8}
+                  style={styles.searchClearBtn}
                 >
                   <Ionicons
                     name="close-circle"
@@ -795,13 +987,28 @@ export default function HomeScreen() {
                     color={Palette.textMuted}
                   />
                 </Pressable>
-              ) : null}
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Browse All Filters"
+                  onPress={() => router.push("/doctors")}
+                  style={styles.searchFilterBtn}
+                >
+                  <Ionicons
+                    name="options-outline"
+                    size={18}
+                    color={Palette.primary}
+                  />
+                </Pressable>
+              )}
             </View>
+
+            {/* Specialty Pills (Horizontal) */}
             {!search && specialities.length > 0 ? (
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.specialityContent}
+                contentContainerStyle={styles.specialtiesScroll}
               >
                 {specialities.map((label) => (
                   <Pressable
@@ -809,36 +1016,36 @@ export default function HomeScreen() {
                     accessibilityRole="button"
                     onPress={() => setSearch(label)}
                     style={({ pressed }) => [
-                      styles.specialityChip,
-                      pressed && styles.chipPressed,
+                      styles.specialtyChip,
+                      pressed && styles.pressed,
                     ]}
                   >
                     <Ionicons
                       name="pulse"
-                      size={14}
+                      size={13}
                       color={Palette.primaryDark}
                     />
-                    <Text style={styles.specialityChipText}>{label}</Text>
+                    <Text style={styles.specialtyChipText}>{label}</Text>
                   </Pressable>
                 ))}
               </ScrollView>
             ) : null}
 
+            {/* Live Search Dropdown Results */}
             {search.length > 0 && normalizedQuery ? (
-              <View style={styles.resultsBox}>
-                <View style={styles.resultsHeaderRow}>
-                  <Text style={styles.resultsCount}>
+              <View style={styles.searchResultsBox}>
+                <View style={styles.searchResultsHeader}>
+                  <Text style={styles.searchResultsCount}>
                     {totalSearchMatches === 0
                       ? `No matches for "${search.trim()}"`
-                      : `Matches for "${search.trim()}"`}
+                      : `Found ${totalSearchMatches} result${totalSearchMatches === 1 ? "" : "s"}`}
                   </Text>
                   {totalSearchMatches > 0 ? (
-                    <View style={styles.searchCountsPillRow}>
+                    <View style={styles.searchCountBadgesRow}>
                       {matchingDoctors.length > 0 ? (
                         <View style={styles.searchCountBadge}>
                           <Text style={styles.searchCountBadgeText}>
-                            {matchingDoctors.length} Doctor
-                            {matchingDoctors.length === 1 ? "" : "s"}
+                            {matchingDoctors.length} Doctors
                           </Text>
                         </View>
                       ) : null}
@@ -846,7 +1053,7 @@ export default function HomeScreen() {
                         <View
                           style={[
                             styles.searchCountBadge,
-                            { backgroundColor: "rgba(232, 154, 60, 0.15)" },
+                            { backgroundColor: "#FEF3C7" },
                           ]}
                         >
                           <Text
@@ -855,8 +1062,7 @@ export default function HomeScreen() {
                               { color: "#D97706" },
                             ]}
                           >
-                            {matchingHospitals.length} Hospital
-                            {matchingHospitals.length === 1 ? "" : "s"}
+                            {matchingHospitals.length} Hospitals
                           </Text>
                         </View>
                       ) : null}
@@ -875,8 +1081,7 @@ export default function HomeScreen() {
                       No matching doctors or hospitals
                     </Text>
                     <Text style={styles.searchEmptySubtitle}>
-                      Try searching with another specialty, doctor name, or
-                      city.
+                      Try another keyword or browse our full directories below.
                     </Text>
                     <View style={styles.searchEmptyActions}>
                       <Button
@@ -898,42 +1103,47 @@ export default function HomeScreen() {
                   </View>
                 ) : null}
 
-                {/* Matching Doctors */}
+                {/* Doctors List */}
                 {matchingDoctors.length > 0 ? (
-                  <View style={styles.searchSectionGroup}>
-                    <Text style={styles.searchGroupTitle}>Doctors</Text>
+                  <View style={styles.searchGroup}>
+                    <Text style={styles.searchGroupHeader}>Doctors</Text>
                     {doctorSearchResults.map((doctor) => (
                       <Pressable
                         key={String(doctor._id)}
                         accessibilityRole="button"
                         onPress={() => openDoctor(String(doctor._id))}
                         style={({ pressed }) => [
-                          styles.resultRow,
-                          pressed && styles.rowPressed,
+                          styles.searchResultRow,
+                          pressed && styles.pressed,
                         ]}
                       >
                         <Image
                           source={{ uri: getDoctorImage(doctor) }}
-                          style={styles.resultAvatar}
+                          style={styles.searchResultAvatar}
                           contentFit="cover"
-                          transition={150}
                         />
-                        <View style={styles.resultInfo}>
-                          <Text style={styles.resultName} numberOfLines={1}>
+                        <View style={styles.searchResultInfo}>
+                          <Text
+                            style={styles.searchResultName}
+                            numberOfLines={1}
+                          >
                             {doctor.name}
                           </Text>
-                          <Text style={styles.resultMeta} numberOfLines={1}>
+                          <Text
+                            style={styles.searchResultMeta}
+                            numberOfLines={1}
+                          >
                             {doctorSpecialty(doctor)} •{" "}
                             {doctorHospitalName(doctor)}
                           </Text>
                         </View>
-                        <View style={styles.resultRightAction}>
-                          <Text style={styles.resultFee}>
+                        <View style={styles.searchResultPriceWrap}>
+                          <Text style={styles.searchResultPrice}>
                             {formatINR(doctor.fees)}
                           </Text>
                           <Ionicons
                             name="chevron-forward"
-                            size={16}
+                            size={14}
                             color={Palette.textMuted}
                           />
                         </View>
@@ -949,16 +1159,16 @@ export default function HomeScreen() {
                           })
                         }
                         style={({ pressed }) => [
-                          styles.viewAllButton,
-                          pressed && styles.rowPressed,
+                          styles.searchViewAllBtn,
+                          pressed && styles.pressed,
                         ]}
                       >
-                        <Text style={styles.viewAllText}>
+                        <Text style={styles.searchViewAllText}>
                           View all {matchingDoctors.length} doctors
                         </Text>
                         <Ionicons
                           name="arrow-forward"
-                          size={16}
+                          size={14}
                           color={Palette.primaryDark}
                         />
                       </Pressable>
@@ -966,12 +1176,10 @@ export default function HomeScreen() {
                   </View>
                 ) : null}
 
-                {/* Matching Hospitals */}
+                {/* Hospitals List */}
                 {matchingHospitals.length > 0 ? (
-                  <View style={styles.searchSectionGroup}>
-                    <Text style={styles.searchGroupTitle}>
-                      Hospitals & Clinics
-                    </Text>
+                  <View style={styles.searchGroup}>
+                    <Text style={styles.searchGroupHeader}>Hospitals</Text>
                     {hospitalSearchResults.map((hospital) => (
                       <Pressable
                         key={String(hospital._id)}
@@ -983,681 +1191,424 @@ export default function HomeScreen() {
                           })
                         }
                         style={({ pressed }) => [
-                          styles.resultRow,
-                          pressed && styles.rowPressed,
+                          styles.searchResultRow,
+                          pressed && styles.pressed,
                         ]}
                       >
-                        <View style={styles.resultHospitalIconWrap}>
-                          <Ionicons name="business" size={18} color="#E89A3C" />
+                        <View style={styles.searchHospitalIcon}>
+                          <Ionicons name="business" size={18} color="#D97706" />
                         </View>
-                        <View style={styles.resultInfo}>
-                          <Text style={styles.resultName} numberOfLines={1}>
+                        <View style={styles.searchResultInfo}>
+                          <Text
+                            style={styles.searchResultName}
+                            numberOfLines={1}
+                          >
                             {hospital.name}
                           </Text>
-                          <Text style={styles.resultMeta} numberOfLines={1}>
-                            {hospital.location?.city ||
-                              hospital.location?.address ||
-                              "Hospital"}{" "}
-                            • {hospital.doctorCount || 0} doctors
+                          <Text
+                            style={styles.searchResultMeta}
+                            numberOfLines={1}
+                          >
+                            {hospital.location?.city || "Hospital"} •{" "}
+                            {hospital.doctorCount || 0} doctors
                           </Text>
                         </View>
-                        <View style={styles.resultRightAction}>
-                          <Ionicons
-                            name="chevron-forward"
-                            size={16}
-                            color={Palette.textMuted}
-                          />
-                        </View>
-                      </Pressable>
-                    ))}
-                    {matchingHospitals.length > hospitalSearchResults.length ? (
-                      <Pressable
-                        accessibilityRole="button"
-                        onPress={() => router.push("/hospitals")}
-                        style={({ pressed }) => [
-                          styles.viewAllButton,
-                          pressed && styles.rowPressed,
-                        ]}
-                      >
-                        <Text style={styles.viewAllText}>
-                          View all {matchingHospitals.length} hospitals
-                        </Text>
                         <Ionicons
-                          name="arrow-forward"
-                          size={16}
-                          color={Palette.primaryDark}
+                          name="chevron-forward"
+                          size={14}
+                          color={Palette.textMuted}
                         />
                       </Pressable>
-                    ) : null}
+                    ))}
                   </View>
                 ) : null}
               </View>
             ) : null}
-          </Card>
+          </View>
         </Animated.View>
 
-        {/* ---------------- Notification Preview Banner ---------------- */}
-        {unreadCount > 0 ? (
+        {/* ================================================================= */}
+        {/* 3. EMERGENCY HELP (Prominent Upper Placement) */}
+        {/* ================================================================= */}
+        <View style={styles.emergencyTopContainer}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`You have ${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}`}
-            onPress={() => router.push("/notification")}
-            style={({ pressed }) => [
-              styles.notificationBanner,
-              pressed && styles.pressed,
-            ]}
-          >
-            <View style={styles.notificationBannerIconWrap}>
-              <Ionicons
-                name="notifications"
-                size={16}
-                color={Palette.primaryDark}
-              />
-            </View>
-            <Text style={styles.notificationBannerText} numberOfLines={1}>
-              You have <Text style={{ fontWeight: "700" }}>{unreadCount}</Text>{" "}
-              unread healthcare update{unreadCount === 1 ? "" : "s"}
-            </Text>
-            <Text style={styles.notificationBannerAction}>View</Text>
-            <Ionicons
-              name="chevron-forward"
-              size={14}
-              color={Palette.primaryDark}
-            />
-          </Pressable>
-        ) : null}
-
-        {/* ---------------- Emergency Assistance Ambient Access ---------------- */}
-        <Animated.View
-          style={[
-            styles.emergencyAccessWrap,
-            {
-              opacity: entranceAnim,
-              transform: [
-                {
-                  translateY: entranceAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [13, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Emergency Help: 24/7 accredited hospital emergency desks and ambulance contacts"
+            accessibilityLabel="Emergency Help: Find nearby emergency-supporting hospitals, ambulance & 108 helpline"
             onPress={() => router.push("/emergency" as never)}
             style={({ pressed }) => [
-              styles.emergencyStrip,
+              styles.emergencyTopCard,
               pressed && styles.pressed,
             ]}
           >
-            <View style={styles.emergencyStripLeft}>
-              <View style={styles.emergencyStripIcon}>
-                <Ionicons name="alert-circle" size={20} color="#DC2626" />
+            <View style={styles.emergencyTopLeft}>
+              <View style={styles.emergencyTopIconWrap}>
+                <Ionicons name="alert-circle" size={24} color="#DC2626" />
               </View>
-              <View style={styles.emergencyStripTextWrap}>
-                <View style={styles.emergencyStripTitleRow}>
-                  <Text style={styles.emergencyStripTitle}>Emergency Help</Text>
-                  <View style={styles.emergencyStripPill}>
-                    <Text style={styles.emergencyStripPillText}>
+              <View style={styles.emergencyTopTextWrap}>
+                <View style={styles.emergencyTopHeaderRow}>
+                  <Text style={styles.emergencyTopTitle}>
+                    🚨 Emergency Help
+                  </Text>
+                  <View style={styles.emergencyTopBadge}>
+                    <Text style={styles.emergencyTopBadgeText}>
                       24/7 ACTIVE
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.emergencyStripSub}>
-                  Direct hospital hotlines, ambulance services & 108 helpline
+                <Text style={styles.emergencyTopSub}>
+                  Find nearby emergency-supporting hospitals
                 </Text>
               </View>
             </View>
-            <Ionicons
-              name="chevron-forward"
-              size={16}
-              color={Palette.textMuted}
-            />
+            <View style={styles.emergencyArrowCircle}>
+              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+            </View>
           </Pressable>
-        </Animated.View>
+        </View>
 
-        {/* ---------------- Smart Care Command Center Cockpit Banner ---------------- */}
-        <Animated.View
-          style={[
-            styles.emergencyAccessWrap,
-            {
-              marginTop: Spacing.sm,
-              opacity: entranceAnim,
-              transform: [
-                {
-                  translateY: entranceAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [13, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
+        {/* ================================================================= */}
+        {/* HERO: BOOK AN APPOINTMENT CARD (Reference Design)                 */}
+        {/* ================================================================= */}
+        <View style={styles.bookHeroWrap}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Care Command Center: Real-time patient operations cockpit"
-            onPress={() => router.push("/command-center" as never)}
+            accessibilityLabel="Book an Appointment: Find trusted specialists and schedule in-clinic or video visits"
+            onPress={() => router.push("/doctors")}
             style={({ pressed }) => [
-              styles.commandCenterBanner,
+              styles.bookHeroCard,
               pressed && styles.pressed,
             ]}
           >
-            <View style={styles.emergencyStripLeft}>
-              <View
-                style={[
-                  styles.emergencyStripIcon,
-                  { backgroundColor: "#F0FDF4" },
-                ]}
-              >
-                <Ionicons name="pulse" size={20} color={Palette.primary} />
+            <View style={styles.bookHeroLeft}>
+              <View style={styles.bookHeroIconWrap}>
+                <Ionicons name="calendar" size={24} color="#2563EB" />
               </View>
-              <View style={styles.emergencyStripTextWrap}>
-                <View style={styles.emergencyStripTitleRow}>
-                  <Text
-                    style={[
-                      styles.emergencyStripTitle,
-                      { color: Palette.primaryDark },
-                    ]}
-                  >
-                    Care Command Center
-                  </Text>
-                  <View
-                    style={[
-                      styles.emergencyStripPill,
-                      { backgroundColor: Palette.primaryLight },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.emergencyStripPillText,
-                        { color: Palette.primaryDark },
-                      ]}
-                    >
-                      LIVE COCKPIT
-                    </Text>
-                  </View>
-                </View>
-                <Text
-                  style={[
-                    styles.emergencyStripSub,
-                    { color: Palette.textMuted },
-                  ]}
-                >
-                  Today's care status, live queue, reminders & instant actions
+              <View style={styles.bookHeroTextWrap}>
+                <Text style={styles.bookHeroTitle}>Book an Appointment</Text>
+                <Text style={styles.bookHeroSub}>
+                  Find trusted specialists and schedule in-clinic or video
+                  visits.
                 </Text>
               </View>
             </View>
-            <Ionicons
-              name="chevron-forward"
-              size={16}
-              color={Palette.primary}
-            />
+            <View style={styles.bookHeroCtaPill}>
+              <Text style={styles.bookHeroCtaText}>Book Now</Text>
+              <Ionicons name="chevron-forward" size={14} color="#FFFFFF" />
+            </View>
           </Pressable>
-        </Animated.View>
+        </View>
 
-        {/* ---------------- Quick actions ---------------- */}
-        <Animated.View
-          style={[
-            styles.quickGridContainer,
-            {
-              opacity: entranceAnim,
-              transform: [
-                {
-                  translateY: entranceAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [14, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <View style={styles.quickGrid}>
-            {QUICK_ACTIONS.map((action) => {
-              const isAppts = action.key === "appointments";
-              const isFavs = action.key === "favorites";
-              const isNotifs = action.key === "notifications";
-
-              let badgeCount = 0;
-              if (isAppts) badgeCount = upcomingCount;
-              else if (isFavs) badgeCount = savedCount;
-              else if (isNotifs) badgeCount = unreadCount;
-
-              return (
-                <Pressable
-                  key={action.key}
-                  accessibilityRole="button"
-                  accessibilityLabel={action.label}
-                  onPress={() => runQuickAction(action)}
-                  style={({ pressed }) => [
-                    styles.quickTile,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.quickTileIcon,
-                      { backgroundColor: `${action.tint}1A` },
-                    ]}
-                  >
-                    <Ionicons
-                      name={action.icon}
-                      size={22}
-                      color={action.tint}
-                    />
-                    {badgeCount > 0 ? (
-                      <View
-                        style={[
-                          styles.quickBadge,
-                          { backgroundColor: action.tint },
-                        ]}
-                      >
-                        <Text style={styles.quickBadgeText}>
-                          {badgeCount > 9 ? "9+" : badgeCount}
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  <Text style={styles.quickTileLabel} numberOfLines={1}>
-                    {action.label}
-                  </Text>
-                  {action.subLabel ? (
-                    <Text style={styles.quickTileSub} numberOfLines={1}>
-                      {action.subLabel}
-                    </Text>
-                  ) : null}
-                </Pressable>
-              );
-            })}
-          </View>
-        </Animated.View>
-
-        {/* ---------------- Health services ---------------- */}
-        <View style={styles.section}>
+        {/* ================================================================= */}
+        {/* QUICK ACCESS (4x2 Grid of 8 items matching reference)             */}
+        {/* ================================================================= */}
+        <View style={styles.sectionWrap}>
           <SectionHeader
-            title="Health services"
-            subtitle="Everything you can do on HealPoint"
+            title="Quick Access"
+            subtitle="Essential healthcare tools & services"
           />
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalContent}
-          >
-            {SERVICES.map((service) => (
+
+          <View style={styles.quickGrid}>
+            {PRIMARY_QUICK_ACTIONS.map((action) => (
               <Pressable
-                key={service.key}
+                key={action.key}
                 accessibilityRole="button"
-                onPress={() => openService(service)}
+                accessibilityLabel={action.label}
+                onPress={() => runQuickAction(action)}
                 style={({ pressed }) => [
-                  styles.serviceTile,
+                  styles.quickTile,
                   pressed && styles.pressed,
                 ]}
               >
                 <View
                   style={[
-                    styles.serviceIcon,
-                    { backgroundColor: `${service.tint}1A` },
+                    styles.quickIconCircle,
+                    { backgroundColor: action.bgColor },
                   ]}
                 >
-                  <Ionicons
-                    name={service.icon}
-                    size={22}
-                    color={service.tint}
-                  />
+                  <Ionicons name={action.icon} size={22} color={action.tint} />
                 </View>
-                <Text style={styles.serviceLabel} numberOfLines={1}>
-                  {service.label}
+                <Text style={styles.quickTileLabel} numberOfLines={2}>
+                  {action.label}
                 </Text>
-                <Text style={styles.serviceCaption} numberOfLines={2}>
-                  {service.caption}
+                <Text style={styles.quickTileSub} numberOfLines={1}>
+                  {action.subLabel}
                 </Text>
               </Pressable>
             ))}
-          </ScrollView>
-        </View>
-        {/* ---------------- Medical Overview ---------------- */}
-        <View style={styles.section}>
-          <SectionHeader
-            title="Medical Overview"
-            subtitle="Your personal healthcare stats from real records"
-            actionLabel="Health Records"
-            onAction={() => router.push("/health/records")}
-          />
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.metricsStripContent}
+
+            {showAllQuickActions
+              ? MORE_QUICK_ACTIONS.map((action) => (
+                  <Pressable
+                    key={action.key}
+                    accessibilityRole="button"
+                    accessibilityLabel={action.label}
+                    onPress={() => runQuickAction(action)}
+                    style={({ pressed }) => [
+                      styles.quickTile,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.quickIconCircle,
+                        { backgroundColor: action.bgColor },
+                      ]}
+                    >
+                      <Ionicons
+                        name={action.icon}
+                        size={22}
+                        color={action.tint}
+                      />
+                    </View>
+                    <Text style={styles.quickTileLabel} numberOfLines={2}>
+                      {action.label}
+                    </Text>
+                    <Text style={styles.quickTileSub} numberOfLines={1}>
+                      {action.subLabel}
+                    </Text>
+                  </Pressable>
+                ))
+              : null}
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              showAllQuickActions ? "Show Fewer Services" : "Show All Services"
+            }
+            onPress={() => setShowAllQuickActions((prev) => !prev)}
+            style={({ pressed }) => [
+              styles.expandServicesBtn,
+              pressed && styles.pressed,
+            ]}
           >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Total Appointments"
-              onPress={() => router.push("/appointments")}
-              style={({ pressed }) => [
-                styles.overviewCard,
-                pressed && styles.pressed,
-              ]}
-            >
-              <View
-                style={[
-                  styles.overviewIconCircle,
-                  { backgroundColor: "#EEF2FF" },
-                ]}
-              >
-                <Ionicons name="calendar" size={18} color="#4F46E5" />
-              </View>
-              <Text style={styles.overviewCount}>
-                {healthMetrics.totalAppointments}
-              </Text>
-              <Text style={styles.overviewLabel}>Total Visits</Text>
-              <Text style={styles.overviewSub}>All bookings</Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Completed Consultations"
-              onPress={() => router.push("/appointments")}
-              style={({ pressed }) => [
-                styles.overviewCard,
-                pressed && styles.pressed,
-              ]}
-            >
-              <View
-                style={[
-                  styles.overviewIconCircle,
-                  { backgroundColor: "#ECFDF5" },
-                ]}
-              >
-                <Ionicons
-                  name="checkmark-done-circle"
-                  size={18}
-                  color="#059669"
-                />
-              </View>
-              <Text style={styles.overviewCount}>
-                {healthMetrics.completedConsultations}
-              </Text>
-              <Text style={styles.overviewLabel}>Completed</Text>
-              <Text style={styles.overviewSub}>Consultations</Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Upcoming Appointments"
-              onPress={() => router.push("/appointments")}
-              style={({ pressed }) => [
-                styles.overviewCard,
-                pressed && styles.pressed,
-              ]}
-            >
-              <View
-                style={[
-                  styles.overviewIconCircle,
-                  { backgroundColor: "#F0FDF4" },
-                ]}
-              >
-                <Ionicons name="time" size={18} color={Palette.primary} />
-              </View>
-              <Text style={styles.overviewCount}>
-                {healthMetrics.upcomingAppointments}
-              </Text>
-              <Text style={styles.overviewLabel}>Upcoming</Text>
-              <Text style={styles.overviewSub}>Scheduled</Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Digital Prescriptions"
-              onPress={() => router.push("/health/prescriptions")}
-              style={({ pressed }) => [
-                styles.overviewCard,
-                pressed && styles.pressed,
-              ]}
-            >
-              <View
-                style={[
-                  styles.overviewIconCircle,
-                  { backgroundColor: "#FEF3C7" },
-                ]}
-              >
-                <Ionicons name="medkit" size={18} color="#D97706" />
-              </View>
-              <Text style={styles.overviewCount}>
-                {healthMetrics.prescriptionsCount}
-              </Text>
-              <Text style={styles.overviewLabel}>Prescriptions</Text>
-              <Text style={styles.overviewSub}>Rx issued</Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Medical Records"
-              onPress={() => router.push("/health/records")}
-              style={({ pressed }) => [
-                styles.overviewCard,
-                pressed && styles.pressed,
-              ]}
-            >
-              <View
-                style={[
-                  styles.overviewIconCircle,
-                  { backgroundColor: "#F3E8FF" },
-                ]}
-              >
-                <Ionicons name="document-text" size={18} color="#7C3AED" />
-              </View>
-              <Text style={styles.overviewCount}>
-                {healthMetrics.medicalRecordsCount}
-              </Text>
-              <Text style={styles.overviewLabel}>EMR Records</Text>
-              <Text style={styles.overviewSub}>Diagnoses & lab</Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Lab Reports"
-              onPress={() => router.push("/health/reports")}
-              style={({ pressed }) => [
-                styles.overviewCard,
-                pressed && styles.pressed,
-              ]}
-            >
-              <View
-                style={[
-                  styles.overviewIconCircle,
-                  { backgroundColor: "#E0F2FE" },
-                ]}
-              >
-                <Ionicons name="bar-chart" size={18} color="#0284C7" />
-              </View>
-              <Text style={styles.overviewCount}>
-                {healthMetrics.reportsCount}
-              </Text>
-              <Text style={styles.overviewLabel}>Lab Reports</Text>
-              <Text style={styles.overviewSub}>Diagnostics</Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Reviews Submitted"
-              onPress={() => router.push("/profile")}
-              style={({ pressed }) => [
-                styles.overviewCard,
-                pressed && styles.pressed,
-              ]}
-            >
-              <View
-                style={[
-                  styles.overviewIconCircle,
-                  { backgroundColor: "#FFF1F2" },
-                ]}
-              >
-                <Ionicons name="star" size={18} color="#E11D48" />
-              </View>
-              <Text style={styles.overviewCount}>
-                {healthMetrics.reviewsSubmitted}
-              </Text>
-              <Text style={styles.overviewLabel}>Reviews</Text>
-              <Text style={styles.overviewSub}>Submitted</Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Health Goals & Wellness"
-              onPress={() => router.push("/health/goals" as never)}
-              style={({ pressed }) => [
-                styles.overviewCard,
-                pressed && styles.pressed,
-              ]}
-            >
-              <View
-                style={[
-                  styles.overviewIconCircle,
-                  { backgroundColor: "#EFF6FF" },
-                ]}
-              >
-                <Ionicons name="trophy" size={18} color="#2F80ED" />
-              </View>
-              <Text style={styles.overviewCount}>Goals</Text>
-              <Text style={styles.overviewLabel}>Wellness</Text>
-              <Text style={styles.overviewSub}>Track Progress</Text>
-            </Pressable>
-          </ScrollView>
+            <Text style={styles.expandServicesText}>
+              {showAllQuickActions
+                ? "Show Fewer Services"
+                : "View All Healthcare Services"}
+            </Text>
+            <Ionicons
+              name={showAllQuickActions ? "chevron-up" : "chevron-down"}
+              size={15}
+              color={Palette.primary}
+            />
+          </Pressable>
         </View>
 
-        {/* ---------------- Upcoming appointment ---------------- */}
-        <View style={styles.section}>
+        {/* ================================================================= */}
+        {/* 4. INTERACTIVE HERO CAROUSEL (Auto-sliding cards with pagination) */}
+        {/* ================================================================= */}
+        <View style={styles.carouselContainer}>
+          <ScrollView
+            ref={carouselScrollRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            snapToInterval={CAROUSEL_CARD_WIDTH + Spacing.md}
+            decelerationRate="fast"
+            contentContainerStyle={styles.carouselScrollContent}
+            onScroll={handleCarouselScroll}
+            scrollEventThrottle={16}
+            onTouchStart={() => {
+              isInteractingCarousel.current = true;
+            }}
+            onTouchEnd={() => {
+              isInteractingCarousel.current = false;
+            }}
+          >
+            {HERO_BANNERS.map((banner) => (
+              <Pressable
+                key={banner.id}
+                accessibilityRole="button"
+                accessibilityLabel={banner.title}
+                onPress={() => router.push(banner.route as never)}
+                style={({ pressed }) => [
+                  styles.carouselCard,
+                  { backgroundColor: banner.bgGradient[0] },
+                  pressed && styles.pressed,
+                ]}
+              >
+                {/* Decorative background circles */}
+                <View style={styles.bannerDecorCircleA} />
+                <View style={styles.bannerDecorCircleB} />
+
+                <View style={styles.bannerTopBadgeRow}>
+                  <View style={styles.bannerBadgePill}>
+                    <Text style={styles.bannerBadgeText}>{banner.badge}</Text>
+                  </View>
+                  <Ionicons
+                    name={banner.icon}
+                    size={24}
+                    color="rgba(255,255,255,0.75)"
+                  />
+                </View>
+
+                <View style={styles.bannerBody}>
+                  <Text style={styles.bannerTitlePrefix}>{banner.title}</Text>
+                  <Text style={styles.bannerTitleHighlight}>
+                    {banner.highlightText}
+                  </Text>
+                  <Text style={styles.bannerSubtitle}>{banner.subtitle}</Text>
+                </View>
+
+                <View style={styles.bannerCtaRow}>
+                  <View style={styles.bannerCtaBtn}>
+                    <Text style={styles.bannerCtaText}>{banner.ctaText}</Text>
+                    <Ionicons
+                      name="arrow-forward"
+                      size={15}
+                      color={Palette.primaryDark}
+                    />
+                  </View>
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          {/* Carousel Pagination Dots */}
+          <View style={styles.paginationRow}>
+            {HERO_BANNERS.map((banner, index) => {
+              const isActive = index === activeBannerIndex;
+              return (
+                <View
+                  key={banner.id}
+                  style={[
+                    styles.paginationDot,
+                    isActive && styles.paginationDotActive,
+                  ]}
+                />
+              );
+            })}
+          </View>
+        </View>
+
+        {/* ================================================================= */}
+        {/* 4. LIVE UPCOMING APPOINTMENT TRACKER (Stateful Countdown & Pass) */}
+        {/* ================================================================= */}
+        <View style={styles.sectionWrap}>
           <SectionHeader
-            title="Upcoming appointment"
+            title="Upcoming Appointment"
             subtitle={
               nextAppointment
                 ? "Next scheduled consultation snapshot"
-                : undefined
+                : "Your schedule is clear"
             }
             actionLabel="View all"
             onAction={() => router.push("/appointments")}
           />
+
           {appointmentsLoading ? (
-            <Loading fullScreen={false} label="Checking your appointments..." />
+            <Loading fullScreen={false} label="Checking your schedule..." />
           ) : nextAppointment && nextIntelligence ? (
-            <View style={styles.nextApptCard}>
-              {/* --- Header: icon + doctor + smart status badge --- */}
-              <View style={styles.nextApptHeader}>
-                <View
-                  style={[
-                    styles.nextApptIcon,
-                    nextAppointment.consultationType === "video" && {
-                      backgroundColor: "#9356D6",
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name={
-                      nextAppointment.consultationType === "video"
-                        ? "videocam"
-                        : "calendar"
-                    }
-                    size={18}
-                    color={Palette.white}
-                  />
-                </View>
-                <View style={styles.nextApptTitles}>
-                  <Text style={styles.nextApptRowLabel}>
-                    {nextAppointment.consultationType === "video"
-                      ? "Next Video Consult"
-                      : "Next In-Clinic Visit"}
+            <Card style={styles.upcomingCard}>
+              {/* Header: Countdown pill & consultation type badge */}
+              <View style={styles.upcomingCardHeader}>
+                <View style={styles.upcomingCountdownPill}>
+                  <Ionicons name="time" size={13} color="#059669" />
+                  <Text style={styles.upcomingCountdownText}>
+                    {nextIntelligence.timeContext.relativeLabel}
                   </Text>
-                  <Text style={styles.nextApptDoctor} numberOfLines={1}>
-                    {appointmentDoctorName(nextAppointment)}
-                  </Text>
+                  {nextIntelligence.timeContext.isToday ? (
+                    <View style={styles.todayPill}>
+                      <Text style={styles.todayPillText}>TODAY</Text>
+                    </View>
+                  ) : null}
                 </View>
-                {/* Smart status badge derived from intelligence layer */}
+
                 <Badge
                   label={nextIntelligence.currentStatus.label}
                   variant={nextIntelligence.currentStatus.variant}
                 />
               </View>
 
-              {/* --- Relative time (Today / Tomorrow / In X min) --- */}
-              <View style={styles.nextApptRow}>
-                <Ionicons
-                  name="time-outline"
-                  size={16}
-                  color={Palette.primary}
-                />
-                <Text style={styles.nextApptRowText}>
-                  {nextIntelligence.timeContext.relativeLabel}
-                </Text>
-                {nextIntelligence.timeContext.isToday ? (
-                  <View style={styles.nextApptTodayPill}>
-                    <Text style={styles.nextApptTodayText}>TODAY</Text>
+              {/* Doctor Info Row */}
+              <View style={styles.upcomingDoctorRow}>
+                {typeof nextAppointment.doctorId === "object" &&
+                nextAppointment.doctorId?.image ? (
+                  <Image
+                    source={{ uri: getDoctorImage(nextAppointment.doctorId) }}
+                    style={styles.upcomingDoctorImg}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <View style={styles.upcomingAvatarWrap}>
+                    <Ionicons
+                      name={
+                        nextAppointment.consultationType === "video"
+                          ? "videocam"
+                          : "medical"
+                      }
+                      size={24}
+                      color={Palette.primary}
+                    />
                   </View>
-                ) : null}
+                )}
+                <View style={styles.upcomingDoctorMeta}>
+                  <Text style={styles.upcomingDoctorName} numberOfLines={1}>
+                    {appointmentDoctorName(nextAppointment)}
+                  </Text>
+                  <Text style={styles.upcomingDoctorSub} numberOfLines={1}>
+                    {nextAppointment.consultationType === "video"
+                      ? "Google Meet Video Consultation"
+                      : nextAppointment.hospitalName || "In-Clinic Visit"}
+                  </Text>
+                </View>
               </View>
 
-              {/* --- Hospital / visit type --- */}
-              <View style={styles.nextApptRow}>
-                <Ionicons
-                  name={
-                    nextAppointment.consultationType === "video"
-                      ? "videocam-outline"
-                      : "business-outline"
-                  }
-                  size={16}
-                  color={Palette.primary}
-                />
-                <Text style={styles.nextApptRowText} numberOfLines={1}>
-                  {nextAppointment.consultationType === "video"
-                    ? "Google Meet Video Consultation"
-                    : nextAppointment.hospitalName || "Clinic visit"}
-                </Text>
+              {/* Schedule Details Row */}
+              <View style={styles.upcomingScheduleBox}>
+                <View style={styles.upcomingScheduleItem}>
+                  <Ionicons
+                    name="calendar-outline"
+                    size={15}
+                    color={Palette.primary}
+                  />
+                  <Text style={styles.upcomingScheduleText}>
+                    {formatDDMMYYYY(nextAppointment.slotDate)}
+                  </Text>
+                </View>
+                <View style={styles.upcomingScheduleDivider} />
+                <View style={styles.upcomingScheduleItem}>
+                  <Ionicons
+                    name="time-outline"
+                    size={15}
+                    color={Palette.primary}
+                  />
+                  <Text style={styles.upcomingScheduleText}>
+                    {nextAppointment.slotTime}
+                  </Text>
+                </View>
+                <View style={styles.upcomingScheduleDivider} />
+                <View style={styles.upcomingScheduleItem}>
+                  <Text style={styles.upcomingFeeText}>
+                    {formatINR(nextAppointment.amount)}
+                  </Text>
+                </View>
               </View>
 
-              {/* --- Check-in / queue status pill (clinic only) --- */}
+              {/* Check-In / Queue Token notification (Clinic) */}
               {nextAppointment.consultationType !== "video" &&
               nextIntelligence.checkInStatus.isCheckedIn ? (
-                <View style={styles.nextApptCheckedInPill}>
-                  <Ionicons name="checkmark-circle" size={14} color="#059669" />
-                  <Text style={styles.nextApptCheckedInText}>
+                <View style={styles.checkedInBanner}>
+                  <Ionicons name="checkmark-circle" size={16} color="#059669" />
+                  <Text style={styles.checkedInBannerText}>
                     {nextIntelligence.queueStatus.token
                       ? `Checked In · Token #${nextIntelligence.queueStatus.token}`
-                      : "Checked In"}
+                      : "Checked In at Clinic"}
                     {nextIntelligence.queueStatus.isCalled
                       ? " · Doctor is Ready!"
                       : ""}
                   </Text>
                 </View>
-              ) : nextAppointment.consultationType !== "video" &&
-                nextIntelligence.checkInStatus.isAvailable ? (
-                <View style={styles.nextApptCheckInPill}>
-                  <Ionicons
-                    name="qr-code-outline"
-                    size={14}
-                    color={Palette.primaryDark}
-                  />
-                  <Text style={styles.nextApptCheckInText}>
-                    Check-In Available Now
-                  </Text>
-                </View>
               ) : null}
 
-              <View style={styles.nextApptFooter}>
-                <View style={styles.nextApptFeeWrap}>
-                  <Text style={styles.nextApptFeeLabel}>Consultation fee</Text>
-                  <Text style={styles.nextApptFee}>
-                    {formatINR(nextAppointment.amount)}
-                  </Text>
-                </View>
-
-                {/* Primary Smart Next-Action CTA (from intelligence layer) */}
+              {/* Dual Action CTAs */}
+              <View style={styles.upcomingActionsRow}>
                 <Button
                   title={nextIntelligence.nextAction.label}
                   icon={nextIntelligence.nextAction.icon}
                   variant={nextIntelligence.nextAction.variant}
-                  style={styles.nextApptButton}
+                  style={styles.upcomingPrimaryBtn}
                   onPress={() => {
                     const act = nextIntelligence.nextAction;
                     switch (act.key) {
@@ -1698,101 +1649,300 @@ export default function HomeScreen() {
                   }}
                 />
 
-                {/* Secondary toolbar: Details, Reschedule, Cancel */}
-                <View style={styles.nextApptActionsRow}>
-                  {nextIntelligence.nextAction.key !== "VIEW_DETAILS" ? (
-                    <Button
-                      title="Details"
-                      variant="outline"
-                      fullWidth={false}
-                      style={styles.snapshotToolBtn}
-                      onPress={() =>
-                        router.push({
-                          pathname: "/appointment/[id]",
-                          params: { id: String(nextAppointment._id) },
-                        })
-                      }
-                    />
-                  ) : null}
-
-                  {nextAppointment.status !== "cancel" &&
-                  nextAppointment.status !== "completed" ? (
-                    <>
-                      <Button
-                        title="Reschedule"
-                        variant="outline"
-                        fullWidth={false}
-                        style={styles.snapshotToolBtn}
-                        onPress={() =>
-                          router.push({
-                            pathname: "/appointment/reschedule/[id]",
-                            params: { id: String(nextAppointment._id) },
-                          })
-                        }
-                      />
-                      <Button
-                        title="Cancel"
-                        variant="ghost"
-                        fullWidth={false}
-                        loading={
-                          cancellingApptId === String(nextAppointment._id)
-                        }
-                        disabled={
-                          cancellingApptId === String(nextAppointment._id)
-                        }
-                        style={styles.snapshotCancelBtn}
-                        onPress={() =>
-                          handleCancelAppointment(String(nextAppointment._id))
-                        }
-                      />
-                    </>
-                  ) : null}
-                </View>
+                <Button
+                  title="Details"
+                  variant="outline"
+                  fullWidth={false}
+                  style={styles.upcomingSecondaryBtn}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/appointment/[id]",
+                      params: { id: String(nextAppointment._id) },
+                    })
+                  }
+                />
               </View>
-            </View>
+
+              {/* Reschedule / Cancel tertiary row */}
+              {nextAppointment.status !== "cancel" &&
+              nextAppointment.status !== "completed" ? (
+                <View style={styles.upcomingTertiaryRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() =>
+                      router.push({
+                        pathname: "/appointment/reschedule/[id]",
+                        params: { id: String(nextAppointment._id) },
+                      })
+                    }
+                    style={styles.tertiaryLink}
+                  >
+                    <Ionicons
+                      name="refresh-outline"
+                      size={14}
+                      color={Palette.primaryDark}
+                    />
+                    <Text style={styles.tertiaryLinkText}>Reschedule</Text>
+                  </Pressable>
+
+                  <Text style={styles.tertiaryDot}>•</Text>
+
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={cancellingApptId === String(nextAppointment._id)}
+                    onPress={() =>
+                      handleCancelAppointment(String(nextAppointment._id))
+                    }
+                    style={styles.tertiaryLink}
+                  >
+                    <Ionicons
+                      name="close-circle-outline"
+                      size={14}
+                      color={Palette.error}
+                    />
+                    <Text
+                      style={[
+                        styles.tertiaryLinkText,
+                        { color: Palette.error },
+                      ]}
+                    >
+                      {cancellingApptId === String(nextAppointment._id)
+                        ? "Cancelling..."
+                        : "Cancel Visit"}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
+            </Card>
           ) : (
-            <View style={styles.ctaCard}>
-              <View style={styles.ctaRow}>
-                <View style={styles.ctaIcon}>
-                  <Ionicons
-                    name="calendar-outline"
-                    size={26}
-                    color={Palette.primary}
-                  />
-                </View>
-                <View style={styles.ctaTexts}>
-                  <Text style={styles.ctaTitle}>No upcoming appointments</Text>
-                  <Text style={styles.ctaText}>
-                    Find verified doctors and schedule your clinic or video
-                    consultation with ease.
-                  </Text>
-                </View>
+            <View style={styles.noApptCard}>
+              <View style={styles.noApptIconWrap}>
+                <Ionicons
+                  name="calendar-clear-outline"
+                  size={32}
+                  color={Palette.primary}
+                />
+              </View>
+              <View style={styles.noApptTextWrap}>
+                <Text style={styles.noApptTitle}>No Upcoming Appointments</Text>
+                <Text style={styles.noApptSub}>
+                  Find trusted doctors and schedule an in-clinic or video
+                  consultation with ease.
+                </Text>
               </View>
               <Button
-                title="Book Appointment"
+                title="Book an Appointment"
                 icon="calendar"
-                onPress={() => router.push({ pathname: "/doctors" })}
-                style={styles.ctaButton}
+                onPress={() => router.push("/doctors")}
+                style={styles.noApptBtn}
               />
             </View>
           )}
         </View>
 
-        {/* ---------------- Quick Re-Book / Repeat Consultation ---------------- */}
-        {latestRebookableAppointment && (
-          <View style={styles.section}>
+        {/* ================================================================= */}
+        {/* 5. HEALTH SUMMARY (4 Pastel Cards: Visits, Prescriptions, Reports, Diagnoses) */}
+        {/* ================================================================= */}
+        <View style={styles.sectionWrap}>
+          <SectionHeader
+            title="Your Health Summary"
+            subtitle="Verified data aggregated from your real records"
+            actionLabel="View All"
+            onAction={() => router.push("/health/records")}
+          />
+
+          <View style={styles.summaryGrid}>
+            {/* Card 1: Visits */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Visits"
+              onPress={() => router.push("/appointments")}
+              style={({ pressed }) => [
+                styles.summaryCard,
+                { backgroundColor: "#EEF2FF", borderColor: "#E0E7FF" },
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.summaryCardTopRow}>
+                <View
+                  style={[
+                    styles.summaryIconBox,
+                    { backgroundColor: "#4F46E5" },
+                  ]}
+                >
+                  <Ionicons name="calendar" size={16} color={Palette.white} />
+                </View>
+                <Ionicons name="chevron-forward" size={15} color="#4F46E5" />
+              </View>
+              <Text style={styles.summaryCount}>
+                {healthMetrics.totalAppointments}
+              </Text>
+              <Text style={styles.summaryLabel}>Visits</Text>
+              <Text style={styles.summarySub}>Total consultations</Text>
+            </Pressable>
+
+            {/* Card 2: Prescriptions */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Prescriptions"
+              onPress={() => router.push("/health/prescriptions")}
+              style={({ pressed }) => [
+                styles.summaryCard,
+                { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" },
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.summaryCardTopRow}>
+                <View
+                  style={[
+                    styles.summaryIconBox,
+                    { backgroundColor: "#D97706" },
+                  ]}
+                >
+                  <Ionicons name="medkit" size={16} color={Palette.white} />
+                </View>
+                <Ionicons name="chevron-forward" size={15} color="#D97706" />
+              </View>
+              <Text style={styles.summaryCount}>
+                {healthMetrics.prescriptionsCount}
+              </Text>
+              <Text style={styles.summaryLabel}>Prescriptions</Text>
+              <Text style={styles.summarySub}>Digital Rx issued</Text>
+            </Pressable>
+
+            {/* Card 3: Reports */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Lab Reports"
+              onPress={() => router.push("/health/reports")}
+              style={({ pressed }) => [
+                styles.summaryCard,
+                { backgroundColor: "#E0F2FE", borderColor: "#BAE6FD" },
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.summaryCardTopRow}>
+                <View
+                  style={[
+                    styles.summaryIconBox,
+                    { backgroundColor: "#0284C7" },
+                  ]}
+                >
+                  <Ionicons name="bar-chart" size={16} color={Palette.white} />
+                </View>
+                <Ionicons name="chevron-forward" size={15} color="#0284C7" />
+              </View>
+              <Text style={styles.summaryCount}>
+                {healthMetrics.reportsCount}
+              </Text>
+              <Text style={styles.summaryLabel}>Reports</Text>
+              <Text style={styles.summarySub}>Diagnostic tests</Text>
+            </Pressable>
+
+            {/* Card 4: Diagnoses */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Diagnoses"
+              onPress={() => router.push("/health/records")}
+              style={({ pressed }) => [
+                styles.summaryCard,
+                { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" },
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.summaryCardTopRow}>
+                <View
+                  style={[
+                    styles.summaryIconBox,
+                    { backgroundColor: "#059669" },
+                  ]}
+                >
+                  <Ionicons name="pulse" size={16} color={Palette.white} />
+                </View>
+                <Ionicons name="chevron-forward" size={15} color="#059669" />
+              </View>
+              <Text style={styles.summaryCount}>
+                {healthMetrics.medicalRecordsCount}
+              </Text>
+              <Text style={styles.summaryLabel}>Diagnoses</Text>
+              <Text style={styles.summarySub}>Clinical entries</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* ================================================================= */}
+        {/* 7. SMART CARE CONTINUITY (Post-consultation follow-up & Rx) */}
+        {/* ================================================================= */}
+        {activeCareContinuityState && latestCompletedAppointment ? (
+          <View style={styles.sectionWrap}>
+            <SectionHeader
+              title="Continue Your Care"
+              subtitle="Follow-ups, reports and recovery from your recent consultation"
+              actionLabel="View Continuity"
+              onAction={() => router.push("/care-continuity")}
+            />
+            <Card padded style={styles.continuityCard}>
+              <View style={styles.continuityRow}>
+                <View style={styles.continuityIconWrap}>
+                  <Ionicons
+                    name={activeCareContinuityState.icon}
+                    size={22}
+                    color={Palette.primary}
+                  />
+                </View>
+                <View style={styles.continuityTextWrap}>
+                  <View style={styles.continuityHeaderLine}>
+                    <Text style={styles.continuityDoctor} numberOfLines={1}>
+                      {formatDoctorName(
+                        latestCompletedAppointment.doctorName,
+                        "Attending Physician",
+                      )}
+                    </Text>
+                    <Badge
+                      label={activeCareContinuityState.label}
+                      variant={activeCareContinuityState.variant}
+                    />
+                  </View>
+                  <Text style={styles.continuityDesc} numberOfLines={2}>
+                    {activeCareContinuityState.description}
+                  </Text>
+                </View>
+              </View>
+              <Button
+                title="View Care Continuity"
+                variant="primary"
+                icon="repeat-outline"
+                onPress={() =>
+                  router.push({
+                    pathname: "/care-continuity",
+                    params: {
+                      appointmentId: String(latestCompletedAppointment._id),
+                    },
+                  })
+                }
+                style={styles.continuityBtn}
+              />
+            </Card>
+          </View>
+        ) : null}
+
+        {/* ================================================================= */}
+        {/* 8. 1-TAP RE-BOOKING (Repeat Consultation with previous doctor) */}
+        {/* ================================================================= */}
+        {latestRebookableAppointment ? (
+          <View style={styles.sectionWrap}>
             <SectionHeader
               title="Repeat Consultation"
-              subtitle="Quick one-tap booking with your previous doctor"
+              subtitle="Quick 1-tap booking with your previous specialist"
               actionLabel="All Bookings"
               onAction={() => router.push("/appointments")}
             />
             <View style={styles.rebookCard}>
-              <View style={styles.rebookCardTop}>
-                <View style={styles.rebookDoctorAvatarWrap}>
+              <View style={styles.rebookTopRow}>
+                <View style={styles.rebookAvatarWrap}>
                   <Ionicons name="medical" size={20} color={Palette.primary} />
                 </View>
-                <View style={styles.rebookDoctorMeta}>
+                <View style={styles.rebookMeta}>
                   <Text style={styles.rebookDoctorName}>
                     {getRebookDoctorName(latestRebookableAppointment)}
                   </Text>
@@ -1802,54 +1952,47 @@ export default function HomeScreen() {
                       ? ` • ${getRebookHospitalName(latestRebookableAppointment)}`
                       : ""}
                   </Text>
-                  <Text style={styles.rebookLastVisit}>
+                  <Text style={styles.rebookLastDate}>
                     Last visit:{" "}
                     {formatDDMMYYYY(
                       latestRebookableAppointment.slotDate ||
                         latestRebookableAppointment.date ||
                         latestRebookableAppointment.appointmentDate,
-                    )}{" "}
-                    (
-                    {latestRebookableAppointment.consultationType === "video"
-                      ? "Video Consult"
-                      : "Clinic Visit"}
-                    )
+                    )}
                   </Text>
                 </View>
               </View>
-
-              <View style={styles.rebookActions}>
-                <Button
-                  title="Book Again"
-                  icon="repeat"
-                  variant="primary"
-                  onPress={() =>
-                    navigateToRebook(router, latestRebookableAppointment)
-                  }
-                  style={styles.rebookPrimaryBtn}
-                />
-              </View>
+              <Button
+                title="Book Again"
+                icon="repeat"
+                variant="primary"
+                onPress={() =>
+                  navigateToRebook(router, latestRebookableAppointment)
+                }
+                style={styles.rebookBtn}
+              />
             </View>
           </View>
-        )}
+        ) : null}
 
-        {/* ---------------- Recent Health Insights ---------------- */}
-
+        {/* ================================================================= */}
+        {/* 9. RECENT HEALTH INSIGHTS (Latest Consultation, Rx, Report) */}
+        {/* ================================================================= */}
         {recentConsultation ||
         recentPrescription ||
         recentReport ||
         recentDiagnosis ? (
-          <View style={styles.section}>
+          <View style={styles.sectionWrap}>
             <SectionHeader
               title="Recent Health Insights"
-              subtitle="Latest updates from your attending medical providers"
-              actionLabel="View records"
+              subtitle="Latest medical updates from your attending specialists"
+              actionLabel="View Records"
               onAction={() => router.push("/health/records")}
             />
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalContent}
+              contentContainerStyle={styles.horizontalScrollList}
             >
               {recentConsultation ? (
                 <Card style={styles.insightCard}>
@@ -1866,7 +2009,7 @@ export default function HomeScreen() {
                         color="#4F46E5"
                       />
                     </View>
-                    <View style={styles.insightHeaderTexts}>
+                    <View style={styles.insightHeaderTextWrap}>
                       <Text style={styles.insightTag}>RECENT CONSULTATION</Text>
                       <Text style={styles.insightTitle} numberOfLines={1}>
                         {appointmentDoctorName(recentConsultation)}
@@ -1879,18 +2022,16 @@ export default function HomeScreen() {
                       ? `Diagnosis: ${recentConsultation.diagnosis}`
                       : `Consultation on ${formatDDMMYYYY(recentConsultation.slotDate)}`}
                   </Text>
-                  <View style={styles.insightFooter}>
-                    <Button
-                      title="View Details"
-                      variant="ghost"
-                      onPress={() =>
-                        router.push({
-                          pathname: "/appointment/[id]",
-                          params: { id: String(recentConsultation._id) },
-                        })
-                      }
-                    />
-                  </View>
+                  <Button
+                    title="View Details"
+                    variant="ghost"
+                    onPress={() =>
+                      router.push({
+                        pathname: "/appointment/[id]",
+                        params: { id: String(recentConsultation._id) },
+                      })
+                    }
+                  />
                 </Card>
               ) : null}
 
@@ -1909,7 +2050,7 @@ export default function HomeScreen() {
                         color="#D97706"
                       />
                     </View>
-                    <View style={styles.insightHeaderTexts}>
+                    <View style={styles.insightHeaderTextWrap}>
                       <Text style={styles.insightTag}>
                         DIGITAL PRESCRIPTION
                       </Text>
@@ -1926,13 +2067,11 @@ export default function HomeScreen() {
                       : recentPrescription.prescription ||
                         `Prescribed on ${formatDDMMYYYY(recentPrescription.slotDate)}`}
                   </Text>
-                  <View style={styles.insightFooter}>
-                    <Button
-                      title="View Prescriptions"
-                      variant="ghost"
-                      onPress={() => router.push("/health/prescriptions")}
-                    />
-                  </View>
+                  <Button
+                    title="View Prescriptions"
+                    variant="ghost"
+                    onPress={() => router.push("/health/prescriptions")}
+                  />
                 </Card>
               ) : null}
 
@@ -1951,7 +2090,7 @@ export default function HomeScreen() {
                         color="#0284C7"
                       />
                     </View>
-                    <View style={styles.insightHeaderTexts}>
+                    <View style={styles.insightHeaderTextWrap}>
                       <Text style={styles.insightTag}>LAB REPORT</Text>
                       <Text style={styles.insightTitle} numberOfLines={1}>
                         {recentReport.name}
@@ -1965,13 +2104,11 @@ export default function HomeScreen() {
                       "Diagnostic Test"}{" "}
                     • {formatDDMMYYYY(recentReport.uploadedAt || "")}
                   </Text>
-                  <View style={styles.insightFooter}>
-                    <Button
-                      title="View Reports"
-                      variant="ghost"
-                      onPress={() => router.push("/health/reports")}
-                    />
-                  </View>
+                  <Button
+                    title="View Reports"
+                    variant="ghost"
+                    onPress={() => router.push("/health/reports")}
+                  />
                 </Card>
               ) : null}
 
@@ -1990,7 +2127,7 @@ export default function HomeScreen() {
                         color="#059669"
                       />
                     </View>
-                    <View style={styles.insightHeaderTexts}>
+                    <View style={styles.insightHeaderTextWrap}>
                       <Text style={styles.insightTag}>CLINICAL DIAGNOSIS</Text>
                       <Text style={styles.insightTitle} numberOfLines={1}>
                         {recentDiagnosis.diagnosis}
@@ -2002,175 +2139,23 @@ export default function HomeScreen() {
                     By {recentDiagnosis.doctorName || "Attending Physician"} on{" "}
                     {formatDDMMYYYY(recentDiagnosis.date)}
                   </Text>
-                  <View style={styles.insightFooter}>
-                    <Button
-                      title="Medical History"
-                      variant="ghost"
-                      onPress={() => router.push("/health/records")}
-                    />
-                  </View>
+                  <Button
+                    title="Medical History"
+                    variant="ghost"
+                    onPress={() => router.push("/health/records")}
+                  />
                 </Card>
               ) : null}
             </ScrollView>
           </View>
         ) : null}
 
-        {/* ---------------- Recent Health Activity Feed ---------------- */}
-        <View style={styles.section}>
+        {/* ================================================================= */}
+        {/* 10. AVAILABLE DOCTORS (With Filter Tabs) */}
+        {/* ================================================================= */}
+        <View style={styles.sectionWrap}>
           <SectionHeader
-            title="Recent Health Activity"
-            subtitle="Real timeline of care updates, appointments & test results"
-            actionLabel={
-              recentActivities.length > 0 ? "All Records" : undefined
-            }
-            onAction={
-              recentActivities.length > 0
-                ? () => router.push("/health/records")
-                : undefined
-            }
-          />
-          {recentActivities.length === 0 ? (
-            <View style={styles.emptyActivityCard}>
-              <Ionicons
-                name="shield-checkmark-outline"
-                size={32}
-                color={Palette.primary}
-              />
-              <Text style={styles.emptyActivityTitle}>
-                No Healthcare Activity Yet
-              </Text>
-              <Text style={styles.emptyActivitySubtitle}>
-                As you book consultations, receive doctor prescriptions, and
-                complete visits, your real health activity log will appear here.
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.activityFeedList}>
-              {recentActivities.slice(0, 5).map((act) => (
-                <Pressable
-                  key={act.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={act.title}
-                  onPress={() => {
-                    if (act.route) {
-                      if (act.routeParams) {
-                        router.push({
-                          pathname: act.route as any,
-                          params: act.routeParams,
-                        });
-                      } else {
-                        router.push(act.route as any);
-                      }
-                    }
-                  }}
-                  style={({ pressed }) => [
-                    styles.activityItemRow,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.activityIconCircle,
-                      {
-                        backgroundColor:
-                          act.type === "consultation"
-                            ? "#EEF2FF"
-                            : act.type === "prescription"
-                              ? "#FEF3C7"
-                              : act.type === "report"
-                                ? "#E0F2FE"
-                                : act.type === "status"
-                                  ? "#F0FDF4"
-                                  : "#F3F4F6",
-                      },
-                    ]}
-                  >
-                    <Ionicons
-                      name={
-                        act.type === "consultation"
-                          ? "calendar"
-                          : act.type === "prescription"
-                            ? "medkit"
-                            : act.type === "report"
-                              ? "document-text"
-                              : act.type === "status"
-                                ? "checkmark-circle"
-                                : "notifications"
-                      }
-                      size={16}
-                      color={
-                        act.type === "consultation"
-                          ? "#4F46E5"
-                          : act.type === "prescription"
-                            ? "#D97706"
-                            : act.type === "report"
-                              ? "#0284C7"
-                              : act.type === "status"
-                                ? "#059669"
-                                : Palette.textMuted
-                      }
-                    />
-                  </View>
-                  <View style={styles.activityContentWrap}>
-                    <View style={styles.activityTopRow}>
-                      <Text style={styles.activityTitleText} numberOfLines={1}>
-                        {act.title}
-                      </Text>
-                      <Text style={styles.activityTimeText}>{act.date}</Text>
-                    </View>
-                    <Text style={styles.activitySubtitleText} numberOfLines={2}>
-                      {act.description}
-                    </Text>
-                  </View>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={14}
-                    color={Palette.textMuted}
-                    style={styles.activityChevron}
-                  />
-                </Pressable>
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* ---------------- Saved Care Quick Row ---------------- */}
-        {savedCount > 0 ? (
-          <View style={styles.section}>
-            <SectionHeader
-              title="Saved Care"
-              subtitle={`${savedCount} saved provider${savedCount === 1 ? "" : "s"}`}
-              actionLabel="View all"
-              onAction={() => router.push("/favorites")}
-            />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalContent}
-            >
-              {savedDoctors.slice(0, 4).map((doctor, index) => (
-                <DoctorMiniCard
-                  key={String(doctor._id)}
-                  doctor={doctor}
-                  index={index}
-                />
-              ))}
-              {savedHospitals.slice(0, 3).map((hospital) => (
-                <View
-                  key={String(hospital._id)}
-                  style={styles.hospitalCardWrap}
-                >
-                  <HospitalCard hospital={hospital} />
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        ) : null}
-
-        {/* ---------------- Available doctors ---------------- */}
-        <View style={styles.section}>
-          <SectionHeader
-            title="Available doctors"
+            title="Available Doctors"
             subtitle={
               doctorsLoading
                 ? "Checking live availability..."
@@ -2181,7 +2166,7 @@ export default function HomeScreen() {
                     : doctorFilter === "top"
                       ? `${topDoctors.length} highest rated specialists`
                       : nearbyDoctorCount > 0
-                        ? `${nearbyDoctorCount} near you · ${doctors.length} doctors total`
+                        ? `${nearbyDoctorCount} near you · ${doctors.length} verified doctors`
                         : `${doctors.length} verified doctors on HealPoint`
             }
             actionLabel="See all"
@@ -2192,7 +2177,7 @@ export default function HomeScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.doctorFilterPillsContent}
+            contentContainerStyle={styles.filterPillsScroll}
           >
             {DOCTOR_FILTER_TABS.map((tab) => {
               const active = doctorFilter === tab.id;
@@ -2205,7 +2190,7 @@ export default function HomeScreen() {
                   style={({ pressed }) => [
                     styles.doctorFilterPill,
                     active && styles.doctorFilterPillActive,
-                    pressed && styles.chipPressed,
+                    pressed && styles.pressed,
                   ]}
                 >
                   <Ionicons
@@ -2234,7 +2219,7 @@ export default function HomeScreen() {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalContent}
+              contentContainerStyle={styles.horizontalScrollList}
             >
               {filteredDoctors.map((doctor, index) => (
                 <DoctorFeatureCard
@@ -2246,10 +2231,10 @@ export default function HomeScreen() {
             </ScrollView>
           ) : (
             <Card padded>
-              <Text style={styles.infoBody}>
+              <Text style={styles.emptyDoctorText}>
                 No doctors matching this filter right now.
               </Text>
-              <View style={styles.infoAction}>
+              <View style={{ marginTop: Spacing.sm }}>
                 <Button
                   title="Browse all doctors"
                   variant="outline"
@@ -2262,19 +2247,22 @@ export default function HomeScreen() {
             </Card>
           )}
         </View>
-        {/* ---------------- Top rated doctors ---------------- */}
+
+        {/* ================================================================= */}
+        {/* 11. TOP RATED DOCTORS */}
+        {/* ================================================================= */}
         {topDoctors.length > 0 ? (
-          <View style={styles.section}>
+          <View style={styles.sectionWrap}>
             <SectionHeader
-              title="Top rated doctors"
-              subtitle="Highest rated on HealPoint"
+              title="Top Rated Doctors"
+              subtitle="Highest patient ratings on HealPoint"
               actionLabel="See all"
               onAction={() => router.push({ pathname: "/doctors" })}
             />
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalContent}
+              contentContainerStyle={styles.horizontalScrollList}
             >
               {topDoctors.map((doctor, index) => (
                 <DoctorMiniCard
@@ -2287,28 +2275,30 @@ export default function HomeScreen() {
           </View>
         ) : null}
 
-        {/* ---------------- Hospitals / nearby ---------------- */}
+        {/* ================================================================= */}
+        {/* 12. HOSPITALS & CLINICS NEARBY */}
+        {/* ================================================================= */}
         {hospitalsError ? (
-          <View style={styles.section}>
+          <View style={styles.sectionWrap}>
             <ErrorState message={hospitalsError} onRetry={refetchHospitals} />
           </View>
         ) : hospitalsLoading ? (
-          <View style={styles.section}>
-            <SectionHeader title="Hospitals & clinics" />
+          <View style={styles.sectionWrap}>
+            <SectionHeader title="Hospitals & Clinics" />
             <Loading fullScreen={false} label="Loading hospitals..." />
           </View>
         ) : displayHospitals.length ? (
-          <View style={styles.section}>
+          <View style={styles.sectionWrap}>
             <SectionHeader
               title={
                 nearbyHospitals.length
-                  ? "Hospitals near you"
-                  : "Hospitals & clinics"
+                  ? "Hospitals Near You"
+                  : "Hospitals & Clinics"
               }
               subtitle={
                 nearbyHospitals.length
-                  ? `Near ${cityOfHospitals}`
-                  : `${hospitals.length} hospitals on HealPoint`
+                  ? `Healthcare facilities in ${cityOfHospitals}`
+                  : `${hospitals.length} accredited hospitals on HealPoint`
               }
               actionLabel="See all"
               onAction={() => router.push({ pathname: "/hospitals" })}
@@ -2316,7 +2306,7 @@ export default function HomeScreen() {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalContent}
+              contentContainerStyle={styles.horizontalScrollList}
             >
               {displayHospitals.map((hospital) => (
                 <View
@@ -2329,7 +2319,45 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
         ) : null}
+
+        {/* ================================================================= */}
+        {/* 13. SAVED CARE (Favorites) */}
+        {/* ================================================================= */}
+        {savedCount > 0 ? (
+          <View style={styles.sectionWrap}>
+            <SectionHeader
+              title="Saved Care"
+              subtitle={`${savedCount} saved provider${savedCount === 1 ? "" : "s"}`}
+              actionLabel="View all"
+              onAction={() => router.push("/favorites")}
+            />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalScrollList}
+            >
+              {savedDoctors.slice(0, 4).map((doctor, index) => (
+                <DoctorMiniCard
+                  key={String(doctor._id)}
+                  doctor={doctor}
+                  index={index}
+                />
+              ))}
+              {savedHospitals.slice(0, 3).map((hospital) => (
+                <View
+                  key={String(hospital._id)}
+                  style={styles.hospitalCardWrap}
+                >
+                  <HospitalCard hospital={hospital} />
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+
+        <View style={{ height: 60 }} />
       </ScrollView>
+
       {/* Floating HealPoint AI Assistant Pill */}
       <Pressable
         accessibilityRole="button"
@@ -2337,143 +2365,119 @@ export default function HomeScreen() {
         onPress={() => router.push("/ai-assistant")}
         style={({ pressed }) => [
           styles.floatingAiBtn,
+          { bottom: 74 + Math.max(insets.bottom, 10) },
           pressed && styles.pressed,
         ]}
       >
-        <Ionicons name="sparkles" size={16} color="#FFFFFF" />
+        <Ionicons name="sparkles" size={17} color="#FFFFFF" />
         <Text style={styles.floatingAiText}>Ask AI</Text>
       </Pressable>
+
+      {/* ================================================================= */}
+      {/* 14. FIXED LIQUID GLASS BOTTOM NAVIGATION BAR                      */}
+      {/* ================================================================= */}
+      <PatientBottomNav activeTab="home" />
     </View>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Stylesheet
+// ---------------------------------------------------------------------------
+
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: Palette.background,
+    backgroundColor: "#F0F6FE",
   },
-  screenContent: {
+  scrollContent: {
     paddingBottom: 110,
   },
   pressed: {
     opacity: 0.88,
-    transform: [{ scale: 0.965 }],
-  },
-  rowPressed: {
-    opacity: 0.78,
-    transform: [{ scale: 0.99 }],
-  },
-  chipPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.95 }],
-  },
-  floatingAiBtn: {
-    position: "absolute",
-    bottom: 24,
-    right: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#0284C7",
-    paddingHorizontal: 15,
-    paddingVertical: 9,
-    borderRadius: 22,
-    gap: 6,
-    shadowColor: "#0284C7",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 6,
-    zIndex: 99,
-  },
-  floatingAiText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "700",
+    transform: [{ scale: 0.97 }],
   },
 
-  // ---- Hero ---------------------------------------------------------------
-  hero: {
-    backgroundColor: Palette.primary,
+  // ---- 1. Header ---------------------------------------------------------
+  headerContainer: {
+    backgroundColor: "transparent",
+    paddingBottom: Spacing.sm,
     overflow: "hidden",
-    paddingBottom: Spacing.huge,
   },
-  heroSafe: {
+  headerSafe: {
     paddingTop: Spacing.sm,
     paddingHorizontal: Spacing.lg,
   },
-  heroCircleA: {
-    position: "absolute",
-    top: -80,
-    right: -60,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: "rgba(255,255,255,0.07)",
-  },
-  heroCircleB: {
-    position: "absolute",
-    bottom: -90,
-    left: -50,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: "rgba(255,255,255,0.05)",
-  },
-  heroTopRow: {
+  headerTopRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginBottom: Spacing.md,
+  },
+  headerMenuBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(226, 232, 240, 0.90)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   brandLockup: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
+    gap: 8,
   },
   brandMark: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.18)",
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    backgroundColor: "#EFF6FF",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.35)",
+    borderColor: "rgba(191, 219, 254, 0.8)",
     alignItems: "center",
     justifyContent: "center",
   },
   brandCrossV: {
     position: "absolute",
-    width: 4,
-    height: 20,
+    width: 3.5,
+    height: 18,
     borderRadius: 2,
-    backgroundColor: Palette.white,
+    backgroundColor: Palette.primary,
   },
   brandCrossH: {
     position: "absolute",
-    width: 20,
-    height: 4,
+    width: 18,
+    height: 3.5,
     borderRadius: 2,
-    backgroundColor: Palette.white,
+    backgroundColor: Palette.primary,
   },
   brandWordmark: {
     ...Typography.h4,
-    color: Palette.white,
-    fontWeight: "700",
+    color: "#0F172A",
+    fontWeight: "800",
+    letterSpacing: 0.2,
   },
-  heroActions: {
+  headerRightActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
   },
-  heroIconButton: {
+  headerIconBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(226, 232, 240, 0.90)",
     alignItems: "center",
     justifyContent: "center",
   },
-  heroBadge: {
+  headerBadge: {
     position: "absolute",
-    top: 4,
-    right: 4,
+    top: 2,
+    right: 2,
     minWidth: 18,
     height: 18,
     borderRadius: 9,
@@ -2482,145 +2486,178 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 4,
     borderWidth: 2,
-    borderColor: Palette.primary,
+    borderColor: Palette.white,
   },
-  heroBadgeText: {
+  headerBadgeText: {
     color: Palette.white,
     fontSize: 10,
-    fontWeight: "700",
+    fontWeight: "800",
   },
-  heroAvatarButton: {
+  headerAvatarBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Palette.white,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(226, 232, 240, 0.90)",
     alignItems: "center",
     justifyContent: "center",
-    overflow: "hidden",
+    overflow: "visible",
   },
-  heroAvatar: {
-    width: 40,
-    height: 40,
+  headerAvatarImg: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
   },
-  heroGreeting: {
-    ...Typography.h1,
-    color: Palette.white,
-    fontWeight: "700",
-    marginTop: Spacing.xl,
+  avatarOnlineDot: {
+    position: "absolute",
+    bottom: -1,
+    right: -1,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: "#10B981",
+    borderWidth: 2,
+    borderColor: Palette.white,
   },
-  heroGreetingName: {
+  greetingSub: {
+    fontSize: 15,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  greetingTitle: {
+    fontSize: 24,
+    lineHeight: 30,
+    color: "#0F172A",
     fontWeight: "800",
+    letterSpacing: -0.3,
   },
-  heroTagline: {
-    ...Typography.bodyMedium,
-    color: "rgba(255,255,255,0.85)",
-    marginTop: Spacing.xs,
-  },
-  heroApptShortcut: {
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(255,255,255,0.18)",
-    borderRadius: Radius.pill,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 5,
-    marginTop: Spacing.sm,
-    maxWidth: "100%",
-  },
-  heroApptShortcutDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: Palette.white,
-  },
-  heroApptShortcutText: {
-    ...Typography.caption,
-    color: Palette.white,
-    fontWeight: "700",
-    flexShrink: 1,
+  greetingCaption: {
+    ...Typography.bodySmall,
+    color: "#64748B",
+    marginTop: 2,
   },
   locationPill: {
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.xs,
-    backgroundColor: "rgba(255,255,255,0.16)",
+    gap: 6,
+    backgroundColor: "rgba(255,255,255,0.92)",
     borderRadius: Radius.pill,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    marginTop: Spacing.md,
-    maxWidth: "100%",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    marginTop: Spacing.sm,
+    maxWidth: "95%",
+    borderWidth: 1,
+    borderColor: "rgba(191, 219, 254, 0.70)",
   },
   locationPillText: {
-    ...Typography.bodySmall,
-    color: Palette.white,
-    fontWeight: "600",
+    ...Typography.caption,
+    color: "#1E293B",
+    fontWeight: "700",
     flexShrink: 1,
   },
 
-  // ---- Search -------------------------------------------------------------
-  searchShell: {
+  // ---- 2. Search Section -------------------------------------------------
+  searchSectionWrap: {
     paddingHorizontal: Spacing.lg,
-    marginTop: -Spacing.xxl,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
   searchCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    borderRadius: 20,
     padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: "rgba(191, 219, 254, 0.70)",
     gap: Spacing.sm,
   },
-  searchRow: {
+  searchBarRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
+  },
+  searchIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(37, 99, 235, 0.10)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     color: Palette.text,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.xs,
   },
-  specialityContent: {
-    gap: Spacing.sm,
-    paddingTop: Spacing.xs,
-  },
-  specialityChip: {
+  searchRightIcons: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+  },
+  searchMicBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchClearBtn: {
+    padding: 4,
+  },
+  searchFilterBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#EFF6FF",
     borderWidth: 1,
-    borderColor: Palette.border,
-    backgroundColor: Palette.background,
+    borderColor: "rgba(191, 219, 254, 0.50)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  specialtiesScroll: {
+    gap: Spacing.xs,
+    paddingTop: 4,
+  },
+  specialtyChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     borderRadius: Radius.pill,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
-  specialityChipText: {
-    ...Typography.bodySmall,
+  specialtyChipText: {
+    fontSize: 12,
     color: Palette.primaryDark,
-    fontWeight: "600",
+    fontWeight: "700",
   },
-  resultsBox: {
+  searchResultsBox: {
     borderTopWidth: 1,
     borderTopColor: Palette.divider,
     paddingTop: Spacing.sm,
-    gap: 4,
+    gap: Spacing.xs,
   },
-  resultsHeaderRow: {
+  searchResultsHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: Spacing.xs,
   },
-  resultsCount: {
-    ...Typography.caption,
+  searchResultsCount: {
+    fontSize: 12,
     color: Palette.textMuted,
+    fontWeight: "600",
   },
-  searchCountsPillRow: {
+  searchCountBadgesRow: {
     flexDirection: "row",
-    gap: Spacing.xs,
+    gap: 6,
   },
   searchCountBadge: {
-    backgroundColor: "rgba(14, 159, 142, 0.12)",
+    backgroundColor: "rgba(37, 99, 235, 0.12)",
     borderRadius: Radius.pill,
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -2629,60 +2666,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: Palette.primaryDark,
-  },
-  searchSectionGroup: {
-    marginTop: Spacing.xs,
-    gap: 2,
-  },
-  searchGroupTitle: {
-    ...Typography.caption,
-    color: Palette.textMuted,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginVertical: 4,
-  },
-  resultRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.sm,
-  },
-  resultAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.sm,
-    backgroundColor: Palette.primaryLight,
-  },
-  resultHospitalIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.sm,
-    backgroundColor: "rgba(232, 154, 60, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  resultInfo: {
-    flex: 1,
-  },
-  resultName: {
-    ...Typography.label,
-    color: Palette.text,
-  },
-  resultMeta: {
-    ...Typography.caption,
-    color: Palette.textMuted,
-  },
-  resultRightAction: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  resultFee: {
-    ...Typography.bodySmall,
-    fontWeight: "700",
-    color: Palette.primary,
   },
   searchEmptyBox: {
     alignItems: "center",
@@ -2693,72 +2676,430 @@ const styles = StyleSheet.create({
   searchEmptyTitle: {
     ...Typography.label,
     color: Palette.text,
-    marginTop: Spacing.xs,
   },
   searchEmptySubtitle: {
     ...Typography.caption,
     color: Palette.textMuted,
     textAlign: "center",
-    paddingHorizontal: Spacing.md,
   },
   searchEmptyActions: {
     flexDirection: "row",
     gap: Spacing.sm,
     marginTop: Spacing.sm,
   },
-  viewAllButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.xs,
-    backgroundColor: Palette.primaryLight,
-    borderRadius: Radius.md,
-    paddingVertical: Spacing.md,
+  searchGroup: {
     marginTop: Spacing.xs,
+    gap: 2,
   },
-  viewAllText: {
-    ...Typography.label,
-    color: Palette.primaryDark,
+  searchGroupHeader: {
+    fontSize: 11,
+    color: Palette.textMuted,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginVertical: 4,
   },
-
-  // ---- Notification Preview Banner ---------------------------------------
-  notificationBanner: {
+  searchResultRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
-    backgroundColor: "rgba(14, 159, 142, 0.1)",
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.md,
-    borderWidth: 1,
-    borderColor: "rgba(14, 159, 142, 0.22)",
+    paddingVertical: Spacing.xs,
   },
-  notificationBannerIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: Palette.surface,
+  searchResultAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: Radius.sm,
+    backgroundColor: Palette.primaryLight,
+  },
+  searchHospitalIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: Radius.sm,
+    backgroundColor: "#FEF3C7",
     alignItems: "center",
     justifyContent: "center",
   },
-  notificationBannerText: {
-    ...Typography.bodySmall,
-    color: Palette.text,
+  searchResultInfo: {
     flex: 1,
   },
-  notificationBannerAction: {
-    ...Typography.label,
-    color: Palette.primaryDark,
+  searchResultName: {
+    fontSize: 13,
     fontWeight: "700",
+    color: Palette.text,
+  },
+  searchResultMeta: {
+    fontSize: 11,
+    color: Palette.textMuted,
+  },
+  searchResultPriceWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  searchResultPrice: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Palette.primary,
+  },
+  searchViewAllBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: Palette.primaryLight,
+    borderRadius: Radius.md,
+    paddingVertical: 8,
+    marginTop: 4,
+  },
+  searchViewAllText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Palette.primaryDark,
   },
 
-  // ---- Quick actions ------------------------------------------------------
-  quickGridContainer: {
-    paddingHorizontal: Spacing.lg,
+  // ---- 3. Carousel -------------------------------------------------------
+  carouselContainer: {
     marginTop: Spacing.lg,
   },
+  carouselScrollContent: {
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
+  },
+  carouselCard: {
+    width: CAROUSEL_CARD_WIDTH,
+    borderRadius: Radius.xl,
+    padding: Spacing.lg,
+    overflow: "hidden",
+    minHeight: 165,
+    justifyContent: "space-between",
+  },
+  bannerDecorCircleA: {
+    position: "absolute",
+    top: -40,
+    right: -30,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  bannerDecorCircleB: {
+    position: "absolute",
+    bottom: -50,
+    left: -30,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  bannerTopBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  bannerBadgePill: {
+    backgroundColor: "rgba(255,255,255,0.22)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.pill,
+  },
+  bannerBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: Palette.white,
+    letterSpacing: 0.6,
+  },
+  bannerBody: {
+    marginVertical: Spacing.xs,
+  },
+  bannerTitlePrefix: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.9)",
+  },
+  bannerTitleHighlight: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: Palette.white,
+    lineHeight: 26,
+  },
+  bannerSubtitle: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.85)",
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  bannerCtaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  bannerCtaBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: Palette.white,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: Radius.pill,
+  },
+  bannerCtaText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: Palette.primaryDark,
+  },
+  paginationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: Spacing.sm,
+  },
+  paginationDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#CBD5E1",
+  },
+  paginationDotActive: {
+    width: 20,
+    backgroundColor: Palette.primary,
+  },
+
+  // ---- 4. Upcoming Appointment Card --------------------------------------
+  sectionWrap: {
+    marginTop: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
+  },
+  upcomingCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.90)",
+    borderRadius: Radius.xl,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: "rgba(191, 219, 254, 0.45)",
+    gap: Spacing.md,
+  },
+  upcomingCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  upcomingCountdownPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  upcomingCountdownText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#065F46",
+  },
+  todayPill: {
+    backgroundColor: "#059669",
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: Radius.pill,
+    marginLeft: 3,
+  },
+  todayPillText: {
+    fontSize: 8,
+    fontWeight: "800",
+    color: Palette.white,
+  },
+  upcomingDoctorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  upcomingAvatarWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Palette.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  upcomingDoctorMeta: {
+    flex: 1,
+    gap: 2,
+  },
+  upcomingDoctorName: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: Palette.text,
+  },
+  upcomingDoctorSub: {
+    fontSize: 12,
+    color: Palette.textMuted,
+  },
+  upcomingScheduleBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F8FAFC",
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 9,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  upcomingScheduleItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  upcomingScheduleDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: "#CBD5E1",
+  },
+  upcomingScheduleText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Palette.text,
+  },
+  upcomingFeeText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: Palette.primary,
+  },
+  checkedInBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 7,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: "#6EE7B7",
+  },
+  checkedInBannerText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#065F46",
+    flex: 1,
+  },
+  upcomingActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  upcomingPrimaryBtn: {
+    flex: 1,
+    minHeight: 44,
+  },
+  upcomingSecondaryBtn: {
+    minHeight: 44,
+    paddingHorizontal: Spacing.lg,
+  },
+  upcomingTertiaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.md,
+    paddingTop: 2,
+  },
+  tertiaryLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  tertiaryLinkText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Palette.primaryDark,
+  },
+  tertiaryDot: {
+    color: "#CBD5E1",
+  },
+  noApptCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.90)",
+    borderRadius: Radius.xl,
+    padding: Spacing.xl,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(191, 219, 254, 0.45)",
+    gap: Spacing.sm,
+  },
+  noApptIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Palette.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  noApptTextWrap: {
+    alignItems: "center",
+    gap: 2,
+  },
+  noApptTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: Palette.text,
+  },
+  noApptSub: {
+    fontSize: 12,
+    color: Palette.textMuted,
+    textAlign: "center",
+    lineHeight: 18,
+    maxWidth: 280,
+  },
+  noApptBtn: {
+    marginTop: Spacing.sm,
+    minWidth: 200,
+  },
+
+  // ---- 5. Health Summary -------------------------------------------------
+  summaryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    justifyContent: "space-between",
+  },
+  summaryCard: {
+    width: "48%",
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    padding: Spacing.md,
+  },
+  summaryCardTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.xs,
+  },
+  summaryIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  summaryCount: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: Palette.text,
+  },
+  summaryLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Palette.text,
+    marginTop: 1,
+  },
+  summarySub: {
+    fontSize: 10,
+    color: Palette.textMuted,
+    marginTop: 1,
+  },
+
+  // ---- 6. Quick Actions Grid ---------------------------------------------
   quickGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -2766,365 +3107,150 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   quickTile: {
-    width: "31.2%",
+    width: "22.8%",
     alignItems: "center",
-    justifyContent: "center",
-    minHeight: 90,
-    gap: 3,
-    backgroundColor: Palette.surface,
+    backgroundColor: "rgba(255, 255, 255, 0.90)",
     borderRadius: Radius.lg,
+    paddingVertical: 10,
+    paddingHorizontal: 2,
     borderWidth: 1,
-    borderColor: Palette.border,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: 4,
-    ...Shadows.card,
+    borderColor: "rgba(191, 219, 254, 0.40)",
+    gap: 4,
   },
-  quickTileIcon: {
+  quickIconCircle: {
     width: 44,
     height: 44,
     borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
   },
-  quickBadge: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
-    borderWidth: 2,
-    borderColor: Palette.surface,
-  },
-  quickBadgeText: {
-    color: Palette.white,
-    fontSize: 10,
-    fontWeight: "700",
-  },
   quickTileLabel: {
-    ...Typography.label,
-    fontSize: 12,
-    color: Palette.text,
+    fontSize: 11,
     fontWeight: "700",
+    color: "#0F172A",
     textAlign: "center",
     width: "100%",
+    lineHeight: 14,
+    minHeight: 28,
   },
   quickTileSub: {
-    fontSize: 10,
+    fontSize: 9,
     color: Palette.textMuted,
     textAlign: "center",
     width: "100%",
   },
-
-  // ---- Content sections ---------------------------------------------------
-  section: {
-    marginTop: Spacing.xl,
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.md,
-  },
-  doctorFilterPillsContent: {
-    gap: Spacing.xs,
-    paddingBottom: Spacing.xs,
-  },
-  doctorFilterPill: {
+  expandServicesBtn: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
-    borderRadius: Radius.pill,
-    backgroundColor: Palette.surface,
-    borderWidth: 1,
-    borderColor: Palette.border,
-  },
-  doctorFilterPillActive: {
-    backgroundColor: Palette.primary,
-    borderColor: Palette.primary,
-  },
-  doctorFilterPillText: {
-    ...Typography.caption,
-    color: Palette.textMuted,
-    fontWeight: "600",
-  },
-  doctorFilterPillTextActive: {
-    color: Palette.white,
-    fontWeight: "700",
-  },
-  horizontalContent: {
-    gap: Spacing.md,
-    paddingVertical: Spacing.xs,
-  },
-  serviceTile: {
-    width: 136,
-    backgroundColor: Palette.surface,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Palette.border,
-    padding: Spacing.md,
-    gap: Spacing.sm,
-    ...Shadows.card,
-  },
-  serviceIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
-  },
-  serviceLabel: {
-    ...Typography.label,
-    color: Palette.text,
-  },
-  serviceCaption: {
-    ...Typography.caption,
-    color: Palette.textMuted,
-  },
-
-  // ---- Upcoming appointment ----
-  nextApptCard: {
+    gap: 6,
     backgroundColor: Palette.surface,
     borderRadius: Radius.lg,
+    paddingVertical: Spacing.sm,
     borderWidth: 1,
     borderColor: Palette.border,
-    padding: Spacing.lg,
-    gap: Spacing.md,
-    ...Shadows.card,
-  },
-  nextApptHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-  },
-  nextApptIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Palette.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  nextApptTitles: {
-    flex: 1,
-    gap: 1,
-  },
-  nextApptBadges: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  nextApptRowLabel: {
-    ...Typography.caption,
-    color: Palette.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    fontWeight: "600",
-  },
-  nextApptDoctor: {
-    ...Typography.h4,
-    color: Palette.text,
-  },
-  nextApptRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-  },
-  nextApptRowText: {
-    ...Typography.bodyMedium,
-    color: Palette.textMuted,
-    flex: 1,
-  },
-  nextApptFooter: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: Spacing.md,
     marginTop: Spacing.xs,
   },
-  nextApptFeeWrap: {
-    minWidth: 100,
+  expandServicesText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Palette.primaryDark,
   },
-  nextApptFeeLabel: {
-    ...Typography.caption,
-    color: Palette.textMuted,
+
+  // ---- 7. Care Continuity ------------------------------------------------
+  continuityCard: {
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.xl,
+    gap: Spacing.sm,
   },
-  nextApptFee: {
-    ...Typography.h4,
-    color: Palette.text,
-  },
-  nextApptButton: {
-    minHeight: 44,
-    minWidth: 140,
-  },
-  nextApptActionsRow: {
+  continuityRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
-    flexWrap: "wrap",
   },
-  nextApptPrimaryBtn: {
-    minHeight: 42,
-    paddingHorizontal: Spacing.md,
-  },
-  nextApptSecondaryBtn: {
-    minHeight: 42,
-    paddingHorizontal: Spacing.md,
-  },
-  // Today pill shown next to relative time label
-  nextApptTodayPill: {
-    backgroundColor: Palette.primary,
-    borderRadius: Radius.pill,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-  },
-  nextApptTodayText: {
-    fontSize: 9,
-    fontWeight: "800",
-    color: Palette.white,
-    letterSpacing: 0.5,
-  },
-  // Check-in available pill (amber)
-  nextApptCheckInPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "#FEF3C7",
+  continuityIconWrap: {
+    width: 42,
+    height: 42,
     borderRadius: Radius.md,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: "#FCD34D",
-  },
-  nextApptCheckInText: {
-    ...Typography.caption,
-    color: "#92400E",
-    fontWeight: "700",
-  },
-  // Checked-in pill (green)
-  nextApptCheckedInPill: {
-    flexDirection: "row",
+    backgroundColor: Palette.primaryLight,
     alignItems: "center",
-    gap: 5,
-    backgroundColor: "#ECFDF5",
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: "#6EE7B7",
+    justifyContent: "center",
   },
-  nextApptCheckedInText: {
-    ...Typography.caption,
-    color: "#065F46",
-    fontWeight: "700",
+  continuityTextWrap: {
     flex: 1,
   },
-
-  ctaCard: {
-    backgroundColor: Palette.primaryLight,
-    borderRadius: Radius.lg,
-    padding: Spacing.lg,
-    gap: Spacing.lg,
+  continuityHeaderLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  ctaRow: {
+  continuityDoctor: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: Palette.text,
+  },
+  continuityDesc: {
+    fontSize: 12,
+    color: Palette.textMuted,
+    marginTop: 2,
+  },
+  continuityBtn: {
+    marginTop: 2,
+  },
+
+  // ---- 8. Re-Booking -----------------------------------------------------
+  rebookCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.90)",
+    borderRadius: Radius.xl,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: "rgba(37, 99, 235, 0.25)",
+    gap: Spacing.md,
+  },
+  rebookTopRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
   },
-  ctaIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: Palette.surface,
+  rebookAvatarWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Palette.primaryLight,
     alignItems: "center",
     justifyContent: "center",
   },
-  ctaTexts: {
+  rebookMeta: {
     flex: 1,
     gap: 2,
   },
-  ctaTitle: {
-    ...Typography.h4,
-    color: Palette.text,
-  },
-  ctaText: {
-    ...Typography.bodySmall,
-    color: Palette.textMuted,
-  },
-  ctaButton: {
-    minHeight: 46,
-  },
-
-  infoBody: {
-    ...Typography.bodySmall,
-    color: Palette.textMuted,
-  },
-  infoAction: {
-    marginTop: Spacing.sm,
-  },
-  hospitalCardWrap: {
-    width: 280,
-  },
-
-  // ---- Medical Overview Strip ----------------------------------------------
-  metricsStripContent: {
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.sm,
-    paddingVertical: Spacing.xs,
-  },
-  overviewCard: {
-    backgroundColor: Palette.surface,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Palette.border,
-    padding: Spacing.md,
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 112,
-    ...Shadows.card,
-  },
-  overviewIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing.xs,
-  },
-  overviewCount: {
-    ...Typography.h3,
-    color: Palette.text,
+  rebookDoctorName: {
+    fontSize: 15,
     fontWeight: "800",
-  },
-  overviewLabel: {
-    ...Typography.caption,
     color: Palette.text,
-    fontWeight: "700",
-    marginTop: 2,
-    textAlign: "center",
   },
-  overviewSub: {
-    fontSize: 10,
+  rebookDoctorSpecialty: {
+    fontSize: 12,
+    color: Palette.primaryDark,
+    fontWeight: "600",
+  },
+  rebookLastDate: {
+    fontSize: 11,
     color: Palette.textMuted,
-    textAlign: "center",
+  },
+  rebookBtn: {
+    width: "100%",
   },
 
-  // ---- Appointment Snapshot Tools ------------------------------------------
-  snapshotToolBtn: {
-    minHeight: 36,
-    paddingHorizontal: Spacing.md,
+  // ---- 9. Insights -------------------------------------------------------
+  horizontalScrollList: {
+    gap: Spacing.md,
+    paddingVertical: 4,
   },
-  snapshotCancelBtn: {
-    minHeight: 36,
-    paddingHorizontal: Spacing.sm,
-  },
-
-  // ---- Recent Health Insights ----------------------------------------------
   insightCard: {
-    width: 280,
+    width: 270,
     padding: Spacing.md,
+    borderRadius: Radius.xl,
     gap: Spacing.sm,
     justifyContent: "space-between",
   },
@@ -3140,225 +3266,228 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  insightHeaderTexts: {
+  insightHeaderTextWrap: {
     flex: 1,
   },
   insightTag: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "800",
     color: Palette.textMuted,
     letterSpacing: 0.5,
-    textTransform: "uppercase",
   },
   insightTitle: {
-    ...Typography.bodyMedium,
-    color: Palette.text,
+    fontSize: 13,
     fontWeight: "700",
+    color: Palette.text,
   },
   insightDetail: {
-    ...Typography.bodySmall,
-    color: Palette.textMuted,
-    lineHeight: 18,
-  },
-  insightFooter: {
-    alignSelf: "flex-end",
-    marginTop: 2,
-  },
-
-  // ---- Recent Health Activity Feed -----------------------------------------
-  emptyActivityCard: {
-    backgroundColor: Palette.surface,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Palette.border,
-    padding: Spacing.xl,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    marginHorizontal: Spacing.lg,
-  },
-  emptyActivityTitle: {
-    ...Typography.bodyMedium,
-    fontWeight: "700",
-    color: Palette.text,
-  },
-  emptyActivitySubtitle: {
-    ...Typography.caption,
-    color: Palette.textMuted,
-    textAlign: "center",
-    lineHeight: 18,
-    maxWidth: 280,
-  },
-  activityFeedList: {
-    marginHorizontal: Spacing.lg,
-    backgroundColor: Palette.surface,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Palette.border,
-    overflow: "hidden",
-    ...Shadows.card,
-  },
-  activityItemRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    padding: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Palette.divider,
-  },
-  activityIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  activityContentWrap: {
-    flex: 1,
-    gap: 2,
-  },
-  activityTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  activityTitleText: {
-    ...Typography.bodySmall,
-    fontWeight: "700",
-    color: Palette.text,
-    flex: 1,
-    marginRight: Spacing.xs,
-  },
-  activityTimeText: {
-    fontSize: 11,
-    color: Palette.textMuted,
-  },
-  activitySubtitleText: {
     fontSize: 12,
     color: Palette.textMuted,
     lineHeight: 16,
   },
-  activityChevron: {
-    marginLeft: 4,
+
+  // ---- 10. Available Doctors ---------------------------------------------
+  filterPillsScroll: {
+    gap: Spacing.xs,
+    paddingBottom: 2,
   },
-  emergencyAccessWrap: {
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.xs,
-  },
-  emergencyStrip: {
+  doctorFilterPill: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#FEF2F2",
-    borderRadius: Radius.md,
-    paddingVertical: Spacing.sm,
+    gap: 5,
     paddingHorizontal: Spacing.md,
-    borderWidth: 1,
-    borderColor: "#FCA5A5",
-  },
-  commandCenterBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    paddingVertical: 7,
+    borderRadius: Radius.pill,
     backgroundColor: Palette.surface,
-    borderRadius: Radius.md,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
     borderWidth: 1,
-    borderColor: `${Palette.primary}35`,
+    borderColor: Palette.border,
+  },
+  doctorFilterPillActive: {
+    backgroundColor: Palette.primary,
+    borderColor: Palette.primary,
+  },
+  doctorFilterPillText: {
+    fontSize: 12,
+    color: Palette.textMuted,
+    fontWeight: "600",
+  },
+  doctorFilterPillTextActive: {
+    color: Palette.white,
+    fontWeight: "800",
+  },
+  emptyDoctorText: {
+    fontSize: 13,
+    color: Palette.textMuted,
+  },
+
+  // ---- 12. Hospitals -----------------------------------------------------
+  hospitalCardWrap: {
+    width: 280,
+  },
+
+  // ---- 3. Emergency Top -------------------------------------------------
+  emergencyTopContainer: {
+    paddingHorizontal: Spacing.lg,
+    marginTop: Spacing.sm,
+  },
+  emergencyTopCard: {
+    backgroundColor: "rgba(254, 242, 242, 0.95)",
+    borderRadius: 20,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: "rgba(254, 202, 202, 0.85)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.sm,
     ...Shadows.card,
   },
-  emergencyStripLeft: {
+  emergencyTopLeft: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
     flex: 1,
   },
-  emergencyStripIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: Radius.pill,
+  emergencyTopIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: "#FEE2E2",
     alignItems: "center",
     justifyContent: "center",
   },
-  emergencyStripTextWrap: {
+  emergencyTopTextWrap: {
     flex: 1,
+    gap: 2,
   },
-  emergencyStripTitleRow: {
+  emergencyTopHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
   },
-  emergencyStripTitle: {
-    fontSize: 14,
+  emergencyTopTitle: {
+    fontSize: 15,
     fontWeight: "800",
     color: "#991B1B",
   },
-  emergencyStripPill: {
+  emergencyTopBadge: {
     backgroundColor: "#DC2626",
-    paddingHorizontal: 6,
-    paddingVertical: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
     borderRadius: Radius.pill,
   },
-  emergencyStripPillText: {
+  emergencyTopBadgeText: {
     fontSize: 9,
     fontWeight: "800",
     color: Palette.white,
     letterSpacing: 0.3,
   },
-  emergencyStripSub: {
-    ...Typography.caption,
+  emergencyTopSub: {
+    fontSize: 12,
     color: "#7F1D1D",
-    marginTop: 1,
+    lineHeight: 16,
   },
-  rebookCard: {
-    backgroundColor: Palette.surface,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: `${Palette.primary}30`,
-    padding: Spacing.lg,
-    gap: Spacing.md,
-    ...Shadows.card,
-  },
-  rebookCardTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-  },
-  rebookDoctorAvatarWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: `${Palette.primary}15`,
+  emergencyArrowCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#DC2626",
     alignItems: "center",
     justifyContent: "center",
   },
-  rebookDoctorMeta: {
-    flex: 1,
-    gap: 2,
+
+  // "Book an Appointment" Hero Card
+  bookHeroWrap: {
+    paddingHorizontal: Spacing.lg,
+    marginTop: Spacing.sm,
   },
-  rebookDoctorName: {
-    ...Typography.label,
-    fontSize: 15,
-    color: Palette.text,
-  },
-  rebookDoctorSpecialty: {
-    ...Typography.caption,
-    color: Palette.primaryDark,
-    fontWeight: "600",
-  },
-  rebookLastVisit: {
-    ...Typography.caption,
-    color: Palette.textMuted,
-    marginTop: 2,
-  },
-  rebookActions: {
+  bookHeroCard: {
     flexDirection: "row",
-    gap: Spacing.sm,
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    borderRadius: 20,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: "rgba(191, 219, 254, 0.70)",
   },
-  rebookPrimaryBtn: {
+  bookHeroLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
     flex: 1,
+    marginRight: Spacing.sm,
+  },
+  bookHeroIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "rgba(191, 219, 254, 0.8)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bookHeroTextWrap: {
+    flex: 1,
+  },
+  bookHeroTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  bookHeroSub: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  bookHeroCtaPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#2563EB",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  bookHeroCtaText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  upcomingDoctorImg: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Palette.primaryLight,
+  },
+
+  // Floating AI Assistant Button
+  floatingAiBtn: {
+    position: "absolute",
+    bottom: 74,
+    right: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Palette.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 24,
+    gap: 6,
+    shadowColor: Palette.primaryDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
+    zIndex: 99,
+  },
+  floatingAiText: {
+    color: Palette.white,
+    fontSize: 13,
+    fontWeight: "800",
   },
 });

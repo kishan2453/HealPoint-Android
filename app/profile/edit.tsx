@@ -38,7 +38,7 @@ import {
 } from "@/constants/theme";
 import { useAuth } from "@/hooks/use-auth";
 import { getUserImage } from "@/lib/image";
-import { isValidIndianPhone } from "@/lib/validation";
+import { isValidIndianPhone, validateAdultDob } from "@/lib/validation";
 import { toErrorMessage } from "@/services/api";
 
 const GENDERS = ["Male", "Female", "Other"];
@@ -69,6 +69,7 @@ export default function EditProfileScreen() {
     type?: string;
   } | null>(null);
   const [error, setError] = useState("");
+  const [dobError, setDobError] = useState("");
   const [success, setSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -102,14 +103,33 @@ export default function EditProfileScreen() {
         mediaTypes: ["images"],
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 0.7,
+        base64: true,
       });
-      if (result.canceled) return;
+      if (result.canceled || !result.assets?.length) return;
       const asset = result.assets[0];
+
+      // File size validation (max 5MB)
+      if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
+        setError("Selected image exceeds 5MB limit. Please choose a smaller photo.");
+        return;
+      }
+
+      // Check format
+      const mime = asset.mimeType || "image/jpeg";
+      if (!mime.startsWith("image/")) {
+        setError("Please choose a valid image file (JPEG, PNG, or WebP).");
+        return;
+      }
+
+      const uri = asset.base64
+        ? `data:${mime};base64,${asset.base64}`
+        : asset.uri;
+
       setImage({
-        uri: asset.uri,
+        uri,
         name: asset.fileName || "profile.jpg",
-        type: asset.mimeType || "image/jpeg",
+        type: mime,
       });
       setError("");
     } catch {
@@ -145,6 +165,7 @@ export default function EditProfileScreen() {
 
   const save = async () => {
     setError("");
+    setDobError("");
     if (!name.trim()) {
       setError("Name is required.");
       return;
@@ -152,6 +173,18 @@ export default function EditProfileScreen() {
     if (phone && !isValidIndianPhone(phone)) {
       setError("Enter a valid 10-digit Indian phone number.");
       return;
+    }
+    if (dob.trim()) {
+      const dobCheck = validateAdultDob(dob.trim());
+      if (!dobCheck.isValid) {
+        const msg =
+          dobCheck.age !== undefined && dobCheck.age < 18
+            ? "You must be at least 18 years old to use HealPoint."
+            : dobCheck.error || "You must be at least 18 years old to use HealPoint.";
+        setDobError(msg);
+        setError(msg);
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -303,9 +336,13 @@ export default function EditProfileScreen() {
             <Input
               label="Date of Birth (DD-MM-YYYY)"
               value={dob}
-              onChangeText={setDob}
+              onChangeText={(val) => {
+                setDob(val);
+                if (dobError) setDobError("");
+              }}
               placeholder="e.g. 15-08-1992"
               autoCapitalize="none"
+              error={dobError}
             />
 
             {/* Gender Selector */}

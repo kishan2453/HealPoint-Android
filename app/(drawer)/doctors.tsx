@@ -8,7 +8,7 @@
  * not expose skip/page — instead an honest "showing X of Y" note is shown.
  */
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
@@ -23,15 +23,18 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { DoctorCard } from "@/components/DoctorCard";
+import { DoctorCompareTray } from "@/components/DoctorCompareTray";
 import { DrawerToggleButton } from "@/components/DrawerToggleButton";
 import { DoctorListSkeleton } from "@/components/DoctorCardSkeleton";
 import { DoctorFilterSheet } from "@/components/DoctorFilterSheet";
 import { DoctorSortSheet } from "@/components/DoctorSortSheet";
+import { PatientBottomNav } from "@/components/PatientBottomNav";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { Palette, Radius, Spacing, Typography } from "@/constants/theme";
+import { useDoctorComparison } from "@/hooks/use-doctor-comparison";
 import { useFavorites } from "@/hooks/use-favorites";
 import { useHospitals } from "@/hooks/use-hospitals";
 import { useDoctorFilterOptions } from "@/hooks/use-doctor-filter-options";
@@ -47,6 +50,7 @@ import {
 } from "@/lib/doctor-search";
 
 export default function DoctorsScreen() {
+  const router = useRouter();
   const params = useLocalSearchParams<{
     search?: string;
     speciality?: string;
@@ -58,6 +62,7 @@ export default function DoctorsScreen() {
 
   const { favoriteIds } = useFavorites();
   const { hospitals } = useHospitals();
+  const { compareCount, canCompare, selectedIds } = useDoctorComparison();
   const { doctors, totalCount, loading, error, runSearch } = useDoctorSearch();
   const { options: filterOptions } = useDoctorFilterOptions();
 
@@ -212,7 +217,10 @@ export default function DoctorsScreen() {
       {/* ---------------- Header ---------------- */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <DrawerToggleButton />
+          <DrawerToggleButton
+            color={Palette.text}
+            backgroundColor="rgba(37, 99, 235, 0.08)"
+          />
           <View style={styles.headerTexts}>
             <Text style={styles.title}>Find a doctor</Text>
             <Text style={styles.subtitle}>
@@ -294,6 +302,31 @@ export default function DoctorsScreen() {
           </Text>
           <Ionicons name="chevron-down" size={16} color={Palette.textMuted} />
         </Pressable>
+
+        {compareCount > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`View comparison of ${compareCount} doctors`}
+            onPress={() => {
+              if (canCompare) {
+                router.push({
+                  pathname: "/doctor/compare" as never,
+                  params: { ids: selectedIds.join(",") },
+                });
+              }
+            }}
+            style={({ pressed }) => [
+              styles.toolbarButton,
+              styles.compareButtonActive,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons name="git-compare" size={16} color={Palette.white} />
+            <Text style={styles.compareButtonText}>
+              Compare ({compareCount})
+            </Text>
+          </Pressable>
+        ) : null}
 
         {hasActiveFilters ? (
           <Pressable
@@ -442,6 +475,10 @@ export default function DoctorsScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
+          initialNumToRender={8}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+          removeClippedSubviews={true}
           ListFooterComponent={
             <View style={styles.listFooter}>
               {totalCount > visibleDoctors.length ? (
@@ -456,6 +493,7 @@ export default function DoctorsScreen() {
                   result
                 </Text>
               )}
+              {compareCount > 0 ? <View style={{ height: 140 }} /> : null}
             </View>
           }
         />
@@ -475,6 +513,12 @@ export default function DoctorsScreen() {
         onSelect={selectSort}
         onClose={() => setSortVisible(false)}
       />
+
+      {/* Floating Doctor Comparison Tray */}
+      <DoctorCompareTray />
+
+      {/* Persistent Patient Bottom Navigation */}
+      <PatientBottomNav activeTab="search" />
     </SafeAreaView>
   );
 }
@@ -571,6 +615,15 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
   },
+  compareButtonActive: {
+    backgroundColor: Palette.primaryDark,
+    borderColor: Palette.primaryDark,
+  },
+  compareButtonText: {
+    ...Typography.caption,
+    color: Palette.white,
+    fontWeight: "700",
+  },
   pressed: {
     opacity: 0.88,
     transform: [{ scale: 0.98 }],
@@ -628,7 +681,7 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
-    paddingBottom: Spacing.xxl,
+    paddingBottom: 85,
   },
   separator: {
     height: Spacing.md,

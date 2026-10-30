@@ -24,6 +24,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { OnlineDoctorCard } from "@/components/OnlineDoctorCard";
 import { DrawerToggleButton } from "@/components/DrawerToggleButton";
+import { PatientBottomNav } from "@/components/PatientBottomNav";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Loading } from "@/components/ui/Loading";
@@ -35,12 +36,17 @@ import * as subscriptionService from "@/services/subscriptions";
 import type { OnlineDoctor, UserSubscriptionEntitlement } from "@/types";
 
 const SPECIALITIES = [
+  "All",
   "General Physician",
   "Cardiologist",
   "Dermatologist",
   "Pediatrician",
   "Psychiatrist",
   "Orthopedic",
+  "Dentist",
+  "Emergency Specialist",
+  "Eye Specialist",
+  "ENT Specialist",
 ];
 
 export default function ConsultOnlineScreen() {
@@ -48,7 +54,6 @@ export default function ConsultOnlineScreen() {
 
   const [doctors, setDoctors] = useState<OnlineDoctor[]>([]);
   const [loading, setLoading] = useState(true);
-  const [verifyingAccess, setVerifyingAccess] = useState(true);
   const [entitlement, setEntitlement] =
     useState<UserSubscriptionEntitlement | null>(null);
   const [error, setError] = useState("");
@@ -56,25 +61,14 @@ export default function ConsultOnlineScreen() {
   const [query, setQuery] = useState("");
   const [speciality, setSpeciality] = useState("");
 
-  const verifyEntitlement = useCallback(async () => {
+  const refreshEntitlement = useCallback(async () => {
     try {
       const ent = await subscriptionService.getPatientSubscriptionEntitlement();
       setEntitlement(ent);
-      if (!ent.isEligibleForVideoConsultation) {
-        // Free user or exhausted quota -> DIRECTLY OPEN PREMIUM/SUBSCRIPTION PLANS
-        router.replace({
-          pathname: "/(drawer)/subscription",
-          params: { notice: ent.code || "subscription_required" },
-        });
-        return false;
-      }
-      return true;
     } catch {
-      return true;
-    } finally {
-      setVerifyingAccess(false);
+      // Non-blocking: will evaluate when user clicks book
     }
-  }, [router]);
+  }, []);
 
   const loadDoctors = useCallback(
     async (
@@ -85,7 +79,7 @@ export default function ConsultOnlineScreen() {
       try {
         const res = await consultationService.getOnlineDoctors({
           search: opts.search || undefined,
-          speciality: opts.speciality || undefined,
+          speciality: opts.speciality && opts.speciality !== "All" ? opts.speciality : undefined,
         });
         setDoctors(res.doctors || []);
       } catch (err) {
@@ -106,20 +100,14 @@ export default function ConsultOnlineScreen() {
   );
 
   useScreenFocus(() => {
-    verifyEntitlement().then((eligible) => {
-      if (eligible) {
-        loadDoctors({ quiet: true });
-      }
-    });
+    loadDoctors({ search: query, speciality, quiet: true });
+    refreshEntitlement();
   });
 
   useEffect(() => {
-    verifyEntitlement().then((eligible) => {
-      if (eligible) {
-        loadDoctors();
-      }
-    });
-  }, [verifyEntitlement, loadDoctors]);
+    loadDoctors({ search: query, speciality });
+    refreshEntitlement();
+  }, [loadDoctors, refreshEntitlement]);
 
   const onSearch = () => {
     Keyboard.dismiss();
@@ -127,7 +115,7 @@ export default function ConsultOnlineScreen() {
   };
 
   const onSelectSpeciality = (value: string) => {
-    const next = speciality === value ? "" : value;
+    const next = speciality === value || value === "All" ? "" : value;
     setSpeciality(next);
     loadDoctors({
       search: query,
@@ -139,25 +127,9 @@ export default function ConsultOnlineScreen() {
   const onRefresh = () => {
     if (refreshing) return;
     setRefreshing(true);
+    refreshEntitlement();
     loadDoctors({ search: query, speciality, quiet: true });
   };
-
-  if (verifyingAccess) {
-    return (
-      <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-        <View style={styles.header}>
-          <DrawerToggleButton />
-          <View style={styles.headerTitles}>
-            <Text style={styles.headerTitle}>Consult Online</Text>
-            <Text style={styles.headerSubtitle}>
-              Video consultation with verified doctors
-            </Text>
-          </View>
-        </View>
-        <Loading label="Checking video consultation access..." />
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
@@ -313,6 +285,7 @@ export default function ConsultOnlineScreen() {
           <OnlineDoctorCard doctor={item} index={index} />
         )}
       />
+      <PatientBottomNav activeTab="video" />
     </SafeAreaView>
   );
 }
@@ -452,6 +425,7 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: Spacing.lg,
+    paddingBottom: 110,
     gap: Spacing.lg,
   },
   sectionNote: {

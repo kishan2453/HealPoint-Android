@@ -25,6 +25,7 @@
  * secrets belong here.
  */
 import Constants from "expo-constants";
+import { Platform } from "react-native";
 
 /** The Express backend always listens on this port on the same machine. */
 export const API_PORT = 8080;
@@ -35,6 +36,9 @@ export const DEFAULT_LAN_IP = "192.168.1.36";
 /** Every API route lives under this base path on the backend. */
 export const API_BASE_PATH = "/api/v1";
 
+/** Canonical production backend API base URL */
+export const PRODUCTION_API_URL = "https://heal-point-backend.vercel.app/api/v1";
+
 /** Sentinal host used when no API host could be resolved yet. */
 export const PLACEHOLDER_HOST = "LAN-IP-NOT-CONFIGURED";
 
@@ -44,7 +48,7 @@ function envApiUrl(): string {
   if (!fromEnv || fromEnv.trim().length === 0) return "";
   let url = fromEnv.trim().replace(/\/+$/, "");
   // Sanitize localhost/127.0.0.1 on physical mobile devices
-  if (url.includes("localhost") || url.includes("127.0.0.1")) {
+  if (Platform.OS !== "web" && (url.includes("localhost") || url.includes("127.0.0.1"))) {
     url = url.replace(/(localhost|127\.0\.0\.1)/g, DEFAULT_LAN_IP);
   }
   return url;
@@ -137,14 +141,27 @@ function detectMetroHost(): string {
 }
 
 export function resolveApiUrl(): string {
-  const host = detectMetroHost();
+  const isWeb = Platform.OS === "web";
+  const isProd = process.env.NODE_ENV === "production" || !__DEV__;
+  const isHostedWeb =
+    isWeb &&
+    typeof window !== "undefined" &&
+    window.location.hostname !== "localhost" &&
+    window.location.hostname !== "127.0.0.1";
+
   const explicit = envApiUrl();
 
-  // If Metro dev server host is detected in development, it reflects the exact
-  // machine IP the physical device or simulator is connected to right now.
-  // We prefer it over explicit LAN/localhost settings (which often become stale
-  // when moving between Wi-Fi networks).
-  // Explicit non-LAN URLs (e.g. HTTPS production or ngrok tunnel) are respected.
+  // If deployed on web (Vercel, custom domain) or building web for production:
+  // Never use private LAN / localhost IP. Must use production backend.
+  if (isHostedWeb || (isWeb && isProd)) {
+    if (explicit && !isPrivateLanUrl(explicit)) {
+      return explicit;
+    }
+    return PRODUCTION_API_URL;
+  }
+
+  // If Metro dev server host is detected in development (Android/iOS dev):
+  const host = detectMetroHost();
   if (host) {
     if (!explicit || isPrivateLanUrl(explicit)) {
       return `http://${host}:${API_PORT}${API_BASE_PATH}`;
@@ -152,9 +169,18 @@ export function resolveApiUrl(): string {
     return explicit;
   }
 
-  if (explicit) return explicit;
+  if (explicit) {
+    if (isProd && isPrivateLanUrl(explicit)) {
+      return PRODUCTION_API_URL;
+    }
+    return explicit;
+  }
 
-  // Fallback to verified local LAN IP so physical device always works
+  if (isProd) {
+    return PRODUCTION_API_URL;
+  }
+
+  // Fallback to verified local LAN IP so physical device always works in dev
   return `http://${DEFAULT_LAN_IP}:${API_PORT}${API_BASE_PATH}`;
 }
 

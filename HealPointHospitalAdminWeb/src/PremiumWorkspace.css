@@ -1,0 +1,314 @@
+.hospital-shell {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 52%, #f8fafc 100%);
+  font-family: "Plus Jakarta Sans", Inter, ui-sans-serif, system-ui, sans-serif;
+}
+.hospital-sidebar {
+  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 68%, #1e293b 100%);
+  box-shadow: 8px 0 34px rgba(37, 99, 235, 0.14);
+}
+.hospital-sidebar nav button,
+.hospital-sidebar .logout {
+  color: #bfdbfe;
+}
+.hospital-sidebar nav button:hover,
+.hospital-sidebar nav button.active {
+  color: #2563eb;
+  background: #fff;
+  box-shadow: 0 9px 20px rgba(37, 99, 235, 0.16);
+  transform: translateX(3px);
+}
+.hospital-sidebar nav button,
+.hospital-sidebar .logout {
+  transition:
+    transform 0.22s ease,
+    background 0.22s ease,
+    color 0.22s ease,
+    box-shadow 0.22s ease;
+}
+.hospital-sidebar .logout {
+  color: #fecaca;
+}
+.hospital-sidebar .logout:hover {
+  color: #fff;
+  background: rgba(220, 38, 38, 0.2);
+  border-color: rgba(254, 202, 202, 0.65);
+  transform: translateX(3px);
+}
+.hospital-brand > span {
+  animation: hospitalBrandPulse 3.4s ease-in-out infinite;
+}
+.hospital-header {
+  animation: hospitalRise 0.5s ease both;
+}
+.hospital-header h1 {
+  font-weight: 900;
+  letter-spacing: -0.05em;
+}
+.hospital-header p {
+  font-weight: 650;
+}
+.refresh-button,
+.profile-form button,
+.gallery-add button,
+.reschedule-form > button {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.16);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.refresh-button:hover,
+.profile-form button:hover,
+.gallery-add button:hover,
+.reschedule-form > button:hover {
+  box-shadow: 0 15px 28px rgba(37, 99, 235, 0.24);
+  transform: translateY(-2px);
+}
+.stat-grid button,
+.panel {
+  border-color: #e2e8f0;
+}
+.stat-grid button {
+  animation: hospitalRise 0.5s ease both;
+}
+.stat-grid button:nth-child(2) {
+  animation-delay: 0.05s;
+}
+.stat-grid button:nth-child(3) {
+  animation-delay: 0.1s;
+}
+.stat-grid button:nth-child(4) {
+  animation-delay: 0.15s;
+}
+.stat-grid button:nth-child(5) {
+  animation-delay: 0.2s;
+}
+.stat-grid button:nth-child(6) {
+  animation-delay: 0.25s;
+}
+.stat-grid button:hover,
+.panel:hover {
+  box-shadow: 0 18px 42px rgba(37, 99, 235, 0.1);
+  transform: translateY(-3px);
+}
+.panel {
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease;
+}
+.stat-grid strong {
+  color: #2563eb;
+}
+.status-badge {
+  color: #2563eb;
+  background: #dbeafe;
+}
+.range-tabs button.selected {
+  border-color: #2563eb;
+  background: #2563eb;
+}
+.range-tabs button,
+.row-actions button,
+.pagination button {
+  transition:
+    transform 0.18s ease,
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+.range-tabs button:hover,
+.row-actions button:hover,
+.pagination button:hover {
+  transform: translateY(-1px);
+  border-color: #3b82f6;
+}
+.search-field:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+.data-table tbody tr {
+  transition: background 0.18s ease;
+}
+.data-table tbody tr:hover {
+  background: #eff6ff;
+}
+.portal-logout-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(8px);
+  animation: hospitalFade 0.2s ease both;
+}
+.portal-logout-dialog {
+  width: min(430px, 100%);
+  padding: 30px;
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 30px 90px rgba(15, 23, 42, 0.24);
+  text-align: center;
+  animation: hospitalDialog 0.25s ease both;
+}
+.portal-logout-icon {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 16px;
+  place-items: center;
+  border-radius: 18px;
+  color: #b91c1c;
+  background: #fef2f2;
+  font-size: 1.2rem;
+}
+.portal-logout-dialog h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.15rem;
+}
+.portal-logout-dialog p {
+  margin: 9px 0 22px;
+  color: #64748b;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+.portal-logout-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+.portal-logout-actions button {
+  min-width: 112px;
+  padding: 11px 15px;
+  border: 1px solid #dbe5e5;
+  border-radius: 11px;
+  color: #475569;
+  background: #fff;
+  font-weight: 850;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+.portal-logout-actions button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+.portal-logout-actions .confirm {
+  border-color: #dc2626;
+  color: #fff;
+  background: #dc2626;
+  box-shadow: 0 10px 20px rgba(220, 38, 38, 0.18);
+}
+.portal-logout-actions .confirm:hover {
+  background: #b91c1c;
+  box-shadow: 0 14px 24px rgba(220, 38, 38, 0.25);
+}
+.portal-loading {
+  background: linear-gradient(135deg, #f8fafc, #eef2f7);
+  color: #2563eb;
+}
+.portal-loading span {
+  border-color: #93c5fd;
+  border-top-color: #2563eb;
+}
+@keyframes hospitalRise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes hospitalFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes hospitalDialog {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+@keyframes hospitalBrandPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(37, 99, 235, 0);
+  }
+}
+.hospital-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 16px;
+}
+.hospital-brand-logo {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  object-fit: contain;
+  object-position: center;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 4px;
+}
+.hospital-brand > div {
+  min-width: 0;
+}
+.hospital-brand strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+.hospital-brand small {
+  display: block;
+  color: rgba(217, 248, 243, 0.72);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.profile-logo-preview {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  margin: 0 auto 16px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 2rem;
+}
+.profile-logo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  padding: 8px;
+}
+
+.hospital-main { animation: fadeIn 0.3s ease-in-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }

@@ -14,6 +14,7 @@ import {
   isApiUrlConfigured,
 } from "@/lib/env";
 export { getApiDiagnosticInfo as getApiRuntimeDiagnostic } from "@/lib/env";
+import { Platform } from "react-native";
 import type { ApiErrorCategory } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -127,14 +128,16 @@ function networkErrorMessage(
     });
   }
 
+  const isLocalMobileDev = __DEV__ && Platform.OS !== "web";
+
   // Backend URL is still the placeholder -> the developer needs to run
   // `npm run detect:ip` (or set EXPO_PUBLIC_API_URL). Only mention that in dev.
   if (!isApiUrlConfigured()) {
-    const hint = __DEV__
-      ? ' The app does not know your laptop IP yet — run "npm run detect:ip" on the dev machine and restart Expo.'
-      : "";
+    const hint = isLocalMobileDev
+      ? ' The app does not know your laptop IP yet — run "npm run detect:ip" on the dev machine and restart Expo. Make sure the phone and computer are on the same Wi-Fi and the backend is running.'
+      : " Please check your internet connection and try again.";
     return {
-      message: `Unable to connect to HealPoint right now.${hint} Make sure the phone and computer are on the same Wi-Fi and the backend is running.`,
+      message: `Unable to connect to HealPoint right now.${hint}`,
       category,
     };
   }
@@ -153,13 +156,12 @@ function networkErrorMessage(
   if (cause?.name === "AbortError") {
     const hint = __DEV__ ? ` (connecting to ${describeApiEndpoint()})` : "";
     return {
-      message: `HealPoint took too long to respond.${hint} Please check your Wi-Fi and try again.`,
+      message: `HealPoint server took too long to respond.${hint} Please check your connection and try again.`,
       category,
     };
   }
 
-  // Connection refused / host not found / network failure — all boil down to the same
-  // user-facing guidance. Technical details stay in the dev log above.
+  // Connection refused / host not found / network failure
   if (
     cause?.code === "ECONNREFUSED" ||
     /(refused|ECONNREFUSED)/i.test(cause?.message || "") ||
@@ -170,41 +172,42 @@ function networkErrorMessage(
     /(Network request failed|Failed to fetch)/i.test(cause?.message || "")
   ) {
     const hint = __DEV__ ? ` (target: ${describeApiEndpoint()})` : "";
+    const detail = isLocalMobileDev
+      ? " Make sure the phone and computer are on the same Wi-Fi network and that the backend server is running."
+      : " Please check your internet connection or try again shortly.";
     return {
-      message: `Can't connect to HealPoint server${hint}. Make sure the phone and computer are on the same Wi-Fi network and that the backend server is running.`,
+      message: `Can't connect to HealPoint server${hint}.${detail}`,
       category,
     };
   }
 
   // Anything else — generic network failure.
   return {
-    message: `Can't connect to HealPoint right now. Please check your Wi-Fi connection and try again.`,
+    message: `Can't connect to HealPoint right now. Please check your internet connection and try again.`,
     category,
   };
 }
 
 function containsDuplicateKeyError(data: unknown, message: string): boolean {
-  if (/(11000|duplicate key|E11000)/i.test(message)) return true;
+  const isDup = /(11000|duplicate key|E11000)/i.test(message);
+  if (isDup && /email/i.test(message)) return true;
   if (!data || typeof data !== "object") return false;
 
-  const error = (data as { error?: unknown }).error;
-  if (typeof error === "string")
-    return /(11000|duplicate key|E11000)/i.test(error);
-  if (!error || typeof error !== "object") return false;
+  const dataObj = data as { error?: unknown; message?: unknown; errmsg?: unknown };
+  const rawMsg = String(dataObj.message || dataObj.error || dataObj.errmsg || "");
+  if (/(11000|duplicate key|E11000)/i.test(rawMsg) && /email/i.test(rawMsg)) return true;
 
-  const details = error as {
-    code?: unknown;
-    message?: unknown;
-    errmsg?: unknown;
-  };
-  return (
-    details.code === 11000 ||
-    details.code === "11000" ||
-    (typeof details.message === "string" &&
-      /(11000|duplicate key|E11000)/i.test(details.message)) ||
-    (typeof details.errmsg === "string" &&
-      /(11000|duplicate key|E11000)/i.test(details.errmsg))
-  );
+  const errorObj = typeof dataObj.error === "object" && dataObj.error !== null ? (dataObj.error as any) : null;
+  if (errorObj) {
+    const is11000 = errorObj.code === 11000 || errorObj.code === "11000";
+    const hasEmail = Boolean(
+      errorObj.keyPattern?.email ||
+      errorObj.keyValue?.email ||
+      /email/i.test(String(errorObj.message || errorObj.errmsg || ""))
+    );
+    return is11000 && hasEmail;
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -332,8 +335,11 @@ function isRetryable(error: unknown): boolean {
 export function buildApiUrl(base: string, path: string): string {
   const cleanBase = (base || "").replace(/\/+$/, "");
   let cleanPath = path.startsWith("/") ? path : `/${path}`;
-  if (cleanBase.endsWith("/api/v1") && cleanPath.startsWith("/api/v1/")) {
-    cleanPath = cleanPath.slice("/api/v1".length);
+  if (
+    cleanBase.endsWith("/api/v1") &&
+    (cleanPath === "/api/v1" || cleanPath.startsWith("/api/v1/"))
+  ) {
+    cleanPath = cleanPath.slice("/api/v1".length) || "/";
   }
   return `${cleanBase}${cleanPath}`;
 }

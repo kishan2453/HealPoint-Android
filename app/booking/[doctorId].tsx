@@ -525,20 +525,19 @@ export default function BookingScreen() {
       setEntitlement(ent);
       if (!ent.isEligibleForVideoConsultation) {
         Alert.alert(
-          ent.code === "quota_exhausted"
-            ? "Limit Reached"
-            : "Subscription Required",
-          ent.code === "quota_exhausted"
-            ? "Your monthly video consultation limit has been reached. Choose an eligible plan to continue."
-            : "Video consultations are available with an active premium plan. Choose a plan to continue.",
+          "Subscription Required",
+          "Subscription Required – Please subscribe to continue with video consultation.",
           [
-            { text: "Stay on Clinic Visit", style: "cancel" },
+            { text: "Cancel", style: "cancel" },
             {
               text: "View Plans",
               onPress: () => {
                 router.push({
                   pathname: "/(drawer)/subscription",
-                  params: { notice: ent.code || "subscription_required" },
+                  params: {
+                    notice: ent.code || "subscription_required",
+                    returnDoctorId: String(doctorId),
+                  },
                 });
               },
             },
@@ -549,7 +548,25 @@ export default function BookingScreen() {
       setConsultationType("video");
       setPaymentMethod("online");
     } catch {
-      setConsultationType("video");
+      Alert.alert(
+        "Subscription Required",
+        "Subscription Required – Please subscribe to continue with video consultation.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "View Plans",
+            onPress: () => {
+              router.push({
+                pathname: "/(drawer)/subscription",
+                params: {
+                  notice: "subscription_required",
+                  returnDoctorId: String(doctorId),
+                },
+              });
+            },
+          },
+        ],
+      );
     }
   };
 
@@ -661,10 +678,9 @@ export default function BookingScreen() {
     ) {
       Alert.alert(
         "Subscription Required",
-        entitlement.message ||
-          "An active subscription plan is required for video consultations.",
+        "Please subscribe to an eligible plan to access video consultations.",
         [
-          { text: "Stay on Clinic Visit", style: "cancel" },
+          { text: "Cancel", style: "cancel" },
           {
             text: "View Plans",
             onPress: () => {
@@ -1672,7 +1688,7 @@ export default function BookingScreen() {
             />
             <SummaryRow
               label="Selected Slot"
-              value={selectedSlot || "Choose a slot"}
+              value={selectedSlot || "Please select a time slot"}
             />
             <SummaryRow
               label="Consultation"

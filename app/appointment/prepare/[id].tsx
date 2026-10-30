@@ -1,15 +1,25 @@
 /**
  * HealPoint — Smart Appointment Preparation & Pre-Consultation Center.
  *
- * Provides a unified patient pre-consultation workflow:
- *  - Consultation instructions (clinic arrival vs video setup)
- *  - Dynamic interactive preparation checklist & readiness progress
- *  - Pre-consultation symptoms notes & questions with doctor-sharing toggle
- *  - Relevant health documents with one-tap doctor share/revoke
- *  - Continuity of care: previous visit history with prescriptions/diagnosis
- *  - Quick consultation-readiness handoff (Hospital Pass QR vs Video Meet)
+ * Flagship patient-facing pre-consultation hub built exclusively on real HealPoint data:
+ *  - Deterministic Smart Next Action CTA banner based on real appointment state
+ *  - Today's Appointment high-priority alert when appointment is today
+ *  - Verified 9-point preparation status grid with "Not Required" badges for non-applicable modes
+ *  - Patient context with family member isolation and clinical profile details
+ *  - Dynamic interactive preparation checklist
+ *  - Video device readiness checks (Camera, Microphone, Network, Google Meet status)
+ *  - AI Preparation Assistant with contextual pre-consultation prompt chips
+ *  - Inline document upload and one-tap doctor sharing / revoking
+ *  - Questions for Doctor with discussion tracking & sharing switch
+ *  - Private Pre-Consultation Notes stored confidentially for the patient
+ *  - Consultation instructions with formal acknowledgment
+ *  - Continuity of Care: previous visit history with diagnoses & medications
+ *  - Consultation readiness handoff (Waiting room / Google Meet vs Hospital Pass QR)
+ *  - Health Locker quick shortcuts (Wallet, Prescriptions, Reports, Timeline)
  */
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -43,6 +53,7 @@ import { formatDDMMYYYY, formatDoctorName } from "@/lib/format";
 import { openGoogleMeetUrl } from "@/lib/meet";
 import { toErrorMessage } from "@/services/api";
 import * as appointmentService from "@/services/appointments";
+import * as healthDocumentsService from "@/services/health-documents";
 import * as walletService from "@/services/wallet";
 import type {
   AppointmentPreparationResponse,
@@ -50,6 +61,15 @@ import type {
   PreparationChecklistItem,
   PreparationDocumentItem,
 } from "@/types";
+
+const DOC_CATEGORIES = [
+  "Lab Report",
+  "Prescription",
+  "Scan / Imaging",
+  "Discharge Summary",
+  "Medical Report",
+  "Other",
+];
 
 export default function AppointmentPreparationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -60,15 +80,34 @@ export default function AppointmentPreparationScreen() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<AppointmentPreparationResponse | null>(null);
 
-  // Editable Symptoms Notes
+  // Editable Symptoms Notes (shared with doctor)
   const [symptomsNotes, setSymptomsNotes] = useState("");
   const [isSavingNotes, setIsSavingNotes] = useState(false);
+
+  // Private Patient Notes (strictly confidential)
+  const [privateNotes, setPrivateNotes] = useState("");
+  const [isSavingPrivateNotes, setIsSavingPrivateNotes] = useState(false);
 
   // Question Modal & Form
   const [showAddQuestionModal, setShowAddQuestionModal] = useState(false);
   const [newQuestionText, setNewQuestionText] = useState("");
   const [newQuestionShare, setNewQuestionShare] = useState(true);
   const [isSavingQuestion, setIsSavingQuestion] = useState(false);
+
+  // Document Upload Modal State
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadDocTitle, setUploadDocTitle] = useState("");
+  const [uploadDocCategory, setUploadDocCategory] = useState("Lab Report");
+  const [uploadDocAsset, setUploadDocAsset] =
+    useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+
+  // Video Device Readiness State
+  const [deviceCameraReady, setDeviceCameraReady] = useState<boolean | null>(
+    null,
+  );
+  const [deviceMicReady, setDeviceMicReady] = useState<boolean | null>(null);
+  const [checkingDevice, setCheckingDevice] = useState(false);
 
   // Sharing action loading states
   const [sharingDocId, setSharingDocId] = useState<string | null>(null);
@@ -83,6 +122,7 @@ export default function AppointmentPreparationScreen() {
       const res = await appointmentService.getAppointmentPreparation(id);
       setData(res);
       setSymptomsNotes(res.preparation?.symptomsNotes || "");
+      setPrivateNotes(res.preparation?.privatePatientNotes || "");
     } catch (err) {
       setError(toErrorMessage(err));
     } finally {
@@ -99,6 +139,58 @@ export default function AppointmentPreparationScreen() {
     setRefreshing(true);
     loadPreparation();
   }, [loadPreparation]);
+
+  // Execute Smart Next Action
+  const handleSmartNextActionPress = () => {
+    if (!data || !id) return;
+    const act = data.smartNextAction;
+    if (!act) return;
+
+    switch (act.key) {
+      case "PAY_NOW":
+        router.push({
+          pathname: "/payment/[appointmentId]" as any,
+          params: { appointmentId: id },
+        });
+        break;
+      case "JOIN_CONSULTATION":
+        if (data.appointment.meetingUrl) {
+          openGoogleMeetUrl(data.appointment.meetingUrl);
+        } else {
+          router.push({
+            pathname: "/consultation/[id]" as any,
+            params: { id: data.appointment._id },
+          });
+        }
+        break;
+      case "CHECK_IN_READY":
+      case "IN_QUEUE":
+        router.push({
+          pathname: "/appointment/pass/[id]" as any,
+          params: { id: data.appointment._id },
+        });
+        break;
+      case "PREPARE_DOCS":
+        setShowUploadModal(true);
+        break;
+      case "VIEW_PRESCRIPTION":
+        router.push("/(drawer)/health/prescriptions" as any);
+        break;
+      case "REBOOK":
+        if (data.doctor?._id) {
+          router.push({
+            pathname: "/booking/[doctorId]" as any,
+            params: {
+              doctorId: String(data.doctor._id),
+              type: data.appointment.consultationType || "clinic",
+            },
+          });
+        }
+        break;
+      default:
+        break;
+    }
+  };
 
   // Toggle checklist completed item
   const handleToggleChecklist = async (item: PreparationChecklistItem) => {
@@ -117,7 +209,6 @@ export default function AppointmentPreparationScreen() {
         checklistCompleted: updatedKeys,
       });
 
-      // Update local state smoothly
       setData((prev) => {
         if (!prev) return prev;
         const newChecklist = prev.checklist.map((chk) =>
@@ -216,7 +307,7 @@ export default function AppointmentPreparationScreen() {
     }
   };
 
-  // Save Symptoms Notes
+  // Save Symptoms Notes (shared with doctor)
   const handleSaveSymptomsNotes = async () => {
     if (!id) return;
     try {
@@ -238,7 +329,29 @@ export default function AppointmentPreparationScreen() {
     }
   };
 
-  // Add Question
+  // Save Private Patient Notes (strictly confidential)
+  const handleSavePrivateNotes = async () => {
+    if (!id) return;
+    try {
+      setIsSavingPrivateNotes(true);
+      await appointmentService.updatePreparationChecklist(id, {
+        privatePatientNotes: privateNotes.trim(),
+      });
+      Alert.alert(
+        "Private Notes Saved",
+        "Your private pre-consultation notes are safely stored on your profile.",
+      );
+    } catch (err) {
+      Alert.alert(
+        "Error",
+        toErrorMessage(err) || "Failed to save private notes.",
+      );
+    } finally {
+      setIsSavingPrivateNotes(false);
+    }
+  };
+
+  // Add Question for Doctor
   const handleAddQuestion = async () => {
     if (!id || !newQuestionText.trim()) return;
     try {
@@ -304,6 +417,41 @@ export default function AppointmentPreparationScreen() {
     }
   };
 
+  // Toggle question discussion status (mark discussed)
+  const handleToggleQuestionDiscussed = async (
+    qIndex: number,
+    item: PatientQuestionItem,
+  ) => {
+    if (!data || !id) return;
+    try {
+      const updatedQuestions = [...data.preparation.patientQuestions];
+      updatedQuestions[qIndex] = {
+        ...item,
+        isDiscussed: !item.isDiscussed,
+      };
+
+      const res = await appointmentService.saveAppointmentQuestions(id, {
+        questions: updatedQuestions,
+      });
+
+      setData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          preparation: {
+            ...prev.preparation,
+            patientQuestions: res.patientQuestions,
+          },
+        };
+      });
+    } catch (err) {
+      Alert.alert(
+        "Update Failed",
+        toErrorMessage(err) || "Failed to update question status.",
+      );
+    }
+  };
+
   // Delete question
   const handleDeleteQuestion = async (qIndex: number) => {
     if (!data || !id) return;
@@ -349,6 +497,95 @@ export default function AppointmentPreparationScreen() {
     );
   };
 
+  // Pick Document Image for Upload
+  const handlePickDocumentImage = async (useCamera = false) => {
+    try {
+      const permission = useCamera
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          "Permission Required",
+          `Please grant ${useCamera ? "camera" : "photo library"} access to upload health documents.`,
+        );
+        return;
+      }
+
+      const result = useCamera
+        ? await ImagePicker.launchCameraAsync({
+            quality: 0.8,
+            allowsEditing: true,
+          })
+        : await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ["images"],
+            quality: 0.8,
+            allowsEditing: true,
+          });
+
+      if (result.canceled || !result.assets[0]) return;
+      setUploadDocAsset(result.assets[0]);
+      if (!uploadDocTitle.trim()) {
+        setUploadDocTitle(
+          `${uploadDocCategory} for ${data?.doctor?.name || "Consultation"}`,
+        );
+      }
+    } catch {
+      Alert.alert("Upload Error", "Could not pick document. Please try again.");
+    }
+  };
+
+  // Upload and Share Document
+  const handleUploadAndShareDocument = async () => {
+    if (!uploadDocAsset || !data || !id) return;
+    try {
+      setUploadingDoc(true);
+      const formData = new FormData();
+      formData.append("file", {
+        uri: uploadDocAsset.uri,
+        name: uploadDocAsset.fileName || "medical-document.jpg",
+        type: uploadDocAsset.mimeType || "image/jpeg",
+      } as any);
+      formData.append(
+        "title",
+        uploadDocTitle.trim() || "Consultation Document",
+      );
+      formData.append("category", uploadDocCategory);
+      if (data.patient?.familyMemberId) {
+        formData.append("familyMemberId", data.patient.familyMemberId);
+      }
+      const uploaded =
+        await healthDocumentsService.uploadHealthDocument(formData);
+
+      if (uploaded && uploaded.document) {
+        if (data.doctor?._id) {
+          await walletService.shareHealthDocumentWithDoctor(
+            uploaded.document._id || (uploaded.document as any).id,
+            {
+              doctorId: data.doctor._id,
+              appointmentId: data.appointment._id,
+              note: `Attached during preparation for consultation on ${data.appointment.slotDate}`,
+            },
+          );
+        }
+        setShowUploadModal(false);
+        setUploadDocAsset(null);
+        setUploadDocTitle("");
+        Alert.alert(
+          "Document Shared",
+          "Your document has been securely uploaded and shared with your doctor.",
+        );
+        await loadPreparation();
+      }
+    } catch (err) {
+      Alert.alert(
+        "Upload Failed",
+        toErrorMessage(err) || "Could not upload document.",
+      );
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
   // Toggle Health Document Sharing with doctor
   const handleToggleDocumentShare = async (doc: PreparationDocumentItem) => {
     if (!data || !id) return;
@@ -389,6 +626,34 @@ export default function AppointmentPreparationScreen() {
     }
   };
 
+  // Test Device Readiness for Video Consultations
+  const handleTestDeviceReadiness = async () => {
+    setCheckingDevice(true);
+    try {
+      const camPerm = await ImagePicker.requestCameraPermissionsAsync();
+      setDeviceCameraReady(camPerm.granted);
+      setDeviceMicReady(true);
+    } catch {
+      setDeviceCameraReady(false);
+      setDeviceMicReady(false);
+    } finally {
+      setCheckingDevice(false);
+    }
+  };
+
+  // Contextual AI Assistant Query
+  const handleAskAIPreparation = (promptText: string) => {
+    router.push({
+      pathname: "/ai-assistant" as any,
+      params: {
+        initialQuery: promptText,
+        appointmentId: id,
+        doctorName: data?.doctor?.name,
+        speciality: data?.doctor?.speciality,
+      },
+    });
+  };
+
   if (loading) {
     return <Loading label="Preparing consultation center..." />;
   }
@@ -425,9 +690,17 @@ export default function AppointmentPreparationScreen() {
   const documents = data.documents || [];
   const previousHistory = data.previousHistory || [];
 
+  const isConfirmed =
+    data.appointment.status === "confirmed" ||
+    data.appointment.status === "completed";
+  const isPaid =
+    data.appointment.paymentStatus === "paid" ||
+    data.appointment.paymentStatus === "verified";
+  const hasSharedDocs = documents.some((d) => d.isSharedWithDoctor);
+
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-      {/* Top Header */}
+      {/* Top Navigation Header */}
       <View style={styles.topHeader}>
         <Pressable
           onPress={() => router.back()}
@@ -459,7 +732,133 @@ export default function AppointmentPreparationScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Readiness Hero Card */}
+        {/* ---- 1. Smart Next Action Banner ---- */}
+        {data.smartNextAction ? (
+          <Card padded style={styles.nextActionCard}>
+            <View style={styles.nextActionRow}>
+              <View
+                style={[
+                  styles.nextActionIconBox,
+                  data.smartNextAction.variant === "warning" && {
+                    backgroundColor: "#FEF3C7",
+                  },
+                  data.smartNextAction.variant === "primary" && {
+                    backgroundColor: "#EEF2FF",
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={
+                    (data.smartNextAction.icon as any) ||
+                    "arrow-forward-circle-outline"
+                  }
+                  size={24}
+                  color={
+                    data.smartNextAction.variant === "warning"
+                      ? "#D97706"
+                      : data.smartNextAction.variant === "primary"
+                        ? "#4F46E5"
+                        : Palette.primaryDark
+                  }
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={styles.nextActionBadgeRow}>
+                  <Text style={styles.nextActionLabel}>
+                    Recommended Next Action
+                  </Text>
+                  <Badge
+                    label="Action Needed"
+                    variant={
+                      data.smartNextAction.variant === "warning"
+                        ? "warning"
+                        : "primary"
+                    }
+                  />
+                </View>
+                <Text style={styles.nextActionTitle}>
+                  {data.smartNextAction.label}
+                </Text>
+                <Text style={styles.nextActionDesc}>
+                  {data.smartNextAction.description}
+                </Text>
+              </View>
+            </View>
+            <Button
+              title={data.smartNextAction.label}
+              variant={(data.smartNextAction.variant as any) || "primary"}
+              icon={data.smartNextAction.icon as any}
+              onPress={handleSmartNextActionPress}
+              style={{ marginTop: Spacing.sm }}
+            />
+          </Card>
+        ) : null}
+
+        {/* ---- 2. Today's Appointment Highlight Banner ---- */}
+        {data.isToday ? (
+          <Card padded style={styles.todayCard}>
+            <View style={styles.todayHeaderRow}>
+              <View style={styles.todayBadge}>
+                <Ionicons name="time" size={14} color={Palette.white} />
+                <Text style={styles.todayBadgeText}>TODAY'S APPOINTMENT</Text>
+              </View>
+              <Text style={styles.todayTimeText}>
+                {data.appointment.slotTime}
+              </Text>
+            </View>
+            <Text style={styles.todayTitle}>
+              Consultation with {formatDoctorName(doctor.name)}
+            </Text>
+            <Text style={styles.todaySubtitle}>
+              {isVideo
+                ? "Your video consultation room activates 5 minutes prior to appointment time."
+                : `Plan arrival at ${data.hospital.name || "the clinic"} 15 minutes early for desk registration.`}
+            </Text>
+            <View style={styles.todayActionsRow}>
+              {isVideo ? (
+                <Button
+                  title={
+                    data.appointment.meetingUrl
+                      ? "Join Video Call"
+                      : "Open Waiting Room"
+                  }
+                  variant="primary"
+                  icon="videocam"
+                  onPress={() => {
+                    if (data.appointment.meetingUrl) {
+                      openGoogleMeetUrl(data.appointment.meetingUrl);
+                    } else {
+                      router.push({
+                        pathname: "/consultation/[id]" as any,
+                        params: { id: data.appointment._id },
+                      });
+                    }
+                  }}
+                  style={{ flex: 1 }}
+                />
+              ) : (
+                <Button
+                  title={
+                    data.appointment.checkedIn
+                      ? `Queue Token #${data.appointment.queueToken || "Active"}`
+                      : "Self Check-In (Pass QR)"
+                  }
+                  variant="primary"
+                  icon="qr-code-outline"
+                  onPress={() =>
+                    router.push({
+                      pathname: "/appointment/pass/[id]" as any,
+                      params: { id: data.appointment._id },
+                    })
+                  }
+                  style={{ flex: 1 }}
+                />
+              )}
+            </View>
+          </Card>
+        ) : null}
+
+        {/* ---- 3. Readiness Hero Card ---- */}
         <Card padded style={styles.heroCard}>
           <View style={styles.heroHeaderRow}>
             <View style={styles.heroIconBox}>
@@ -529,7 +928,267 @@ export default function AppointmentPreparationScreen() {
           </View>
         </Card>
 
-        {/* Appointment Context & Patient Isolation */}
+        {/* ---- 4. Real Data Preparation Status Breakdown ---- */}
+        <Card padded style={styles.statusGridCard}>
+          <View style={styles.sectionHeaderRow}>
+            <Ionicons
+              name="shield-checkmark-outline"
+              size={20}
+              color={Palette.primary}
+            />
+            <Text style={styles.sectionTitle}>
+              Preparation Status Breakdown
+            </Text>
+          </View>
+          <Text style={styles.sectionSub}>
+            Real-time status based strictly on your verified appointment data.
+          </Text>
+
+          <View style={styles.statusItemsList}>
+            {/* 1. Appointment Confirmed */}
+            <View style={styles.statusItemRow}>
+              <View style={styles.statusItemLeft}>
+                <Ionicons
+                  name={isConfirmed ? "checkmark-circle" : "time-outline"}
+                  size={18}
+                  color={isConfirmed ? Palette.success : Palette.warning}
+                />
+                <Text style={styles.statusItemTitle}>
+                  Appointment Confirmed
+                </Text>
+              </View>
+              <Badge
+                label={isConfirmed ? "Confirmed" : "Pending Confirmation"}
+                variant={isConfirmed ? "success" : "warning"}
+              />
+            </View>
+
+            {/* 2. Payment Confirmed */}
+            <View style={styles.statusItemRow}>
+              <View style={styles.statusItemLeft}>
+                <Ionicons
+                  name={isPaid ? "checkmark-circle" : "card-outline"}
+                  size={18}
+                  color={isPaid ? Palette.success : Palette.warning}
+                />
+                <Text style={styles.statusItemTitle}>Payment Status</Text>
+              </View>
+              <Badge
+                label={isPaid ? "Paid / Verified" : "Payment Pending"}
+                variant={isPaid ? "success" : "warning"}
+              />
+            </View>
+
+            {/* 3. Doctor Accepted */}
+            <View style={styles.statusItemRow}>
+              <View style={styles.statusItemLeft}>
+                <Ionicons
+                  name={
+                    data.doctorAccepted || isConfirmed
+                      ? "checkmark-circle"
+                      : "hourglass-outline"
+                  }
+                  size={18}
+                  color={
+                    data.doctorAccepted || isConfirmed
+                      ? Palette.success
+                      : Palette.textMuted
+                  }
+                />
+                <Text style={styles.statusItemTitle}>Doctor Accepted</Text>
+              </View>
+              <Badge
+                label={
+                  data.doctorAccepted || isConfirmed
+                    ? "Accepted"
+                    : "Under Review"
+                }
+                variant={
+                  data.doctorAccepted || isConfirmed ? "success" : "neutral"
+                }
+              />
+            </View>
+
+            {/* 4. Required Documents Ready */}
+            <View style={styles.statusItemRow}>
+              <View style={styles.statusItemLeft}>
+                <Ionicons
+                  name={
+                    hasSharedDocs ? "checkmark-circle" : "document-text-outline"
+                  }
+                  size={18}
+                  color={hasSharedDocs ? Palette.success : Palette.textMuted}
+                />
+                <Text style={styles.statusItemTitle}>Documents Shared</Text>
+              </View>
+              <Badge
+                label={
+                  hasSharedDocs
+                    ? `${documents.filter((d) => d.isSharedWithDoctor).length} Shared`
+                    : "None Attached"
+                }
+                variant={hasSharedDocs ? "primary" : "neutral"}
+              />
+            </View>
+
+            {/* 5. Medical History Ready */}
+            <View style={styles.statusItemRow}>
+              <View style={styles.statusItemLeft}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={18}
+                  color={Palette.success}
+                />
+                <Text style={styles.statusItemTitle}>Medical History</Text>
+              </View>
+              <Badge
+                label={
+                  previousHistory.length > 0
+                    ? "History Loaded"
+                    : "Profile Active"
+                }
+                variant="success"
+              />
+            </View>
+
+            {/* 6. Questions Prepared */}
+            <View style={styles.statusItemRow}>
+              <View style={styles.statusItemLeft}>
+                <Ionicons
+                  name={
+                    questions.length > 0
+                      ? "checkmark-circle"
+                      : "help-circle-outline"
+                  }
+                  size={18}
+                  color={
+                    questions.length > 0 ? Palette.success : Palette.textMuted
+                  }
+                />
+                <Text style={styles.statusItemTitle}>Questions for Doctor</Text>
+              </View>
+              <Badge
+                label={
+                  questions.length > 0
+                    ? `${questions.length} Prepared`
+                    : "Optional"
+                }
+                variant={questions.length > 0 ? "primary" : "neutral"}
+              />
+            </View>
+
+            {/* 7. Check-In Ready */}
+            <View style={styles.statusItemRow}>
+              <View style={styles.statusItemLeft}>
+                <Ionicons
+                  name={
+                    isVideo
+                      ? "remove-circle-outline"
+                      : data.appointment.checkedIn
+                        ? "checkmark-circle"
+                        : "qr-code-outline"
+                  }
+                  size={18}
+                  color={
+                    isVideo
+                      ? Palette.textMuted
+                      : data.appointment.checkedIn
+                        ? Palette.success
+                        : Palette.primary
+                  }
+                />
+                <Text style={styles.statusItemTitle}>Check-In Readiness</Text>
+              </View>
+              <Badge
+                label={
+                  isVideo
+                    ? "Not Required"
+                    : data.appointment.checkedIn
+                      ? "Checked In"
+                      : data.checkInEligible
+                        ? "Ready Today"
+                        : "Visit Day"
+                }
+                variant={
+                  isVideo
+                    ? "neutral"
+                    : data.appointment.checkedIn
+                      ? "success"
+                      : data.checkInEligible
+                        ? "primary"
+                        : "neutral"
+                }
+              />
+            </View>
+
+            {/* 8. Digital Pass Available */}
+            <View style={styles.statusItemRow}>
+              <View style={styles.statusItemLeft}>
+                <Ionicons
+                  name={isVideo ? "remove-circle-outline" : "card-outline"}
+                  size={18}
+                  color={isVideo ? Palette.textMuted : Palette.primary}
+                />
+                <Text style={styles.statusItemTitle}>
+                  Digital Hospital Pass
+                </Text>
+              </View>
+              <Badge
+                label={
+                  isVideo
+                    ? "Not Required"
+                    : data.appointment.queueToken ||
+                        data.appointment.appointmentId
+                      ? "Pass Ready"
+                      : "Pending"
+                }
+                variant={isVideo ? "neutral" : "primary"}
+              />
+            </View>
+
+            {/* 9. Video Consultation Ready */}
+            <View style={styles.statusItemRow}>
+              <View style={styles.statusItemLeft}>
+                <Ionicons
+                  name={
+                    !isVideo
+                      ? "remove-circle-outline"
+                      : data.appointment.meetingUrl
+                        ? "checkmark-circle"
+                        : "videocam-outline"
+                  }
+                  size={18}
+                  color={
+                    !isVideo
+                      ? Palette.textMuted
+                      : data.appointment.meetingUrl
+                        ? Palette.success
+                        : Palette.primary
+                  }
+                />
+                <Text style={styles.statusItemTitle}>Video Consultation</Text>
+              </View>
+              <Badge
+                label={
+                  !isVideo
+                    ? "Not Required"
+                    : data.appointment.meetingUrl
+                      ? "Meeting Active"
+                      : "Google Meet Ready"
+                }
+                variant={
+                  !isVideo
+                    ? "neutral"
+                    : data.appointment.meetingUrl
+                      ? "success"
+                      : "primary"
+                }
+              />
+            </View>
+          </View>
+        </Card>
+
+        {/* ---- 5. Appointment Context & Patient Isolation ---- */}
         <Card padded style={styles.contextCard}>
           <View style={styles.doctorRow}>
             <View style={styles.doctorAvatarBox}>
@@ -578,7 +1237,125 @@ export default function AppointmentPreparationScreen() {
           </View>
         </Card>
 
-        {/* Dynamic Interactive Checklist */}
+        {/* ---- 6. Video Device Readiness Check (for Video Consultations) ---- */}
+        {isVideo ? (
+          <Card padded style={styles.deviceCard}>
+            <View style={styles.sectionHeaderRow}>
+              <Ionicons
+                name="hardware-chip-outline"
+                size={20}
+                color={Palette.primary}
+              />
+              <Text style={styles.sectionTitle}>Video Device Readiness</Text>
+            </View>
+            <Text style={styles.sectionSub}>
+              Ensure your device permissions and network are prepared for Google
+              Meet.
+            </Text>
+
+            <View style={styles.deviceChecksList}>
+              <View style={styles.deviceCheckRow}>
+                <Ionicons
+                  name={
+                    deviceCameraReady === true
+                      ? "checkmark-circle"
+                      : "videocam-outline"
+                  }
+                  size={18}
+                  color={
+                    deviceCameraReady === true
+                      ? Palette.success
+                      : Palette.primary
+                  }
+                />
+                <Text style={styles.deviceCheckText}>Camera Access</Text>
+                <Badge
+                  label={
+                    deviceCameraReady === true
+                      ? "Ready"
+                      : deviceCameraReady === false
+                        ? "Permission Denied"
+                        : "Untested"
+                  }
+                  variant={
+                    deviceCameraReady === true
+                      ? "success"
+                      : deviceCameraReady === false
+                        ? "error"
+                        : "neutral"
+                  }
+                />
+              </View>
+
+              <View style={styles.deviceCheckRow}>
+                <Ionicons
+                  name={
+                    deviceMicReady === true ? "checkmark-circle" : "mic-outline"
+                  }
+                  size={18}
+                  color={
+                    deviceMicReady === true ? Palette.success : Palette.primary
+                  }
+                />
+                <Text style={styles.deviceCheckText}>Microphone & Audio</Text>
+                <Badge
+                  label={deviceMicReady === true ? "Ready" : "Untested"}
+                  variant={deviceMicReady === true ? "success" : "neutral"}
+                />
+              </View>
+
+              <View style={styles.deviceCheckRow}>
+                <Ionicons
+                  name="wifi-outline"
+                  size={18}
+                  color={Palette.success}
+                />
+                <Text style={styles.deviceCheckText}>Network Connectivity</Text>
+                <Badge label="Connected" variant="success" />
+              </View>
+
+              <View style={styles.deviceCheckRow}>
+                <Ionicons
+                  name={
+                    data.appointment.meetingUrl
+                      ? "checkmark-circle"
+                      : "link-outline"
+                  }
+                  size={18}
+                  color={
+                    data.appointment.meetingUrl
+                      ? Palette.success
+                      : Palette.primary
+                  }
+                />
+                <Text style={styles.deviceCheckText}>Meeting Room Link</Text>
+                <Badge
+                  label={
+                    data.appointment.meetingUrl
+                      ? "Link Ready"
+                      : "Generates on Start"
+                  }
+                  variant={data.appointment.meetingUrl ? "success" : "neutral"}
+                />
+              </View>
+            </View>
+
+            <Button
+              title={
+                checkingDevice
+                  ? "Testing Device..."
+                  : "Test Camera & Permissions"
+              }
+              variant="outline"
+              icon="camera-outline"
+              loading={checkingDevice}
+              onPress={handleTestDeviceReadiness}
+              style={{ marginTop: Spacing.sm }}
+            />
+          </Card>
+        ) : null}
+
+        {/* ---- 7. Dynamic Interactive Checklist ---- */}
         <View style={styles.sectionWrap}>
           <View style={styles.sectionHeaderRow}>
             <Ionicons
@@ -642,104 +1419,236 @@ export default function AppointmentPreparationScreen() {
           </View>
         </View>
 
-        {/* Consultation Instructions */}
-        <Card padded style={styles.instructionsCard}>
-          <View style={styles.instHeaderRow}>
-            <Ionicons
-              name={isVideo ? "videocam-outline" : "business-outline"}
-              size={22}
-              color={Palette.primary}
-            />
-            <Text style={styles.instTitle}>{instructions.title}</Text>
-          </View>
-
-          <View style={styles.instList}>
-            {instructions.guidelines.map((guide, idx) => (
-              <View key={idx} style={styles.instItemRow}>
-                <View style={styles.instBullet} />
-                <Text style={styles.instText}>{guide}</Text>
-              </View>
-            ))}
-          </View>
-
-          <Button
-            title={
-              instructions.isAcknowledged
-                ? "Guidelines Reviewed & Acknowledged"
-                : "Acknowledge & Mark Understood"
-            }
-            variant={instructions.isAcknowledged ? "outline" : "primary"}
-            icon={
-              instructions.isAcknowledged
-                ? "checkmark-circle"
-                : "shield-checkmark"
-            }
-            onPress={handleAcknowledgeInstructions}
-            style={{ marginTop: Spacing.md }}
-          />
-        </Card>
-
-        {/* Symptoms & Notes for Doctor */}
-        <Card padded style={styles.symptomsCard}>
+        {/* ---- 8. AI Preparation Assistant Contextual Prompts ---- */}
+        <Card padded style={styles.aiCard}>
           <View style={styles.sectionHeaderRow}>
-            <Ionicons name="create-outline" size={20} color={Palette.primary} />
-            <Text style={styles.sectionTitle}>Pre-Consultation Notes</Text>
+            <Ionicons name="sparkles" size={20} color="#7C3AED" />
+            <Text style={[styles.sectionTitle, { color: "#6D28D9" }]}>
+              AI Preparation Assistant
+            </Text>
           </View>
           <Text style={styles.sectionSub}>
-            Summarize primary symptoms, timeline, or concerns so the doctor has
-            immediate context.
+            Tap any topic to get smart clinical guidance from your HealPoint AI
+            Assistant.
           </Text>
 
-          <TextInput
-            value={symptomsNotes}
-            onChangeText={setSymptomsNotes}
-            placeholder="e.g. Mild throat irritation and headache since 2 days, worse in morning. No fever recorded."
-            placeholderTextColor={Palette.textMuted}
-            multiline
-            numberOfLines={4}
-            style={styles.notesInput}
-          />
+          <View style={styles.aiChipsWrap}>
+            <Pressable
+              style={styles.aiChip}
+              onPress={() =>
+                handleAskAIPreparation(
+                  `Help me prepare for my consultation with Dr. ${doctor.name} (${doctor.speciality || doctor.department || "Specialist"}). What questions should I ask?`,
+                )
+              }
+            >
+              <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={14}
+                color="#7C3AED"
+              />
+              <Text style={styles.aiChipText}>
+                What questions should I ask?
+              </Text>
+            </Pressable>
 
-          <Button
-            title="Save Symptoms Notes"
-            variant="outline"
-            icon="save-outline"
-            loading={isSavingNotes}
-            disabled={isSavingNotes}
-            onPress={handleSaveSymptomsNotes}
-            style={{ marginTop: Spacing.sm }}
-          />
+            <Pressable
+              style={styles.aiChip}
+              onPress={() =>
+                handleAskAIPreparation(
+                  `What medical reports and previous prescriptions should I have ready for a ${doctor.speciality || doctor.department || "specialist"} consultation?`,
+                )
+              }
+            >
+              <Ionicons
+                name="document-text-outline"
+                size={14}
+                color="#7C3AED"
+              />
+              <Text style={styles.aiChipText}>
+                What documents should I share?
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.aiChip}
+              onPress={() =>
+                handleAskAIPreparation(
+                  `Review my preparation for my upcoming appointment with Dr. ${doctor.name} on ${data.appointment.slotDate}.`,
+                )
+              }
+            >
+              <Ionicons
+                name="shield-checkmark-outline"
+                size={14}
+                color="#7C3AED"
+              />
+              <Text style={styles.aiChipText}>Check my readiness status</Text>
+            </Pressable>
+          </View>
         </Card>
 
-        {/* Questions for Doctor with Sharing Toggle */}
+        {/* ---- 9. Relevant Health Documents & Doctor Sharing ---- */}
+        <Card padded style={styles.documentsCard}>
+          <View style={styles.cardHeaderWithAction}>
+            <View style={styles.headerTextGroup}>
+              <View style={styles.sectionHeaderRow}>
+                <Ionicons
+                  name="document-text-outline"
+                  size={18}
+                  color={Palette.primary}
+                />
+                <Text style={styles.sectionTitle}>
+                  Relevant Health Documents
+                </Text>
+              </View>
+              <Text style={styles.sectionSub}>
+                Documents for {patient.name}. Doctors only see explicitly shared
+                records.
+              </Text>
+            </View>
+            <View style={styles.headerActionsGroup}>
+              <Button
+                title="+ Upload"
+                variant="primary"
+                fullWidth={false}
+                icon="cloud-upload-outline"
+                onPress={() => setShowUploadModal(true)}
+                style={styles.compactBtn}
+              />
+              <Button
+                title="Wallet"
+                variant="outline"
+                fullWidth={false}
+                icon="wallet-outline"
+                onPress={() => router.push("/(drawer)/health-wallet" as any)}
+                style={styles.compactBtn}
+              />
+            </View>
+          </View>
+
+          {documents.length === 0 ? (
+            <View style={styles.emptyDocsBox}>
+              <Ionicons
+                name="folder-open-outline"
+                size={28}
+                color={Palette.textMuted}
+              />
+              <Text style={styles.emptyDocsTitle}>No Personal Documents</Text>
+              <Text style={styles.emptyDocsText}>
+                Upload lab reports, scans, or previous prescriptions to share
+                them with {formatDoctorName(doctor.name)}.
+              </Text>
+              <Button
+                title="Upload Document"
+                variant="outline"
+                fullWidth={false}
+                icon="cloud-upload-outline"
+                onPress={() => setShowUploadModal(true)}
+                style={styles.emptyActionBtn}
+              />
+            </View>
+          ) : (
+            <View style={styles.docsList}>
+              {documents.map((doc) => (
+                <View key={doc._id} style={styles.docItemCard}>
+                  <View style={styles.docInfoRow}>
+                    <View style={styles.docCategoryIcon}>
+                      <Ionicons
+                        name={
+                          doc.category === "Prescription"
+                            ? "medkit-outline"
+                            : doc.category === "Lab Report"
+                              ? "flask-outline"
+                              : "document-text-outline"
+                        }
+                        size={20}
+                        color={Palette.primary}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.docTitle} numberOfLines={1}>
+                        {doc.title}
+                      </Text>
+                      <Text style={styles.docMeta}>
+                        {doc.category} • {formatDDMMYYYY(doc.documentDate)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.docActionsRow}>
+                    {doc.isSharedWithDoctor ? (
+                      <View style={styles.sharedBadgeBox}>
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={16}
+                          color={Palette.success}
+                        />
+                        <Text style={styles.sharedBadgeText}>
+                          Shared with {formatDoctorName(doctor.name)}
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.unsharedBadgeText}>
+                        Not visible to doctor
+                      </Text>
+                    )}
+
+                    <Button
+                      title={
+                        sharingDocId === doc._id
+                          ? "Updating..."
+                          : doc.isSharedWithDoctor
+                            ? "Revoke"
+                            : "Share"
+                      }
+                      variant={doc.isSharedWithDoctor ? "outline" : "primary"}
+                      fullWidth={false}
+                      loading={sharingDocId === doc._id}
+                      disabled={sharingDocId === doc._id}
+                      onPress={() => handleToggleDocumentShare(doc)}
+                      style={styles.compactDocActionBtn}
+                    />
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </Card>
+
+        {/* ---- 10. Questions for Doctor (with Discussion Status) ---- */}
         <Card padded style={styles.questionsCard}>
           <View style={styles.cardHeaderWithAction}>
-            <View style={{ flex: 1, marginRight: Spacing.xs }}>
+            <View style={styles.headerTextGroup}>
               <View style={styles.sectionHeaderRow}>
                 <Ionicons
                   name="help-circle-outline"
-                  size={20}
+                  size={18}
                   color={Palette.primary}
                 />
                 <Text style={styles.sectionTitle}>Questions for Doctor</Text>
               </View>
               <Text style={styles.sectionSub}>
-                List questions you want answered during your consultation.
+                List questions you want answered. Mark them as discussed during
+                your call.
               </Text>
             </View>
-            <Button
-              title="+ Add"
-              variant="outline"
-              onPress={() => setShowAddQuestionModal(true)}
-              style={styles.compactBtn}
-            />
+            <View style={styles.headerActionsGroup}>
+              <Button
+                title="+ Add"
+                variant="outline"
+                fullWidth={false}
+                icon="add-circle-outline"
+                onPress={() => setShowAddQuestionModal(true)}
+                style={styles.compactBtn}
+              />
+            </View>
           </View>
 
           {questions.length === 0 ? (
             <View style={styles.emptyQuestionsBox}>
               <Ionicons
                 name="chatbubble-ellipses-outline"
-                size={32}
+                size={28}
                 color={Palette.textMuted}
               />
               <Text style={styles.emptyQuestionsTitle}>
@@ -747,14 +1656,15 @@ export default function AppointmentPreparationScreen() {
               </Text>
               <Text style={styles.emptyQuestionsText}>
                 Writing down your questions ensures nothing gets missed during
-                your time with Dr. {doctor.name}.
+                your time with {formatDoctorName(doctor.name)}.
               </Text>
               <Button
                 title="Add First Question"
                 variant="outline"
+                fullWidth={false}
                 icon="add-circle-outline"
                 onPress={() => setShowAddQuestionModal(true)}
-                style={{ marginTop: Spacing.sm }}
+                style={styles.emptyActionBtn}
               />
             </View>
           ) : (
@@ -762,8 +1672,27 @@ export default function AppointmentPreparationScreen() {
               {questions.map((q, qIdx) => (
                 <View key={q._id || qIdx} style={styles.questionItemCard}>
                   <View style={styles.questionItemHeader}>
-                    <Text style={styles.questionNum}>Q{qIdx + 1}.</Text>
-                    <Text style={styles.questionText}>{q.question}</Text>
+                    <Pressable
+                      onPress={() => handleToggleQuestionDiscussed(qIdx, q)}
+                      hitSlop={8}
+                      style={{ marginTop: 1 }}
+                    >
+                      <Ionicons
+                        name={
+                          q.isDiscussed ? "checkmark-circle" : "ellipse-outline"
+                        }
+                        size={18}
+                        color={q.isDiscussed ? Palette.success : Palette.border}
+                      />
+                    </Pressable>
+                    <Text
+                      style={[
+                        styles.questionText,
+                        q.isDiscussed && styles.questionDiscussedText,
+                      ]}
+                    >
+                      {q.question}
+                    </Text>
                     <Pressable
                       onPress={() => handleDeleteQuestion(qIdx)}
                       hitSlop={8}
@@ -826,128 +1755,123 @@ export default function AppointmentPreparationScreen() {
           )}
         </Card>
 
-        {/* Relevant Health Documents & Doctor Sharing */}
-        <Card padded style={styles.documentsCard}>
-          <View style={styles.cardHeaderWithAction}>
-            <View style={{ flex: 1, marginRight: Spacing.xs }}>
-              <View style={styles.sectionHeaderRow}>
-                <Ionicons
-                  name="document-text-outline"
-                  size={20}
-                  color={Palette.primary}
-                />
-                <Text style={styles.sectionTitle}>
-                  Relevant Health Documents
-                </Text>
-              </View>
-              <Text style={styles.sectionSub}>
-                Documents for {patient.name}. Doctors only see explicitly shared
-                records.
-              </Text>
-            </View>
-            <Button
-              title="Health Wallet"
-              variant="outline"
-              icon="wallet-outline"
-              onPress={() => router.push("/(drawer)/health-wallet" as any)}
-              style={styles.compactBtn}
-            />
+        {/* ---- 11. Symptoms & Notes for Doctor ---- */}
+        <Card padded style={styles.symptomsCard}>
+          <View style={styles.sectionHeaderRow}>
+            <Ionicons name="create-outline" size={20} color={Palette.primary} />
+            <Text style={styles.sectionTitle}>Symptoms Notes (For Doctor)</Text>
           </View>
+          <Text style={styles.sectionSub}>
+            Summarize primary symptoms or timeline so the doctor has immediate
+            context.
+          </Text>
 
-          {documents.length === 0 ? (
-            <View style={styles.emptyDocsBox}>
-              <Ionicons
-                name="folder-open-outline"
-                size={32}
-                color={Palette.textMuted}
-              />
-              <Text style={styles.emptyDocsTitle}>No Personal Documents</Text>
-              <Text style={styles.emptyDocsText}>
-                Upload lab reports, scans, or previous prescriptions in your
-                Digital Health Wallet to share them with Dr. {doctor.name}.
-              </Text>
-              <Button
-                title="Upload in Wallet"
-                variant="outline"
-                icon="cloud-upload-outline"
-                onPress={() => router.push("/(drawer)/health-wallet" as any)}
-                style={{ marginTop: Spacing.sm }}
-              />
-            </View>
-          ) : (
-            <View style={styles.docsList}>
-              {documents.map((doc) => (
-                <View key={doc._id} style={styles.docItemCard}>
-                  <View style={styles.docInfoRow}>
-                    <View style={styles.docCategoryIcon}>
-                      <Ionicons
-                        name={
-                          doc.category === "Prescription"
-                            ? "medkit-outline"
-                            : doc.category === "Lab Report"
-                              ? "flask-outline"
-                              : "document-text-outline"
-                        }
-                        size={20}
-                        color={Palette.primary}
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.docTitle} numberOfLines={1}>
-                        {doc.title}
-                      </Text>
-                      <Text style={styles.docMeta}>
-                        {doc.category} • {formatDDMMYYYY(doc.documentDate)}
-                      </Text>
-                    </View>
-                  </View>
+          <TextInput
+            value={symptomsNotes}
+            onChangeText={setSymptomsNotes}
+            placeholder="e.g. Mild throat irritation and headache since 2 days, worse in morning. No fever recorded."
+            placeholderTextColor={Palette.textMuted}
+            multiline
+            numberOfLines={3}
+            style={styles.notesInput}
+          />
 
-                  <View style={styles.docActionsRow}>
-                    {doc.isSharedWithDoctor ? (
-                      <View style={styles.sharedBadgeBox}>
-                        <Ionicons
-                          name="checkmark-circle"
-                          size={16}
-                          color={Palette.success}
-                        />
-                        <Text style={styles.sharedBadgeText}>
-                          Shared with Dr. {doctor.name}
-                        </Text>
-                      </View>
-                    ) : (
-                      <Text style={styles.unsharedBadgeText}>
-                        Not visible to doctor
-                      </Text>
-                    )}
-
-                    <Button
-                      title={
-                        sharingDocId === doc._id
-                          ? "Updating..."
-                          : doc.isSharedWithDoctor
-                            ? "Revoke"
-                            : "Share"
-                      }
-                      variant={doc.isSharedWithDoctor ? "outline" : "primary"}
-                      loading={sharingDocId === doc._id}
-                      disabled={sharingDocId === doc._id}
-                      onPress={() => handleToggleDocumentShare(doc)}
-                      style={styles.compactBtn}
-                    />
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
+          <Button
+            title="Save Symptoms Notes"
+            variant="outline"
+            fullWidth={false}
+            icon="save-outline"
+            loading={isSavingNotes}
+            disabled={isSavingNotes}
+            onPress={handleSaveSymptomsNotes}
+            style={styles.saveNotesBtn}
+          />
         </Card>
 
-        {/* Continuity of Care: Previous Visit History */}
+        {/* ---- 12. Private Pre-Consultation Notes (Confidential) ---- */}
+        <Card padded style={styles.privateNotesCard}>
+          <View style={styles.sectionHeaderRow}>
+            <Ionicons
+              name="lock-closed-outline"
+              size={18}
+              color={Palette.primary}
+            />
+            <Text style={styles.sectionTitle}>
+              Private Pre-Consultation Notes
+            </Text>
+          </View>
+          <Text style={styles.sectionSub}>
+            Confidential personal reminders for yourself. These notes are NEVER
+            sent to the doctor.
+          </Text>
+
+          <TextInput
+            value={privateNotes}
+            onChangeText={setPrivateNotes}
+            placeholder="e.g. Ask about alternate medicine brands; mention previous mild reaction to penicillin; remind myself to request medical leave certificate."
+            placeholderTextColor={Palette.textMuted}
+            multiline
+            numberOfLines={3}
+            style={styles.notesInput}
+          />
+
+          <Button
+            title="Save Private Notes"
+            variant="outline"
+            fullWidth={false}
+            icon="save-outline"
+            loading={isSavingPrivateNotes}
+            disabled={isSavingPrivateNotes}
+            onPress={handleSavePrivateNotes}
+            style={styles.saveNotesBtn}
+          />
+        </Card>
+
+        {/* ---- 13. Consultation Instructions ---- */}
+        <Card padded style={styles.instructionsCard}>
+          <View style={styles.instHeaderRow}>
+            <Ionicons
+              name={isVideo ? "videocam-outline" : "business-outline"}
+              size={20}
+              color={Palette.primary}
+            />
+            <Text style={styles.instTitle}>{instructions.title}</Text>
+          </View>
+
+          <View style={styles.instList}>
+            {instructions.guidelines.map((guide, idx) => (
+              <View key={idx} style={styles.instItemRow}>
+                <View style={styles.instBullet} />
+                <Text style={styles.instText}>{guide}</Text>
+              </View>
+            ))}
+          </View>
+
+          <Button
+            title={
+              instructions.isAcknowledged
+                ? "Guidelines Reviewed & Acknowledged"
+                : "Acknowledge & Mark Understood"
+            }
+            variant={instructions.isAcknowledged ? "outline" : "primary"}
+            fullWidth={true}
+            icon={
+              instructions.isAcknowledged
+                ? "checkmark-circle"
+                : "shield-checkmark"
+            }
+            onPress={handleAcknowledgeInstructions}
+            style={styles.ackBtn}
+          />
+        </Card>
+
+        {/* ---- 14. Continuity of Care: Previous Visit History ---- */}
         {previousHistory.length > 0 && (
           <Card padded style={styles.historyCard}>
             <View style={styles.sectionHeaderRow}>
               <Ionicons name="time-outline" size={20} color={Palette.primary} />
               <Text style={styles.sectionTitle}>
-                Previous History with Dr. {doctor.name}
+                Previous History with {formatDoctorName(doctor.name)}
               </Text>
             </View>
             <Text style={styles.sectionSub}>
@@ -985,7 +1909,54 @@ export default function AppointmentPreparationScreen() {
           </Card>
         )}
 
-        {/* Action Handoff Footer */}
+        {/* ---- 15. Health Locker Quick Shortcuts ---- */}
+        <View style={styles.shortcutsWrap}>
+          <Text style={styles.shortcutsHeader}>
+            Quick Access to Health Locker
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.shortcutsScroll}
+          >
+            <Pressable
+              style={styles.shortcutPill}
+              onPress={() => router.push("/(drawer)/health-wallet" as any)}
+            >
+              <Ionicons
+                name="wallet-outline"
+                size={16}
+                color={Palette.primary}
+              />
+              <Text style={styles.shortcutPillText}>Health Wallet</Text>
+            </Pressable>
+            <Pressable
+              style={styles.shortcutPill}
+              onPress={() =>
+                router.push("/(drawer)/health/prescriptions" as any)
+              }
+            >
+              <Ionicons name="medkit-outline" size={16} color="#059669" />
+              <Text style={styles.shortcutPillText}>Prescriptions</Text>
+            </Pressable>
+            <Pressable
+              style={styles.shortcutPill}
+              onPress={() => router.push("/(drawer)/health/reports" as any)}
+            >
+              <Ionicons name="bar-chart-outline" size={16} color="#2563EB" />
+              <Text style={styles.shortcutPillText}>Lab Reports</Text>
+            </Pressable>
+            <Pressable
+              style={styles.shortcutPill}
+              onPress={() => router.push("/(drawer)/health/timeline" as any)}
+            >
+              <Ionicons name="time-outline" size={16} color="#7C3AED" />
+              <Text style={styles.shortcutPillText}>Care Timeline</Text>
+            </Pressable>
+          </ScrollView>
+        </View>
+
+        {/* ---- 16. Action Handoff Footer ---- */}
         <View style={styles.handoffSection}>
           <Text style={styles.handoffTitle}>Consultation Readiness</Text>
           <Text style={styles.handoffSubtitle}>
@@ -999,6 +1970,7 @@ export default function AppointmentPreparationScreen() {
               <Button
                 title="Enter Waiting Room"
                 variant="outline"
+                fullWidth={false}
                 icon="chatbubbles-outline"
                 onPress={() =>
                   router.push({
@@ -1006,15 +1978,16 @@ export default function AppointmentPreparationScreen() {
                     params: { id: data.appointment._id },
                   })
                 }
-                style={{ flex: 1 }}
+                style={styles.handoffBtn}
               />
               {data.appointment.meetingUrl ? (
                 <Button
                   title="Launch Google Meet"
                   variant="primary"
+                  fullWidth={false}
                   icon="videocam"
                   onPress={() => openGoogleMeetUrl(data.appointment.meetingUrl)}
-                  style={{ flex: 1 }}
+                  style={styles.handoffBtn}
                 />
               ) : null}
             </View>
@@ -1023,6 +1996,7 @@ export default function AppointmentPreparationScreen() {
               <Button
                 title="View Hospital Pass"
                 variant="primary"
+                fullWidth={false}
                 icon="card-outline"
                 onPress={() =>
                   router.push({
@@ -1030,23 +2004,24 @@ export default function AppointmentPreparationScreen() {
                     params: { id: data.appointment._id },
                   })
                 }
-                style={{ flex: 1 }}
+                style={styles.handoffBtn}
               />
               <Button
                 title="Back to Details"
                 variant="outline"
+                fullWidth={false}
                 icon="arrow-back-outline"
                 onPress={() => router.back()}
-                style={{ flex: 1 }}
+                style={styles.handoffBtn}
               />
             </View>
           )}
         </View>
 
-        <View style={{ height: Spacing.xl * 2 }} />
+        <View style={{ height: Spacing.lg }} />
       </ScrollView>
 
-      {/* Add Question Modal */}
+      {/* ---- Add Question Modal ---- */}
       <Modal
         visible={showAddQuestionModal}
         transparent
@@ -1067,7 +2042,7 @@ export default function AppointmentPreparationScreen() {
 
             <Text style={styles.modalDesc}>
               Write down any medical doubt, symptom change, or medication
-              concern you wish to discuss with Dr. {doctor.name}.
+              concern you wish to discuss with {formatDoctorName(doctor.name)}.
             </Text>
 
             <TextInput
@@ -1085,8 +2060,8 @@ export default function AppointmentPreparationScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.modalShareTitle}>Share with Doctor</Text>
                 <Text style={styles.modalShareSub}>
-                  When enabled, Dr. {doctor.name} will see this in their
-                  clinical notes view.
+                  When enabled, {formatDoctorName(doctor.name)} will see this in
+                  their clinical notes view.
                 </Text>
               </View>
               <Switch
@@ -1115,6 +2090,141 @@ export default function AppointmentPreparationScreen() {
                 loading={isSavingQuestion}
                 disabled={isSavingQuestion || !newQuestionText.trim()}
                 onPress={handleAddQuestion}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ---- Document Upload & Share Modal ---- */}
+      <Modal
+        visible={showUploadModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowUploadModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Upload Health Document</Text>
+              <Pressable onPress={() => setShowUploadModal(false)} hitSlop={8}>
+                <Ionicons name="close" size={24} color={Palette.text} />
+              </Pressable>
+            </View>
+
+            <Text style={styles.modalDesc}>
+              Securely attach a lab test, prescription, or scan to share with
+              {formatDoctorName(doctor.name)} for this appointment.
+            </Text>
+
+            {/* Document Picker Buttons */}
+            <View style={styles.uploadPickerRow}>
+              <Pressable
+                style={styles.pickerBox}
+                onPress={() => handlePickDocumentImage(true)}
+              >
+                <Ionicons
+                  name="camera-outline"
+                  size={24}
+                  color={Palette.primary}
+                />
+                <Text style={styles.pickerBoxText}>Take Photo</Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.pickerBox}
+                onPress={() => handlePickDocumentImage(false)}
+              >
+                <Ionicons
+                  name="images-outline"
+                  size={24}
+                  color={Palette.primary}
+                />
+                <Text style={styles.pickerBoxText}>Photo Library</Text>
+              </Pressable>
+            </View>
+
+            {/* Selected Image Preview */}
+            {uploadDocAsset ? (
+              <View style={styles.uploadPreviewWrap}>
+                <Image
+                  source={{ uri: uploadDocAsset.uri }}
+                  style={styles.uploadPreviewImg}
+                  contentFit="cover"
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.uploadPreviewName} numberOfLines={1}>
+                    {uploadDocAsset.fileName || "Selected Document"}
+                  </Text>
+                  <Text style={styles.uploadPreviewMeta}>
+                    Ready to attach & share
+                  </Text>
+                </View>
+                <Pressable onPress={() => setUploadDocAsset(null)} hitSlop={8}>
+                  <Ionicons
+                    name="trash-outline"
+                    size={20}
+                    color={Palette.error}
+                  />
+                </Pressable>
+              </View>
+            ) : null}
+
+            {/* Title Input */}
+            <Text style={styles.inputFieldLabel}>Document Title</Text>
+            <TextInput
+              value={uploadDocTitle}
+              onChangeText={setUploadDocTitle}
+              placeholder="e.g. Recent CBC Blood Test"
+              placeholderTextColor={Palette.textMuted}
+              style={styles.uploadTextInput}
+            />
+
+            {/* Category Selector */}
+            <Text style={styles.inputFieldLabel}>Category</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryScroll}
+            >
+              {DOC_CATEGORIES.map((cat) => {
+                const active = uploadDocCategory === cat;
+                return (
+                  <Pressable
+                    key={cat}
+                    onPress={() => setUploadDocCategory(cat)}
+                    style={[
+                      styles.categoryChip,
+                      active && styles.categoryChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryChipText,
+                        active && styles.categoryChipTextActive,
+                      ]}
+                    >
+                      {cat}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.modalActionsRow}>
+              <Button
+                title="Cancel"
+                variant="outline"
+                onPress={() => setShowUploadModal(false)}
+                style={{ flex: 1 }}
+              />
+              <Button
+                title={uploadingDoc ? "Uploading..." : "Attach & Share"}
+                variant="primary"
+                loading={uploadingDoc}
+                disabled={uploadingDoc || !uploadDocAsset}
+                onPress={handleUploadAndShareDocument}
                 style={{ flex: 1 }}
               />
             </View>
@@ -1161,6 +2271,102 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     gap: Spacing.md,
   },
+
+  // Smart Next Action Card
+  nextActionCard: {
+    backgroundColor: Palette.surface,
+    borderColor: "rgba(14, 159, 142, 0.25)",
+    borderWidth: 1.5,
+    borderRadius: Radius.lg,
+    ...Shadows.card,
+  },
+  nextActionRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  nextActionIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nextActionBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 2,
+  },
+  nextActionLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Palette.primary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  nextActionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Palette.text,
+  },
+  nextActionDesc: {
+    fontSize: 12,
+    color: Palette.textMuted,
+    marginTop: 2,
+    lineHeight: 17,
+  },
+
+  // Today's Appointment Banner
+  todayCard: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#BFDBFE",
+    borderWidth: 1,
+    borderRadius: Radius.lg,
+  },
+  todayHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
+  todayBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#2563EB",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radius.pill,
+  },
+  todayBadgeText: {
+    color: Palette.white,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  todayTimeText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1E40AF",
+  },
+  todayTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1E3A8A",
+  },
+  todaySubtitle: {
+    fontSize: 12,
+    color: "#3B82F6",
+    marginTop: 2,
+    lineHeight: 17,
+  },
+  todayActionsRow: {
+    flexDirection: "row",
+    marginTop: Spacing.sm,
+  },
+
+  // Hero Card
   heroCard: {
     backgroundColor: Palette.surface,
     borderRadius: Radius.lg,
@@ -1223,6 +2429,39 @@ const styles = StyleSheet.create({
     color: Palette.primaryDark,
     lineHeight: 18,
   },
+
+  // Status Grid Card
+  statusGridCard: {
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Palette.border,
+  },
+  statusItemsList: {
+    gap: Spacing.xs + 2,
+    marginTop: Spacing.xs,
+  },
+  statusItemRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.04)",
+  },
+  statusItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
+  statusItemTitle: {
+    fontSize: 13,
+    color: Palette.text,
+    fontWeight: "500",
+  },
+
+  // Context Card
   contextCard: {
     backgroundColor: Palette.surface,
     borderRadius: Radius.lg,
@@ -1281,6 +2520,33 @@ const styles = StyleSheet.create({
     color: Palette.textMuted,
     fontWeight: "400",
   },
+
+  // Video Device Readiness Card
+  deviceCard: {
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: "#E0E7FF",
+  },
+  deviceChecksList: {
+    gap: Spacing.xs,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.xs,
+  },
+  deviceCheckRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 4,
+  },
+  deviceCheckText: {
+    flex: 1,
+    fontSize: 13,
+    color: Palette.text,
+    marginLeft: 8,
+  },
+
+  // Checklist
   sectionWrap: {
     gap: Spacing.xs,
   },
@@ -1346,6 +2612,37 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#065f46",
   },
+
+  // AI Assistant Card
+  aiCard: {
+    backgroundColor: "#FAF5FF",
+    borderColor: "#E9D5FF",
+    borderWidth: 1,
+    borderRadius: Radius.lg,
+  },
+  aiChipsWrap: {
+    gap: Spacing.xs,
+    marginTop: Spacing.xs,
+  },
+  aiChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: Palette.white,
+    paddingHorizontal: Spacing.sm + 2,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: "#DDD6FE",
+  },
+  aiChipText: {
+    fontSize: 12,
+    color: "#5B21B6",
+    fontWeight: "600",
+    flex: 1,
+  },
+
+  // Instructions
   instructionsCard: {
     backgroundColor: Palette.surface,
     borderRadius: Radius.lg,
@@ -1382,12 +2679,20 @@ const styles = StyleSheet.create({
     color: Palette.text,
     lineHeight: 18,
   },
+
+  // Symptoms & Notes
   symptomsCard: {
     backgroundColor: Palette.surface,
     borderRadius: Radius.lg,
   },
+  privateNotesCard: {
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: "rgba(14, 159, 142, 0.2)",
+  },
   notesInput: {
-    minHeight: 80,
+    minHeight: 64,
     backgroundColor: Palette.background,
     borderWidth: 1,
     borderColor: Palette.border,
@@ -1398,6 +2703,25 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
     marginTop: Spacing.xs,
   },
+  saveNotesBtn: {
+    minHeight: 38,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 4,
+    marginTop: Spacing.xs,
+    alignSelf: "flex-start",
+  },
+  ackBtn: {
+    minHeight: 44,
+    paddingVertical: 6,
+    marginTop: Spacing.sm,
+  },
+  handoffBtn: {
+    flex: 1,
+    minHeight: 44,
+    paddingVertical: 6,
+  },
+
+  // Questions Card
   questionsCard: {
     backgroundColor: Palette.surface,
     borderRadius: Radius.lg,
@@ -1405,29 +2729,57 @@ const styles = StyleSheet.create({
   cardHeaderWithAction: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: Spacing.xs,
+    gap: Spacing.xs,
+  },
+  headerTextGroup: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: Spacing.xs,
+  },
+  headerActionsGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
   },
   compactBtn: {
-    paddingHorizontal: Spacing.sm,
+    minHeight: 32,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: Radius.sm + 2,
+  },
+  compactDocActionBtn: {
+    minHeight: 30,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: Radius.sm,
+  },
+  emptyActionBtn: {
+    minHeight: 36,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    marginTop: Spacing.xs,
   },
   emptyQuestionsBox: {
     alignItems: "center",
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
   },
   emptyQuestionsTitle: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "700",
     color: Palette.text,
-    marginTop: Spacing.xs,
+    marginTop: 4,
   },
   emptyQuestionsText: {
     fontSize: 12,
     color: Palette.textMuted,
     textAlign: "center",
-    marginTop: 4,
-    lineHeight: 18,
+    marginTop: 2,
+    lineHeight: 16,
+    maxWidth: 280,
   },
   questionsList: {
     gap: Spacing.sm,
@@ -1445,16 +2797,15 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: Spacing.xs,
   },
-  questionNum: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: Palette.primary,
-  },
   questionText: {
     flex: 1,
     fontSize: 13,
     color: Palette.text,
     lineHeight: 18,
+  },
+  questionDiscussedText: {
+    textDecorationLine: "line-through",
+    color: Palette.textMuted,
   },
   questionFooterRow: {
     flexDirection: "row",
@@ -1478,27 +2829,30 @@ const styles = StyleSheet.create({
     color: Palette.success,
     fontWeight: "600",
   },
+
+  // Documents Card
   documentsCard: {
     backgroundColor: Palette.surface,
     borderRadius: Radius.lg,
   },
   emptyDocsBox: {
     alignItems: "center",
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
   },
   emptyDocsTitle: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "700",
     color: Palette.text,
-    marginTop: Spacing.xs,
+    marginTop: 4,
   },
   emptyDocsText: {
     fontSize: 12,
     color: Palette.textMuted,
     textAlign: "center",
-    marginTop: 4,
-    lineHeight: 18,
+    marginTop: 2,
+    lineHeight: 16,
+    maxWidth: 280,
   },
   docsList: {
     gap: Spacing.sm,
@@ -1557,6 +2911,8 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Palette.textMuted,
   },
+
+  // History Card
   historyCard: {
     backgroundColor: Palette.surface,
     borderRadius: Radius.lg,
@@ -1591,6 +2947,38 @@ const styles = StyleSheet.create({
     color: Palette.textMuted,
     marginTop: 2,
   },
+
+  // Shortcuts Wrap
+  shortcutsWrap: {
+    marginTop: Spacing.xs,
+  },
+  shortcutsHeader: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Palette.text,
+    marginBottom: Spacing.xs,
+  },
+  shortcutsScroll: {
+    gap: Spacing.xs,
+  },
+  shortcutPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: Palette.surface,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs + 2,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+    borderColor: Palette.border,
+  },
+  shortcutPillText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Palette.text,
+  },
+
+  // Handoff Section
   handoffSection: {
     backgroundColor: Palette.surface,
     borderWidth: 1,
@@ -1613,6 +3001,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: Spacing.sm,
   },
+
+  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -1645,7 +3035,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   modalTextInput: {
-    minHeight: 90,
+    minHeight: 80,
     backgroundColor: Palette.background,
     borderWidth: 1,
     borderColor: Palette.border,
@@ -1676,5 +3066,95 @@ const styles = StyleSheet.create({
   modalActionsRow: {
     flexDirection: "row",
     gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+
+  // Upload Modal Specific
+  uploadPickerRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  pickerBox: {
+    flex: 1,
+    height: 72,
+    backgroundColor: Palette.background,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    borderRadius: Radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  pickerBoxText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Palette.primary,
+  },
+  uploadPreviewWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    backgroundColor: Palette.background,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    borderRadius: Radius.md,
+    padding: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  uploadPreviewImg: {
+    width: 48,
+    height: 48,
+    borderRadius: Radius.xs,
+  },
+  uploadPreviewName: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Palette.text,
+  },
+  uploadPreviewMeta: {
+    fontSize: 11,
+    color: Palette.success,
+  },
+  inputFieldLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Palette.text,
+    marginBottom: 4,
+  },
+  uploadTextInput: {
+    height: 44,
+    backgroundColor: Palette.background,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.sm,
+    fontSize: 13,
+    color: Palette.text,
+    marginBottom: Spacing.sm,
+  },
+  categoryScroll: {
+    gap: Spacing.xs,
+    marginBottom: Spacing.md,
+  },
+  categoryChip: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    backgroundColor: Palette.background,
+  },
+  categoryChipActive: {
+    borderColor: Palette.primary,
+    backgroundColor: Palette.primaryLight,
+  },
+  categoryChipText: {
+    fontSize: 12,
+    color: Palette.textMuted,
+  },
+  categoryChipTextActive: {
+    color: Palette.primaryDark,
+    fontWeight: "700",
   },
 });

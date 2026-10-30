@@ -48,6 +48,7 @@ import {
 } from "@/lib/doctor";
 import { formatDoctorName, formatINR, formatISODate } from "@/lib/format";
 import { getDoctorImage } from "@/lib/image";
+import { useDoctorComparison } from "@/hooks/use-doctor-comparison";
 import { toErrorMessage } from "@/services/api";
 import { getDoctorDetails } from "@/services/doctors";
 import type { Doctor, DoctorProfileTimeline } from "@/types";
@@ -56,10 +57,16 @@ export default function DoctorDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id?: string }>();
+  const { isInComparison, toggleDoctor, canCompare, selectedIds } =
+    useDoctorComparison();
+  const inCompare = id ? isInComparison(String(id)) : false;
   const [doctor, setDoctor] = useState<Doctor | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [reviewVisible, setReviewVisible] = useState(false);
+  const [activeTab, setActiveTab] = useState<
+    "about" | "availability" | "reviews" | "services"
+  >("about");
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -238,6 +245,7 @@ export default function DoctorDetailScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ---------------- Hero Section ---------------- */}
+        {/* ---------------- Hero Section ---------------- */}
         <View style={styles.hero}>
           <Image
             source={{ uri: getDoctorImage(doctor) }}
@@ -245,18 +253,7 @@ export default function DoctorDetailScreen() {
             contentFit="cover"
             transition={200}
           />
-          {/* Subtle medical backdrop overlay */}
-          <View pointerEvents="none" style={styles.heroBackdropDecor}>
-            <View style={styles.heroBackdropAura} />
-            <View style={styles.heroBackdropPulseRing} />
-            <View style={styles.heroBackdropCross}>
-              <View style={styles.heroCrossV} />
-              <View style={styles.heroCrossH} />
-            </View>
-          </View>
           <View style={styles.heroShadeTop} />
-          <View style={styles.heroShadeMid} />
-          <View style={styles.heroShadeBottom} />
 
           {/* Navigation Bar */}
           <View style={styles.heroTopBar}>
@@ -269,7 +266,7 @@ export default function DoctorDetailScreen() {
               style={({ pressed }) => [styles.fab, pressed && styles.pressed]}
               hitSlop={8}
             >
-              <Ionicons name="chevron-back" size={24} color={Palette.text} />
+              <Ionicons name="chevron-back" size={24} color="#0F172A" />
             </Pressable>
             <View style={styles.topRightActions}>
               <Pressable
@@ -282,7 +279,28 @@ export default function DoctorDetailScreen() {
                 <Ionicons
                   name="share-social-outline"
                   size={22}
-                  color={Palette.text}
+                  color="#0F172A"
+                />
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  inCompare
+                    ? `Remove ${doctor?.name || "doctor"} from comparison`
+                    : `Add ${doctor?.name || "doctor"} to comparison`
+                }
+                onPress={() => doctor && toggleDoctor(doctor)}
+                style={({ pressed }) => [
+                  styles.fab,
+                  inCompare && styles.fabActive,
+                  pressed && styles.pressed,
+                ]}
+                hitSlop={8}
+              >
+                <Ionicons
+                  name={inCompare ? "git-compare" : "git-compare-outline"}
+                  size={22}
+                  color={inCompare ? "#2563EB" : "#0F172A"}
                 />
               </Pressable>
               <View style={styles.fab}>
@@ -290,97 +308,126 @@ export default function DoctorDetailScreen() {
               </View>
             </View>
           </View>
+        </View>
 
-          {/* Hero Typography & Badges */}
-          <View style={styles.heroText}>
-            <Text style={styles.name}>{formatDoctorName(doctor.name)}</Text>
-            <Text style={styles.specialty} numberOfLines={2}>
-              {specialty}
-              {doctor.degree ? ` · ${doctor.degree}` : ""}
+        {/* ---------------- Floating Doctor Info Card ---------------- */}
+        <View style={styles.doctorFloatingCard}>
+          <View style={styles.doctorNameRow}>
+            <Text style={styles.doctorName} numberOfLines={1}>
+              {formatDoctorName(doctor.name)}
             </Text>
-
-            {/* Clickable Hospital Affiliation Pill */}
-            {hospital ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Hospital: ${hospital}`}
-                onPress={targetHospitalId ? openHospitalProfile : undefined}
-                style={({ pressed }) => [
-                  styles.heroHospitalPill,
-                  targetHospitalId && styles.heroHospitalClickable,
-                  pressed && targetHospitalId && styles.pressed,
-                ]}
-              >
-                <Ionicons name="business" size={14} color={Palette.white} />
-                <Text style={styles.heroHospitalText} numberOfLines={1}>
-                  {hospital}
-                </Text>
-                {targetHospitalId ? (
-                  <Ionicons
-                    name="chevron-forward"
-                    size={14}
-                    color={Palette.white}
-                  />
-                ) : null}
-              </Pressable>
+            {verified ? (
+              <Ionicons name="checkmark-circle" size={20} color="#2563EB" />
             ) : null}
+          </View>
 
-            <View style={styles.heroBadges}>
-              {verified ? (
-                <Badge label="Verified Doctor" variant="primary" />
+          <Text style={styles.doctorSpecialtyText} numberOfLines={2}>
+            {specialty}
+            {doctor.degree ? ` · ${doctor.degree}` : ""}
+          </Text>
+
+          {hospital ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Hospital: ${hospital}`}
+              onPress={targetHospitalId ? openHospitalProfile : undefined}
+              style={({ pressed }) => [
+                styles.hospitalPill,
+                pressed && targetHospitalId && styles.pressed,
+              ]}
+            >
+              <Ionicons name="location" size={14} color="#2563EB" />
+              <Text style={styles.hospitalPillText} numberOfLines={1}>
+                {hospital}
+              </Text>
+              {targetHospitalId ? (
+                <Ionicons name="chevron-forward" size={14} color="#64748B" />
               ) : null}
-              <Badge
-                label={
-                  accepting
-                    ? "Available for booking"
-                    : "Currently not accepting"
-                }
-                variant={accepting ? "success" : "warning"}
+            </Pressable>
+          ) : null}
+
+          {/* 4 Key Stats Row */}
+          <View style={styles.statsRow}>
+            <View style={styles.stat}>
+              <Ionicons name="star" size={18} color={Palette.gold} />
+              <Text style={styles.statValue}>{ratingVal.toFixed(1)}</Text>
+              <Text style={styles.statLabel}>Rating</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.stat}>
+              <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={18}
+                color={Palette.primary}
               />
+              <Text style={styles.statValue}>{reviewCount}</Text>
+              <Text style={styles.statLabel}>Reviews</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.stat}>
+              <Ionicons
+                name="briefcase-outline"
+                size={18}
+                color={Palette.primary}
+              />
+              <Text style={styles.statValue}>{doctor.experience || 0}+</Text>
+              <Text style={styles.statLabel}>Years exp.</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.stat}>
+              <Ionicons
+                name="wallet-outline"
+                size={18}
+                color={Palette.primary}
+              />
+              <Text style={styles.statValue}>{formatINR(doctor.fees)}</Text>
+              <Text style={styles.statLabel}>Consultation</Text>
             </View>
           </View>
         </View>
 
-        {/* ---------------- Key Stats Card ---------------- */}
-        <View style={styles.statsCard}>
-          <View style={styles.stat}>
-            <Ionicons name="star" size={20} color={Palette.gold} />
-            <Text style={styles.statValue}>{ratingVal.toFixed(1)}</Text>
-            <Text style={styles.statLabel}>Rating</Text>
+        {/* ---------------- Comparison Active Banner ---------------- */}
+        {inCompare ? (
+          <View style={styles.comparisonBanner}>
+            <View style={styles.comparisonBannerLeft}>
+              <Ionicons
+                name="git-compare"
+                size={18}
+                color={Palette.primaryDark}
+              />
+              <Text style={styles.comparisonBannerText}>
+                {canCompare
+                  ? `Comparing with ${selectedIds.length - 1} other doctor${selectedIds.length > 2 ? "s" : ""}`
+                  : "Added to comparison. Select 1 more doctor."}
+              </Text>
+            </View>
+            {canCompare ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Compare doctors now"
+                onPress={() =>
+                  router.push({
+                    pathname: "/doctor/compare" as never,
+                    params: { ids: selectedIds.join(",") },
+                  })
+                }
+                style={({ pressed }) => [
+                  styles.comparisonBannerBtn,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.comparisonBannerBtnText}>Compare</Text>
+                <Ionicons name="arrow-forward" size={14} color={Palette.white} />
+              </Pressable>
+            ) : null}
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
-            <Ionicons
-              name="chatbubble-ellipses-outline"
-              size={20}
-              color={Palette.primary}
-            />
-            <Text style={styles.statValue}>{reviewCount}</Text>
-            <Text style={styles.statLabel}>Reviews</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
-            <Ionicons
-              name="briefcase-outline"
-              size={20}
-              color={Palette.primary}
-            />
-            <Text style={styles.statValue}>{doctor.experience || 0}+</Text>
-            <Text style={styles.statLabel}>Years exp.</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
-            <Ionicons name="wallet-outline" size={20} color={Palette.primary} />
-            <Text style={styles.statValue}>{formatINR(doctor.fees)}</Text>
-            <Text style={styles.statLabel}>Consultation</Text>
-          </View>
-        </View>
+        ) : null}
 
         {/* ---------------- Online Video Consultation Banner ---------------- */}
         <Card padded style={styles.videoConsultCard}>
           <View style={styles.videoConsultHeader}>
             <View style={styles.videoConsultIconWrap}>
-              <Ionicons name="videocam" size={22} color={Palette.primary} />
+              <Ionicons name="videocam" size={22} color="#2563EB" />
             </View>
             <View style={styles.videoConsultTitleWrap}>
               <View style={styles.videoBadgeRow}>
@@ -396,9 +443,8 @@ export default function DoctorDetailScreen() {
           </View>
           <Text style={styles.videoConsultDesc}>
             Connect securely with {formatDoctorName(doctor.name)} from the
-            comfort of your home. Upon booking confirmation, an automated
-            private Google Meet link will be generated and attached to your
-            appointment details.
+            comfort of your home. An automated private Google Meet link will be
+            generated for your scheduled visit.
           </Text>
           <View style={styles.videoFeaturesRow}>
             <View style={styles.videoFeature}>
@@ -426,360 +472,441 @@ export default function DoctorDetailScreen() {
               <Text style={styles.videoFeatureText}>Any Device</Text>
             </View>
           </View>
+          <Button
+            title="Book Video Consultation"
+            variant="primary"
+            icon="videocam"
+            onPress={openBooking}
+            style={styles.videoConsultCtaBtn}
+          />
         </Card>
 
-        {/* ---------------- Contact Actions ---------------- */}
-        {doctor.phone || doctor.email ? (
-          <View style={styles.actionRow}>
-            {doctor.phone ? (
-              <Button
-                title="Call Clinic"
-                variant="outline"
-                icon="call-outline"
-                onPress={callDoctor}
-                style={styles.actionButton}
-              />
-            ) : null}
-            {doctor.email ? (
-              <Button
-                title="Email"
-                variant="outline"
-                icon="mail-outline"
-                onPress={emailDoctor}
-                style={styles.actionButton}
-              />
-            ) : null}
-          </View>
-        ) : null}
-
-        {/* ---------------- About Doctor ---------------- */}
-        {doctor.about ? (
-          <Card padded style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>
-              About {formatDoctorName(doctor.name)}
-            </Text>
-            <Text style={styles.bodyText}>{doctor.about}</Text>
-          </Card>
-        ) : null}
-
-        {/* ---------------- Services & Department ---------------- */}
-        {serviceRows.length > 0 ? (
-          <Card padded style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Services & Care</Text>
-            {serviceRows.map((row) => (
-              <View key={row.label} style={styles.infoRow}>
-                <View style={styles.infoIcon}>
-                  <Ionicons name={row.icon} size={18} color={Palette.primary} />
-                </View>
-                <View style={styles.infoText}>
-                  <Text style={styles.infoLabel}>{row.label}</Text>
-                  <Text style={styles.infoValue}>{row.value}</Text>
-                </View>
-              </View>
-            ))}
-          </Card>
-        ) : null}
-
-        {/* ---------------- Hospital / Clinic Location ---------------- */}
-        <Card padded style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Hospital & Location</Text>
-          {targetHospitalId ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={openHospitalProfile}
-              style={({ pressed }) => [
-                styles.hospitalNavCard,
-                pressed && styles.pressed,
-              ]}
-            >
-              <View style={styles.infoIcon}>
-                <Ionicons name="business" size={18} color={Palette.primary} />
-              </View>
-              <View style={styles.infoText}>
-                <Text style={styles.infoLabel}>Affiliated Hospital</Text>
-                <Text style={styles.infoValue}>{hospital}</Text>
-                <Text style={styles.hospitalViewLink}>
-                  Tap to view hospital details & facilities →
-                </Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={Palette.primary}
-              />
-            </Pressable>
-          ) : (
-            <View style={styles.infoRow}>
-              <View style={styles.infoIcon}>
-                <Ionicons name="business" size={18} color={Palette.primary} />
-              </View>
-              <View style={styles.infoText}>
-                <Text style={styles.infoLabel}>Affiliated Hospital</Text>
-                <Text style={styles.infoValue}>{hospital}</Text>
-              </View>
-            </View>
-          )}
-
-          {location ? (
-            <View style={styles.infoRow}>
-              <View style={styles.infoIcon}>
-                <Ionicons name="location" size={18} color={Palette.primary} />
-              </View>
-              <View style={styles.infoText}>
-                <Text style={styles.infoLabel}>Location</Text>
-                <Text style={styles.infoValue}>{location}</Text>
-              </View>
-            </View>
-          ) : null}
-          {doctor.clinicInfo?.address ? (
-            <View style={styles.infoRow}>
-              <View style={styles.infoIcon}>
-                <Ionicons name="navigate" size={18} color={Palette.primary} />
-              </View>
-              <View style={styles.infoText}>
-                <Text style={styles.infoLabel}>Clinic Address</Text>
-                <Text style={styles.infoValue}>
-                  {doctor.clinicInfo.address}
-                </Text>
-              </View>
-            </View>
-          ) : null}
-          {doctor.clinicInfo?.roomNo ? (
-            <View style={styles.infoRow}>
-              <View style={styles.infoIcon}>
-                <Ionicons name="enter" size={18} color={Palette.primary} />
-              </View>
-              <View style={styles.infoText}>
-                <Text style={styles.infoLabel}>Room / Cabin</Text>
-                <Text style={styles.infoValue}>{doctor.clinicInfo.roomNo}</Text>
-              </View>
-            </View>
-          ) : null}
-
-          {location || doctor.clinicInfo?.address ? (
-            <Button
-              title="Get Directions"
-              variant="outline"
-              icon="navigate-outline"
-              onPress={handleGetDirections}
-              style={styles.locationBtn}
-            />
-          ) : null}
-        </Card>
-
-        {/* ---------------- Languages Spoken ---------------- */}
-        {languages.length > 0 ? (
-          <Card padded style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Languages Spoken</Text>
-            <View style={styles.chipRow}>
-              {languages.map((language) => (
-                <View key={language} style={styles.chip}>
-                  <Ionicons
-                    name="chatbubbles-outline"
-                    size={14}
-                    color={Palette.primaryDark}
-                  />
-                  <Text style={styles.chipText}>{language}</Text>
-                </View>
-              ))}
-            </View>
-          </Card>
-        ) : null}
-
-        {/* ---------------- Live Availability ---------------- */}
-        <Card padded style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Availability & Schedule</Text>
-          <View style={styles.availabilityRow}>
-            <Ionicons
-              name={accepting ? "checkmark-circle" : "time"}
-              size={22}
-              color={accepting ? Palette.success : Palette.warning}
-            />
-            <View style={styles.availabilityText}>
-              <Text
-                style={[
-                  styles.availabilityStatus,
-                  accepting ? styles.available : styles.unavailable,
-                ]}
-              >
-                {accepting ? "Accepting appointments" : "No slots currently"}
-              </Text>
-              {nextSlot ? (
-                <Text style={styles.availabilityDetail}>
-                  Next available: {nextSlot.date} at {nextSlot.time}
-                </Text>
-              ) : (
-                <Text style={styles.availabilityDetail}>
-                  Check weekly schedule below or choose another day during
-                  booking.
-                </Text>
-              )}
-            </View>
-          </View>
-
-          {weeklySchedule.length > 0 ? (
-            <View style={styles.weeklyWrap}>
-              <Text style={styles.weeklyTitle}>Weekly Working Hours</Text>
-              {weeklySchedule.map((day) => (
-                <View key={day.day} style={styles.weeklyRow}>
-                  <Text style={styles.weeklyDay}>{day.day}</Text>
-                  <Text style={styles.weeklyTime}>
-                    {day.startTime && day.endTime
-                      ? `${day.startTime} - ${day.endTime}`
-                      : "Available"}
+        {/* ---------------- Segmented Tabs ---------------- */}
+        <View style={styles.tabContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabScrollContent}
+          >
+            {(
+              [
+                { key: "about", label: "About" },
+                { key: "availability", label: "Availability" },
+                { key: "reviews", label: `Reviews (${reviewCount})` },
+                { key: "services", label: "Services" },
+              ] as const
+            ).map((tab) => {
+              const isActive = activeTab === tab.key;
+              return (
+                <Pressable
+                  key={tab.key}
+                  accessibilityRole="button"
+                  accessibilityLabel={tab.label}
+                  onPress={() => setActiveTab(tab.key)}
+                  style={({ pressed }) => [
+                    styles.tabPill,
+                    isActive && styles.tabPillActive,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.tabPillText,
+                      isActive && styles.tabPillTextActive,
+                    ]}
+                  >
+                    {tab.label}
                   </Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
-        </Card>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
 
-        {/* ---------------- Education & Qualifications ---------------- */}
-        {doctor.qualificationTimeline &&
-        doctor.qualificationTimeline.length > 0 ? (
-          <Card padded style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Qualifications</Text>
-            {doctor.qualificationTimeline.map((item, index) => (
-              <TimelineItem key={`qual-${index}`} item={item} />
-            ))}
-          </Card>
-        ) : null}
+        {/* ---------------- Tab Content ---------------- */}
+        {activeTab === "about" ? (
+          <>
+            {/* About Doctor */}
+            {doctor.about ? (
+              <Card padded style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>
+                  About {formatDoctorName(doctor.name)}
+                </Text>
+                <Text style={styles.bodyText}>{doctor.about}</Text>
+              </Card>
+            ) : null}
 
-        {doctor.educationTimeline && doctor.educationTimeline.length > 0 ? (
-          <Card padded style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Education & Training</Text>
-            {doctor.educationTimeline.map((item, index) => (
-              <TimelineItem key={`edu-${index}`} item={item} />
-            ))}
-          </Card>
-        ) : null}
-
-        {/* ---------------- Experience Timeline ---------------- */}
-        {doctor.experienceTimeline && doctor.experienceTimeline.length > 0 ? (
-          <Card padded style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Experience & Positions</Text>
-            {doctor.experienceTimeline.map((item, index) => (
-              <TimelineItem key={`exp-${index}`} item={item} />
-            ))}
-          </Card>
-        ) : null}
-
-        {/* ---------------- Awards & Achievements ---------------- */}
-        {(doctor.awards && doctor.awards.length > 0) ||
-        (doctor.achievements && doctor.achievements.length > 0) ? (
-          <Card padded style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Awards & Recognitions</Text>
-            {(doctor.awards || []).map((award, index) => (
-              <View key={`award-${index}`} style={styles.achievementRow}>
-                <Ionicons name="trophy" size={16} color={Palette.gold} />
-                <Text style={styles.bodyText}>{award}</Text>
-              </View>
-            ))}
-            {(doctor.achievements || []).map((achievement, index) => (
-              <View key={`ach-${index}`} style={styles.achievementRow}>
-                <Ionicons name="ribbon" size={16} color={Palette.primary} />
-                <Text style={styles.bodyText}>{achievement}</Text>
-              </View>
-            ))}
-          </Card>
-        ) : null}
-
-        {/* ---------------- Patient Reviews ---------------- */}
-        <Card padded style={styles.sectionCard}>
-          <View style={styles.reviewHeaderRow}>
-            <View>
-              <Text style={styles.sectionTitle}>
-                Patient Reviews ({reviewCount})
-              </Text>
-              {ratingVal > 0 ? (
-                <View style={styles.starRow}>
-                  <Ionicons name="star" size={14} color={Palette.gold} />
-                  <Text style={styles.reviewRatingOverall}>
-                    {ratingVal.toFixed(1)} out of 5.0
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setReviewVisible(true)}
-              style={({ pressed }) => [
-                styles.writeReviewBtn,
-                pressed && styles.pressed,
-              ]}
-              hitSlop={8}
-            >
-              <Ionicons
-                name="create-outline"
-                size={15}
-                color={Palette.primary}
-              />
-              <Text style={styles.writeReview}>Write a review</Text>
-            </Pressable>
-          </View>
-          {reviews.length === 0 ? (
-            <View style={styles.emptyReviewWrap}>
-              <Ionicons
-                name="chatbubbles-outline"
-                size={28}
-                color={Palette.textMuted}
-              />
-              <Text style={styles.bodyText}>
-                No reviews yet. Be the first to share your consultation
-                experience with {formatDoctorName(doctor.name)}.
-              </Text>
-            </View>
-          ) : (
-            reviews.map((review, idx) => (
-              <View
-                key={String(review._id || review.createdAt || idx)}
-                style={[
-                  styles.reviewItem,
-                  idx === reviews.length - 1 && styles.lastReviewItem,
-                ]}
-              >
-                <View style={styles.reviewHeader}>
-                  <View style={styles.reviewAuthorWrap}>
-                    <View style={styles.reviewAvatar}>
-                      <Text style={styles.reviewAvatarText}>
-                        {(review.name || "P")[0]?.toUpperCase()}
-                      </Text>
+            {/* Languages Spoken */}
+            {languages.length > 0 ? (
+              <Card padded style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>Languages Spoken</Text>
+                <View style={styles.chipRow}>
+                  {languages.map((language) => (
+                    <View key={language} style={styles.chip}>
+                      <Ionicons
+                        name="chatbubbles-outline"
+                        size={14}
+                        color={Palette.primaryDark}
+                      />
+                      <Text style={styles.chipText}>{language}</Text>
                     </View>
-                    <View>
-                      <Text style={styles.reviewName}>
-                        {review.name || "Verified Patient"}
-                      </Text>
-                      {review.createdAt ? (
-                        <Text style={styles.reviewDate}>
-                          {formatISODate(review.createdAt)}
+                  ))}
+                </View>
+              </Card>
+            ) : null}
+
+            {/* Qualifications */}
+            {doctor.qualificationTimeline &&
+            doctor.qualificationTimeline.length > 0 ? (
+              <Card padded style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>Qualifications</Text>
+                {doctor.qualificationTimeline.map((item, index) => (
+                  <TimelineItem key={`qual-${index}`} item={item} />
+                ))}
+              </Card>
+            ) : null}
+
+            {/* Education & Training */}
+            {doctor.educationTimeline && doctor.educationTimeline.length > 0 ? (
+              <Card padded style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>Education & Training</Text>
+                {doctor.educationTimeline.map((item, index) => (
+                  <TimelineItem key={`edu-${index}`} item={item} />
+                ))}
+              </Card>
+            ) : null}
+
+            {/* Experience Timeline */}
+            {doctor.experienceTimeline &&
+            doctor.experienceTimeline.length > 0 ? (
+              <Card padded style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>Experience & Positions</Text>
+                {doctor.experienceTimeline.map((item, index) => (
+                  <TimelineItem key={`exp-${index}`} item={item} />
+                ))}
+              </Card>
+            ) : null}
+
+            {/* Awards & Achievements */}
+            {(doctor.awards && doctor.awards.length > 0) ||
+            (doctor.achievements && doctor.achievements.length > 0) ? (
+              <Card padded style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>Awards & Recognitions</Text>
+                {(doctor.awards || []).map((award, index) => (
+                  <View key={`award-${index}`} style={styles.achievementRow}>
+                    <Ionicons name="trophy" size={16} color={Palette.gold} />
+                    <Text style={styles.bodyText}>{award}</Text>
+                  </View>
+                ))}
+                {(doctor.achievements || []).map((achievement, index) => (
+                  <View key={`ach-${index}`} style={styles.achievementRow}>
+                    <Ionicons name="ribbon" size={16} color={Palette.primary} />
+                    <Text style={styles.bodyText}>{achievement}</Text>
+                  </View>
+                ))}
+              </Card>
+            ) : null}
+          </>
+        ) : null}
+
+        {activeTab === "availability" ? (
+          <Card padded style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Availability & Schedule</Text>
+            <View style={styles.availabilityRow}>
+              <Ionicons
+                name={accepting ? "checkmark-circle" : "time"}
+                size={22}
+                color={accepting ? Palette.success : Palette.warning}
+              />
+              <View style={styles.availabilityText}>
+                <Text
+                  style={[
+                    styles.availabilityStatus,
+                    accepting ? styles.available : styles.unavailable,
+                  ]}
+                >
+                  {accepting ? "Accepting appointments" : "No slots currently"}
+                </Text>
+                {nextSlot ? (
+                  <Text style={styles.availabilityDetail}>
+                    Next available: {nextSlot.date} at {nextSlot.time}
+                  </Text>
+                ) : (
+                  <Text style={styles.availabilityDetail}>
+                    Check weekly schedule below or choose another day during
+                    booking.
+                  </Text>
+                )}
+              </View>
+            </View>
+
+            {weeklySchedule.length > 0 ? (
+              <View style={styles.weeklyWrap}>
+                <Text style={styles.weeklyTitle}>Weekly Working Hours</Text>
+                {weeklySchedule.map((day) => (
+                  <View key={day.day} style={styles.weeklyRow}>
+                    <Text style={styles.weeklyDay}>{day.day}</Text>
+                    <Text style={styles.weeklyTime}>
+                      {day.startTime && day.endTime
+                        ? `${day.startTime} - ${day.endTime}`
+                        : "Available"}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </Card>
+        ) : null}
+
+        {activeTab === "reviews" ? (
+          <Card padded style={styles.sectionCard}>
+            <View style={styles.reviewHeaderRow}>
+              <View>
+                <Text style={styles.sectionTitle}>
+                  Patient Reviews ({reviewCount})
+                </Text>
+                {ratingVal > 0 ? (
+                  <View style={styles.starRow}>
+                    <Ionicons name="star" size={14} color={Palette.gold} />
+                    <Text style={styles.reviewRatingOverall}>
+                      {ratingVal.toFixed(1)} out of 5.0
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setReviewVisible(true)}
+                style={({ pressed }) => [
+                  styles.writeReviewBtn,
+                  pressed && styles.pressed,
+                ]}
+                hitSlop={8}
+              >
+                <Ionicons
+                  name="create-outline"
+                  size={15}
+                  color={Palette.primary}
+                />
+                <Text style={styles.writeReview}>Write a review</Text>
+              </Pressable>
+            </View>
+            {reviews.length === 0 ? (
+              <View style={styles.emptyReviewWrap}>
+                <Ionicons
+                  name="chatbubbles-outline"
+                  size={28}
+                  color={Palette.textMuted}
+                />
+                <Text style={styles.bodyText}>
+                  No reviews yet. Be the first to share your consultation
+                  experience with {formatDoctorName(doctor.name)}.
+                </Text>
+              </View>
+            ) : (
+              reviews.map((review, idx) => (
+                <View
+                  key={String(review._id || review.createdAt || idx)}
+                  style={[
+                    styles.reviewItem,
+                    idx === reviews.length - 1 && styles.lastReviewItem,
+                  ]}
+                >
+                  <View style={styles.reviewHeader}>
+                    <View style={styles.reviewAuthorWrap}>
+                      <View style={styles.reviewAvatar}>
+                        <Text style={styles.reviewAvatarText}>
+                          {(review.name || "P")[0]?.toUpperCase()}
                         </Text>
-                      ) : null}
+                      </View>
+                      <View>
+                        <Text style={styles.reviewName}>
+                          {review.name || "Verified Patient"}
+                        </Text>
+                        {review.createdAt ? (
+                          <Text style={styles.reviewDate}>
+                            {formatISODate(review.createdAt)}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
+                    <View style={styles.reviewStars}>
+                      <Ionicons name="star" size={14} color={Palette.gold} />
+                      <Text style={styles.reviewRating}>
+                        {Number(review.rating).toFixed(1)}
+                      </Text>
                     </View>
                   </View>
-                  <View style={styles.reviewStars}>
-                    <Ionicons name="star" size={14} color={Palette.gold} />
-                    <Text style={styles.reviewRating}>
-                      {Number(review.rating).toFixed(1)}
+                  {review.title ? (
+                    <Text style={styles.reviewTitle}>{review.title}</Text>
+                  ) : null}
+                  <Text style={styles.bodyText}>{review.comment}</Text>
+                  {review.tags && review.tags.length > 0 ? (
+                    <View style={styles.reviewTagsRow}>
+                      {review.tags.map((tag) => (
+                        <View key={tag} style={styles.reviewTagBadge}>
+                          <Text style={styles.reviewTagText}>{tag}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+              ))
+            )}
+          </Card>
+        ) : null}
+
+        {activeTab === "services" ? (
+          <>
+            {serviceRows.length > 0 ? (
+              <Card padded style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>Services & Care</Text>
+                {serviceRows.map((row) => (
+                  <View key={row.label} style={styles.infoRow}>
+                    <View style={styles.infoIcon}>
+                      <Ionicons
+                        name={row.icon}
+                        size={18}
+                        color={Palette.primary}
+                      />
+                    </View>
+                    <View style={styles.infoText}>
+                      <Text style={styles.infoLabel}>{row.label}</Text>
+                      <Text style={styles.infoValue}>{row.value}</Text>
+                    </View>
+                  </View>
+                ))}
+              </Card>
+            ) : null}
+
+            <Card padded style={styles.sectionCard}>
+              <Text style={styles.sectionTitle}>Hospital & Location</Text>
+              {targetHospitalId ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={openHospitalProfile}
+                  style={({ pressed }) => [
+                    styles.hospitalNavCard,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <View style={styles.infoIcon}>
+                    <Ionicons
+                      name="business"
+                      size={18}
+                      color={Palette.primary}
+                    />
+                  </View>
+                  <View style={styles.infoText}>
+                    <Text style={styles.infoLabel}>Affiliated Hospital</Text>
+                    <Text style={styles.infoValue}>{hospital}</Text>
+                    <Text style={styles.hospitalViewLink}>
+                      Tap to view hospital details & facilities →
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={Palette.primary}
+                  />
+                </Pressable>
+              ) : (
+                <View style={styles.infoRow}>
+                  <View style={styles.infoIcon}>
+                    <Ionicons
+                      name="business"
+                      size={18}
+                      color={Palette.primary}
+                    />
+                  </View>
+                  <View style={styles.infoText}>
+                    <Text style={styles.infoLabel}>Affiliated Hospital</Text>
+                    <Text style={styles.infoValue}>{hospital}</Text>
+                  </View>
+                </View>
+              )}
+
+              {location ? (
+                <View style={styles.infoRow}>
+                  <View style={styles.infoIcon}>
+                    <Ionicons
+                      name="location"
+                      size={18}
+                      color={Palette.primary}
+                    />
+                  </View>
+                  <View style={styles.infoText}>
+                    <Text style={styles.infoLabel}>Location</Text>
+                    <Text style={styles.infoValue}>{location}</Text>
+                  </View>
+                </View>
+              ) : null}
+              {doctor.clinicInfo?.address ? (
+                <View style={styles.infoRow}>
+                  <View style={styles.infoIcon}>
+                    <Ionicons
+                      name="navigate"
+                      size={18}
+                      color={Palette.primary}
+                    />
+                  </View>
+                  <View style={styles.infoText}>
+                    <Text style={styles.infoLabel}>Clinic Address</Text>
+                    <Text style={styles.infoValue}>
+                      {doctor.clinicInfo.address}
                     </Text>
                   </View>
                 </View>
-                {review.title ? (
-                  <Text style={styles.reviewTitle}>{review.title}</Text>
-                ) : null}
-                <Text style={styles.bodyText}>{review.comment}</Text>
-                {review.tags && review.tags.length > 0 ? (
-                  <View style={styles.reviewTagsRow}>
-                    {review.tags.map((tag) => (
-                      <View key={tag} style={styles.reviewTagBadge}>
-                        <Text style={styles.reviewTagText}>{tag}</Text>
-                      </View>
-                    ))}
+              ) : null}
+              {doctor.clinicInfo?.roomNo ? (
+                <View style={styles.infoRow}>
+                  <View style={styles.infoIcon}>
+                    <Ionicons name="enter" size={18} color={Palette.primary} />
                   </View>
+                  <View style={styles.infoText}>
+                    <Text style={styles.infoLabel}>Room / Cabin</Text>
+                    <Text style={styles.infoValue}>
+                      {doctor.clinicInfo.roomNo}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
+
+              {location || doctor.clinicInfo?.address ? (
+                <Button
+                  title="Get Directions"
+                  variant="outline"
+                  icon="navigate-outline"
+                  onPress={handleGetDirections}
+                  style={styles.locationBtn}
+                />
+              ) : null}
+            </Card>
+
+            {doctor.phone || doctor.email ? (
+              <View style={styles.actionRow}>
+                {doctor.phone ? (
+                  <Button
+                    title="Call Clinic"
+                    variant="outline"
+                    icon="call-outline"
+                    onPress={callDoctor}
+                    style={styles.actionButton}
+                  />
+                ) : null}
+                {doctor.email ? (
+                  <Button
+                    title="Email"
+                    variant="outline"
+                    icon="mail-outline"
+                    onPress={emailDoctor}
+                    style={styles.actionButton}
+                  />
                 ) : null}
               </View>
-            ))
-          )}
-        </Card>
+            ) : null}
+          </>
+        ) : null}
       </ScrollView>
 
       {/* ---------------- Sticky Booking Bar ---------------- */}
@@ -903,7 +1030,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.985 }],
   },
   hero: {
-    height: 390,
+    height: 290,
     backgroundColor: Palette.primaryDark,
     overflow: "hidden",
     position: "relative",
@@ -966,23 +1093,23 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 90,
-    backgroundColor: "rgba(0, 0, 0, 0.35)",
+    backgroundColor: "rgba(0, 0, 0, 0.28)",
   },
   heroShadeMid: {
     position: "absolute",
     top: 90,
     left: 0,
     right: 0,
-    height: 160,
-    backgroundColor: "rgba(10, 30, 26, 0.25)",
+    height: 100,
+    backgroundColor: "rgba(10, 30, 26, 0.08)",
   },
   heroShadeBottom: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    height: 200,
-    backgroundColor: "rgba(8, 26, 22, 0.92)",
+    height: 60,
+    backgroundColor: "rgba(8, 26, 22, 0.25)",
   },
   heroTopBar: {
     position: "absolute",
@@ -1009,6 +1136,103 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     ...Shadows.card,
+  },
+  doctorFloatingCard: {
+    marginHorizontal: Spacing.lg,
+    marginTop: -32,
+    padding: Spacing.lg,
+    borderRadius: 24,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    borderWidth: 1,
+    borderColor: "rgba(191, 219, 254, 0.6)",
+    ...Shadows.card,
+    gap: 8,
+    zIndex: 20,
+  },
+  doctorNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  doctorName: {
+    ...Typography.h2,
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#0F172A",
+    flex: 1,
+  },
+  doctorSpecialtyText: {
+    ...Typography.bodyMedium,
+    fontSize: 14,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  hospitalPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(37, 99, 235, 0.08)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radius.pill,
+    alignSelf: "flex-start",
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: "rgba(37, 99, 235, 0.15)",
+  },
+  hospitalPillText: {
+    ...Typography.caption,
+    fontSize: 13,
+    color: "#2563EB",
+    fontWeight: "600",
+  },
+  statsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(240, 246, 254, 0.6)",
+    borderRadius: 16,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "rgba(191, 219, 254, 0.5)",
+  },
+  videoConsultCtaBtn: {
+    marginTop: Spacing.xs,
+    backgroundColor: "#2563EB",
+  },
+  tabContainer: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.xs,
+  },
+  tabScrollContent: {
+    flexDirection: "row",
+    gap: 8,
+    paddingVertical: 4,
+  },
+  tabPill: {
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: Radius.pill,
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    borderWidth: 1,
+    borderColor: "rgba(191, 219, 254, 0.6)",
+  },
+  tabPillActive: {
+    backgroundColor: "#2563EB",
+    borderColor: "#2563EB",
+    ...Shadows.sm,
+  },
+  tabPillText: {
+    ...Typography.bodySmall,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  tabPillTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   heroText: {
     position: "absolute",
@@ -1479,5 +1703,49 @@ const styles = StyleSheet.create({
   },
   bottomButton: {
     minWidth: 180,
+  },
+  fabActive: {
+    backgroundColor: Palette.primaryLight,
+    borderWidth: 1,
+    borderColor: Palette.primary,
+  },
+  comparisonBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: Palette.primaryLight,
+    borderWidth: 1,
+    borderColor: Palette.primary,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  comparisonBannerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    flex: 1,
+  },
+  comparisonBannerText: {
+    ...Typography.bodySmall,
+    color: Palette.primaryDark,
+    fontWeight: "600",
+    flex: 1,
+  },
+  comparisonBannerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Palette.primary,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: Radius.pill,
+  },
+  comparisonBannerBtnText: {
+    ...Typography.caption,
+    color: Palette.white,
+    fontWeight: "700",
   },
 });

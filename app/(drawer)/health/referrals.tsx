@@ -37,7 +37,7 @@ import {
 } from "@/constants/theme";
 import { useAuth } from "@/hooks/use-auth";
 import { useScreenFocus } from "@/hooks/use-screen-focus";
-import { formatDDMMYYYY } from "@/lib/format";
+import { formatDDMMYYYY, formatDoctorName } from "@/lib/format";
 import { toErrorMessage } from "@/services/api";
 import * as clinicalReferralService from "@/services/clinical-referral";
 import * as familyService from "@/services/family";
@@ -387,7 +387,10 @@ export default function ReferralsScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.pathRole}>Referring Physician</Text>
             <Text style={styles.doctorName}>
-              Dr. {origDoctor?.name || item.referringDoctorName || "Physician"}
+              {formatDoctorName(
+                origDoctor?.name || item.referringDoctorName,
+                "Physician",
+              )}
             </Text>
             {item.originatingHospitalName ? (
               <Text style={styles.doctorSpeciality}>

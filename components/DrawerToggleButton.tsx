@@ -4,19 +4,24 @@
  * Works from screens nested inside the drawer navigator (e.g. the patient tab
  * screens) by reaching up to the drawer parent navigation.
  */
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import React from 'react';
-import { Pressable, StyleSheet, ViewStyle } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import React from "react";
+import { Pressable, StyleSheet, ViewStyle } from "react-native";
 
-import { Palette, Radius } from '@/constants/theme';
+import { Palette, Radius } from "@/constants/theme";
 
 interface DrawerToggleButtonProps {
   color?: string;
+  backgroundColor?: string;
   style?: ViewStyle;
 }
 
-export function DrawerToggleButton({ color = Palette.text, style }: DrawerToggleButtonProps) {
+export function DrawerToggleButton({
+  color = Palette.white,
+  backgroundColor,
+  style,
+}: DrawerToggleButtonProps) {
   const navigation = useNavigation();
 
   const openDrawer = () => {
@@ -29,11 +34,11 @@ export function DrawerToggleButton({ color = Palette.text, style }: DrawerToggle
         openDrawer?: () => void;
         toggleDrawer?: () => void;
       };
-      if (typeof drawer.openDrawer === 'function') {
+      if (typeof drawer.openDrawer === "function") {
         drawer.openDrawer();
         return;
       }
-      if (typeof drawer.toggleDrawer === 'function') {
+      if (typeof drawer.toggleDrawer === "function") {
         drawer.toggleDrawer();
         return;
       }
@@ -45,10 +50,15 @@ export function DrawerToggleButton({ color = Palette.text, style }: DrawerToggle
       accessibilityRole="button"
       accessibilityLabel="Open menu"
       onPress={openDrawer}
-      hitSlop={8}
-      style={({ pressed }) => [styles.button, pressed && styles.pressed, style]}
+      hitSlop={10}
+      style={({ pressed }) => [
+        styles.button,
+        backgroundColor ? { backgroundColor } : null,
+        style,
+        pressed && styles.pressed,
+      ]}
     >
-      <Ionicons name="menu" size={26} color={color} />
+      <Ionicons name="menu" size={24} color={color} />
     </Pressable>
   );
 }
@@ -58,11 +68,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: Radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Palette.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
   },
   pressed: {
-    opacity: 0.6,
+    opacity: 0.75,
+    transform: [{ scale: 0.95 }],
   },
 });

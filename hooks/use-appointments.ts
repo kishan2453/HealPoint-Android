@@ -148,7 +148,23 @@ export function useAppointments() {
   }, [load, userId]);
 
   const today = appointments
+    .filter(
+      (appointment) =>
+        UPCOMING_STATUSES.includes(appointment.status) &&
+        appointment.slotDate === todayKey(),
+    )
+    .sort((a, b) => (a.slotTime || "").localeCompare(b.slotTime || ""));
+
+  const todayAll = appointments
     .filter((appointment) => appointment.slotDate === todayKey())
+    .sort((a, b) => (a.slotTime || "").localeCompare(b.slotTime || ""));
+
+  const todayCancelled = appointments
+    .filter(
+      (appointment) =>
+        (appointment.status === "cancel" || appointment.status === "missed") &&
+        appointment.slotDate === todayKey(),
+    )
     .sort((a, b) => (a.slotTime || "").localeCompare(b.slotTime || ""));
 
   const upcoming = appointments
@@ -178,6 +194,8 @@ export function useAppointments() {
     appointments,
     upcoming,
     today,
+    todayAll,
+    todayCancelled,
     completed,
     cancelled,
     past,

@@ -55,7 +55,7 @@ import {
 } from "@/constants/theme";
 import { useAuth } from "@/hooks/use-auth";
 import { useScreenFocus } from "@/hooks/use-screen-focus";
-import { formatDDMMYYYY } from "@/lib/format";
+import { formatDDMMYYYY, formatDoctorName } from "@/lib/format";
 import { toErrorMessage } from "@/services/api";
 import * as appointmentService from "@/services/appointments";
 import * as carePassportService from "@/services/carePassport";
@@ -254,7 +254,7 @@ function ActiveEpisodeCard({
         </Text>
       ) : null}
       <Text style={styles.episodeDoctor} numberOfLines={1}>
-        Dr. {episode.doctorName}
+        {formatDoctorName(episode.doctorName)}
         {episode.doctorSpeciality ? ` · ${episode.doctorSpeciality}` : ""}
       </Text>
 
@@ -325,7 +325,7 @@ function EpisodeRow({
             {episode.hospitalName}
           </Text>
           <Text style={styles.episodeRowDoctor} numberOfLines={1}>
-            Dr. {episode.doctorName}
+            {formatDoctorName(episode.doctorName)}
           </Text>
           <Text style={styles.episodeRowDate}>
             {formatDDMMYYYY(episode.slotDate)}

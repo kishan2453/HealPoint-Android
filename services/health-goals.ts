@@ -6,7 +6,6 @@
  * appointments, medication reminders, follow-ups, and health records.
  */
 
-import * as SecureStore from "expo-secure-store";
 import { api, ApiClientError } from "./api";
 import type {
   CreateHealthGoalPayload,
@@ -16,43 +15,22 @@ import type {
   UpdateHealthGoalPayload,
 } from "@/types";
 
-const STORAGE_KEY_PREFIX = "healpoint_health_goals_";
-
-function getStorageKey(userId: string): string {
-  // Sanitize key for SecureStore (alphanumeric, ".", "-", "_")
-  const sanitized = userId.replace(/[^a-zA-Z0-9._-]/g, "_");
-  return `${STORAGE_KEY_PREFIX}${sanitized}`;
-}
+// In-memory cache for goals resilience (never stores multi-KB goal arrays in hardware SecureStore)
+const inMemoryGoalsCache = new Map<string, HealthGoal[]>();
 
 function generateLocalId(): string {
   return `goal_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 async function loadLocalGoals(userId: string): Promise<HealthGoal[]> {
-  try {
-    const data = await SecureStore.getItemAsync(getStorageKey(userId));
-    if (data) {
-      const parsed = JSON.parse(data);
-      return Array.isArray(parsed) ? (parsed as HealthGoal[]) : [];
-    }
-  } catch (err) {
-    console.warn("Failed to load local health goals:", err);
-  }
-  return [];
+  return inMemoryGoalsCache.get(userId) || [];
 }
 
 async function saveLocalGoals(
   userId: string,
   goals: HealthGoal[],
 ): Promise<void> {
-  try {
-    await SecureStore.setItemAsync(
-      getStorageKey(userId),
-      JSON.stringify(goals),
-    );
-  } catch (err) {
-    console.warn("Failed to save local health goals:", err);
-  }
+  inMemoryGoalsCache.set(userId, goals);
 }
 
 function shouldFallbackToLocal(err: unknown): boolean {

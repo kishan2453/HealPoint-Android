@@ -5,7 +5,7 @@
  * session survives app restarts. Registers itself as the token provider for
  * the shared API client. No secrets are logged or stored anywhere else.
  */
-import * as SecureStore from "expo-secure-store";
+import { getStorageItem, setStorageItem, deleteStorageItem } from "@/lib/storage";
 import React, {
   createContext,
   useCallback,
@@ -31,56 +31,30 @@ const USER_KEY = "healpoint.auth.user";
 const ONBOARDING_KEY = "healpoint.onboarding.completed";
 
 /**
- * Minimal user snapshot persisted to SecureStore.
+ * Minimal session identity persisted to hardware SecureStore (< 150 bytes).
  *
- * `expo-secure-store` warns (and on some platforms rejects) values larger than
- * 2048 bytes. The full `User` object can exceed that once favorites / stats are
- * present, so we only persist the subset the UI needs to render a cached
- * session. The authoritative profile is always re-fetched from the server on
- * startup.
+ * SecureStore is designed for small credentials and tokens. Large objects,
+ * photos (e.g. base64 image strings), medical histories, or addresses
+ * exceed 2048 bytes and trigger warnings/rejections.
+ *
+ * The authoritative full User profile is always fetched fresh from the server
+ * on startup via `authService.getProfile(userId)`.
  */
-type StoredUser = Pick<User, "_id" | "name" | "email"> & {
-  image?: string;
-  phone?: string;
-  gender?: string;
-  dob?: string;
-  address?: string;
-  bloodGroup?: string;
-  allergies?: string[];
-  chronicConditions?: string[];
+type StoredUser = {
+  _id: string;
+  name: string;
+  email: string;
   role?: User["role"];
   hospitalId?: string;
   hospitalName?: string;
   authProvider?: User["authProvider"];
-  emergencyContact?: User["emergencyContact"];
 };
 
-function toStoredUser(user: User): StoredUser {
-  return {
-    _id: user._id,
-    name: user.name,
-    email: user.email,
-    ...(user.image ? { image: user.image } : {}),
-    ...(user.phone ? { phone: user.phone } : {}),
-    ...(user.gender ? { gender: user.gender } : {}),
-    ...(user.dob ? { dob: user.dob } : {}),
-    ...(user.address ? { address: user.address } : {}),
-    ...(user.bloodGroup ? { bloodGroup: user.bloodGroup } : {}),
-    ...(user.allergies ? { allergies: user.allergies } : {}),
-    ...(user.chronicConditions
-      ? { chronicConditions: user.chronicConditions }
-      : {}),
-    ...(user.emergencyContact
-      ? { emergencyContact: user.emergencyContact }
-      : {}),
-    ...(user.role ? { role: user.role } : {}),
-    ...(user.hospitalId ? { hospitalId: user.hospitalId } : {}),
-    ...(user.hospitalName ? { hospitalName: user.hospitalName } : {}),
-    ...(user.authProvider ? { authProvider: user.authProvider } : {}),
-  };
+function toStoredUser(user: User): User {
+  return { ...user };
 }
 
-function fromStoredUser(stored: StoredUser): User {
+function fromStoredUser(stored: User): User {
   return { ...stored };
 }
 
@@ -147,6 +121,7 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<User | null>;
   updateStoredProfile: (patch: UpdateProfilePayload) => Promise<User | null>;
+  changeAccountEmail: (password: string, newEmail: string) => Promise<User | null>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -161,7 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const markOnboardingCompleted = useCallback(async () => {
     setHasSeenOnboarding(true);
     try {
-      await SecureStore.setItemAsync(ONBOARDING_KEY, "true");
+      await setStorageItem(ONBOARDING_KEY, "true");
     } catch (error) {
       console.warn("Unable to persist onboarding completion", error);
     }
@@ -173,12 +148,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(nextUser);
     setHasSeenOnboarding(true);
     try {
-      await SecureStore.setItemAsync(TOKEN_KEY, nextToken);
-      await SecureStore.setItemAsync(
+      await setStorageItem(TOKEN_KEY, nextToken);
+      await setStorageItem(
         USER_KEY,
         JSON.stringify(toStoredUser(nextUser)),
       );
-      await SecureStore.setItemAsync(ONBOARDING_KEY, "true");
+      await setStorageItem(ONBOARDING_KEY, "true");
     } catch (error) {
       // Storage errors should never break the current run; in-memory session
       // is enough until the next app start.
@@ -191,8 +166,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setUser(null);
     try {
-      await SecureStore.deleteItemAsync(TOKEN_KEY);
-      await SecureStore.deleteItemAsync(USER_KEY);
+      await deleteStorageItem(TOKEN_KEY);
+      await deleteStorageItem(USER_KEY);
     } catch (error) {
       console.warn("Unable to clear stored session", error);
     }
@@ -219,9 +194,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async function restore() {
       try {
         const [storedToken, storedUser, storedOnboarding] = await Promise.all([
-          SecureStore.getItemAsync(TOKEN_KEY),
-          SecureStore.getItemAsync(USER_KEY),
-          SecureStore.getItemAsync(ONBOARDING_KEY),
+          getStorageItem(TOKEN_KEY),
+          getStorageItem(USER_KEY),
+          getStorageItem(ONBOARDING_KEY),
         ]);
 
         if (cancelled) return;
@@ -265,7 +240,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   ? toUserFromDoctor(panel.doctor)
                   : fromStoredUser(parsedUser);
                 setUser(user);
-                await SecureStore.setItemAsync(
+                await setStorageItem(
                   USER_KEY,
                   JSON.stringify(toStoredUser(user)),
                 );
@@ -274,7 +249,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               const res = await authService.getProfile(userId);
               if (!cancelled) {
                 setUser(res.user);
-                await SecureStore.setItemAsync(
+                await setStorageItem(
                   USER_KEY,
                   JSON.stringify(toStoredUser(res.user)),
                 );
@@ -388,18 +363,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const panel = await authService.getDoctorProfile(user._id);
       const next = panel.doctor ? toUserFromDoctor(panel.doctor) : user;
       setUser(next);
-      await SecureStore.setItemAsync(
-        USER_KEY,
-        JSON.stringify(toStoredUser(next)),
-      );
+      try {
+        await setStorageItem(
+          USER_KEY,
+          JSON.stringify(toStoredUser(next)),
+        );
+      } catch (e) {
+        console.warn("[auth] Failed to persist user profile", e);
+      }
       return next;
     }
     const res = await authService.getProfile(user._id);
     setUser(res.user);
-    await SecureStore.setItemAsync(
-      USER_KEY,
-      JSON.stringify(toStoredUser(res.user)),
-    );
+    try {
+      await setStorageItem(
+        USER_KEY,
+        JSON.stringify(toStoredUser(res.user)),
+      );
+    } catch (e) {
+      console.warn("[auth] Failed to persist user profile", e);
+    }
     return res.user;
   }, [user?._id, user?.role]);
 
@@ -412,13 +395,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (user.role === "doctor") return user;
       const res = await authService.updateProfile(user._id, patch);
       setUser(res.user);
-      await SecureStore.setItemAsync(
-        USER_KEY,
-        JSON.stringify(toStoredUser(res.user)),
-      );
+      try {
+        await setStorageItem(
+          USER_KEY,
+          JSON.stringify(toStoredUser(res.user)),
+        );
+      } catch (e) {
+        console.warn("[auth] Failed to persist updated user profile", e);
+      }
       return res.user;
     },
     [user?._id, user?.role],
+  );
+
+  const changeAccountEmail = useCallback(
+    async (password: string, newEmail: string): Promise<User | null> => {
+      const res = await authService.changeEmail({ password, newEmail });
+      setUser(res.user);
+      if (res.token) {
+        setToken(res.token);
+        tokenRef.current = res.token;
+        try {
+          await setStorageItem(TOKEN_KEY, res.token);
+        } catch (e) {
+          console.warn("[auth] Failed to persist new token", e);
+        }
+      }
+      try {
+        await setStorageItem(
+          USER_KEY,
+          JSON.stringify(toStoredUser(res.user)),
+        );
+      } catch (e) {
+        console.warn("[auth] Failed to persist updated email profile", e);
+      }
+      return res.user;
+    },
+    [],
   );
 
   const value = useMemo<AuthContextValue>(
@@ -436,6 +449,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut,
       refreshProfile,
       updateStoredProfile,
+      changeAccountEmail,
     }),
     [
       user,
@@ -450,6 +464,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut,
       refreshProfile,
       updateStoredProfile,
+      changeAccountEmail,
     ],
   );
 

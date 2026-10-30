@@ -98,7 +98,7 @@ export function Input({
           filled ? null : Shadows.card,
         ]}
       >
-        {/* Focus halo: a soft teal wash that fades in while typing. */}
+        {/* Focus halo: a soft royal blue wash that fades in while typing. */}
         <Animated.View
           pointerEvents="none"
           style={[
@@ -106,7 +106,7 @@ export function Input({
             {
               backgroundColor: filled
                 ? Palette.primary
-                : "rgba(14, 159, 142, 0.10)",
+                : "rgba(37, 99, 235, 0.08)",
             },
             { opacity: haloOpacity },
           ]}
@@ -187,11 +187,11 @@ const styles = StyleSheet.create({
     opacity: 0,
   },
   inputOutline: {
-    borderColor: Palette.border,
-    backgroundColor: Palette.surface,
+    borderColor: "rgba(191, 219, 254, 0.60)",
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
   },
   inputFilled: {
-    borderColor: "transparent",
+    borderColor: "rgba(191, 219, 254, 0.45)",
     backgroundColor: Palette.primaryLight,
   },
   leftIcon: {

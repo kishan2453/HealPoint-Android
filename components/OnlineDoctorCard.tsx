@@ -9,7 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Badge } from "@/components/ui/Badge";
 import {
@@ -55,10 +55,25 @@ function OnlineDoctorCardRaw({ doctor, index = 0 }: OnlineDoctorCardProps) {
     try {
       const ent = await subscriptionService.getPatientSubscriptionEntitlement();
       if (!ent.isEligibleForVideoConsultation) {
-        router.push({
-          pathname: "/(drawer)/subscription",
-          params: { notice: ent.code || "subscription_required" },
-        });
+        Alert.alert(
+          "Subscription Required",
+          "Subscription Required – Please subscribe to continue with video consultation.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "View Plans",
+              onPress: () => {
+                router.push({
+                  pathname: "/(drawer)/subscription",
+                  params: {
+                    notice: "subscription_required",
+                    returnDoctorId: id,
+                  },
+                });
+              },
+            },
+          ]
+        );
         return;
       }
     } catch {

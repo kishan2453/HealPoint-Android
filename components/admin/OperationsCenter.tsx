@@ -66,9 +66,11 @@ import { openGoogleMeetUrl } from "@/lib/meet";
 import { useResponsiveVariant } from "@/lib/responsive";
 import * as adminService from "@/services/admin";
 import { toErrorMessage } from "@/services/api";
+import * as checkinService from "@/services/checkin";
 import * as consultationService from "@/services/consultations";
 import {
   subscribeToAppointmentSync,
+  subscribeToConsultationSync,
   subscribeToQueueSync,
 } from "@/services/socket";
 import type {
@@ -99,7 +101,9 @@ export type OperationalTab =
   | "pending"
   | "completed"
   | "cancelled"
-  | "delayed";
+  | "delayed"
+  | "clinic"
+  | "video";
 
 interface DoctorOperationalView {
   doctor: Doctor;
@@ -126,6 +130,8 @@ export function OperationsCenter() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [hospitalName, setHospitalName] = useState("");
+  const [backendData, setBackendData] =
+    useState<adminService.OperationsCommandCenterResponse | null>(null);
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([]);
   const [upcomingAppointments, setUpcomingAppointments] = useState<
     Appointment[]
@@ -141,6 +147,9 @@ export function OperationsCenter() {
   const [activeTab, setActiveTab] = useState<OperationalTab>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
+  const [consultationTypeFilter, setConsultationTypeFilter] = useState<
+    "all" | "clinic" | "video"
+  >("all");
 
   // Interaction modals
   const [selectedAppointment, setSelectedAppointment] =
@@ -155,39 +164,63 @@ export function OperationsCenter() {
   const [actionError, setActionError] = useState("");
   const [togglingDoctorId, setTogglingDoctorId] = useState("");
 
+  // Quick Check-In / Reception Desk States
+  const [checkingInId, setCheckingInId] = useState<string>("");
+  const [quickCheckInVisible, setQuickCheckInVisible] = useState(false);
+  const [quickReferenceInput, setQuickReferenceInput] = useState("");
+  const [quickCheckInLoading, setQuickCheckInLoading] = useState(false);
+  const [quickCheckInError, setQuickCheckInError] = useState("");
+
   // Consolidated Master Fetch
   const fetchOperationsData = useCallback(async (isBackground = false) => {
     if (!isBackground) setError("");
     try {
-      const [apptsRes, upcomingRes, doctorsRes, deptsRes, consultRes] =
-        await Promise.all([
-          adminService.getHospitalAdminAppointments({
-            dateFilter: "today",
-            limit: 150,
-            sortBy: "date_asc",
-          }),
-          adminService
-            .getHospitalAdminAppointments({
-              dateFilter: "upcoming",
-              limit: 250,
-              sortBy: "date_asc",
-            })
-            .catch(() => ({ appointments: [] })),
-          adminService.getHospitalDoctors(),
-          adminService.getHospitalDepartments().catch(() => ({
-            success: true,
-            departments: [],
-            stats: { total: 0, active: 0, inactive: 0, withDoctors: 0 },
-          })),
-          consultationService.getHospitalConsultationStats().catch(() => null),
-        ]);
+      // 1. Primary: dedicated Hospital Operations Command Center 2.0 backend aggregation API
+      const opCenterRes = await adminService
+        .getHospitalAdminOperationsCommandCenter({
+          date: todayKey(),
+        })
+        .catch(() => null);
 
-      setTodayAppointments(apptsRes.appointments || []);
-      setUpcomingAppointments(upcomingRes.appointments || []);
-      if (apptsRes.hospitalName) setHospitalName(apptsRes.hospitalName);
-      setDoctors(doctorsRes.data || doctorsRes.doctors || []);
-      setDepartments(deptsRes.departments || []);
-      if (consultRes) setConsultationStats(consultRes);
+      if (opCenterRes && opCenterRes.success) {
+        setBackendData(opCenterRes);
+        setTodayAppointments(opCenterRes.appointments || []);
+        if (opCenterRes.hospitalName) setHospitalName(opCenterRes.hospitalName);
+        if (opCenterRes.doctorOperations) {
+          setDoctors(opCenterRes.doctorOperations.map((d) => d.doctor));
+        }
+      } else {
+        // Fallback: Individual endpoints
+        const [apptsRes, upcomingRes, doctorsRes, deptsRes, consultRes] =
+          await Promise.all([
+            adminService.getHospitalAdminAppointments({
+              dateFilter: "today",
+              limit: 150,
+              sortBy: "date_asc",
+            }),
+            adminService
+              .getHospitalAdminAppointments({
+                dateFilter: "upcoming",
+                limit: 250,
+                sortBy: "date_asc",
+              })
+              .catch(() => ({ appointments: [] })),
+            adminService.getHospitalDoctors(),
+            adminService.getHospitalDepartments().catch(() => ({
+              success: true,
+              departments: [],
+              stats: { total: 0, active: 0, inactive: 0, withDoctors: 0 },
+            })),
+            consultationService.getHospitalConsultationStats().catch(() => null),
+          ]);
+
+        setTodayAppointments(apptsRes.appointments || []);
+        setUpcomingAppointments(upcomingRes.appointments || []);
+        if (apptsRes.hospitalName) setHospitalName(apptsRes.hospitalName);
+        setDoctors(doctorsRes.data || doctorsRes.doctors || []);
+        setDepartments(deptsRes.departments || []);
+        if (consultRes) setConsultationStats(consultRes);
+      }
 
       setLastSyncTime(new Date());
       setSyncCount((prev) => prev + 1);
@@ -225,10 +258,15 @@ export function OperationsCenter() {
       triggerBackgroundRefresh();
     });
 
+    const unsubscribeConsult = subscribeToConsultationSync(() => {
+      triggerBackgroundRefresh();
+    });
+
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       unsubscribeAppt();
       unsubscribeQueue();
+      unsubscribeConsult();
     };
   }, [fetchOperationsData]);
 
@@ -239,6 +277,30 @@ export function OperationsCenter() {
 
   // Derived Operational Metrics
   const metrics = useMemo(() => {
+    if (backendData?.kpis) {
+      const k = backendData.kpis;
+      const followUps = todayAppointments.filter((a) =>
+        Boolean(a.followUpAdvice?.trim()),
+      ).length;
+      return {
+        total: k.total,
+        pending: k.pending,
+        confirmed: k.confirmed,
+        checkedIn: k.checkedIn,
+        waitingQueue: k.inQueue,
+        inConsultation: k.inConsultation,
+        availableDoctors: k.availableDoctors,
+        completed: k.completed,
+        cancelled: k.cancelled,
+        rescheduled: k.rescheduled,
+        delayed: k.delayed,
+        online: k.onlineConsultations,
+        inPerson: k.inPersonConsultations,
+        videoCount: k.onlineConsultations,
+        followUpsAdvised: k.followUpsAdvised || followUps,
+      };
+    }
+
     const total = todayAppointments.length;
     let pending = 0;
     let confirmed = 0;
@@ -247,7 +309,10 @@ export function OperationsCenter() {
     let inConsultation = 0;
     let completed = 0;
     let cancelled = 0;
+    let rescheduled = 0;
+    let delayed = 0;
     let videoCount = 0;
+    let inPerson = 0;
     let followUpsAdvised = 0;
 
     for (const a of todayAppointments) {
@@ -260,8 +325,14 @@ export function OperationsCenter() {
       if (s === "confirmed") confirmed++;
       if (s === "completed") completed++;
       if (s === "cancel" || s === "missed") cancelled++;
+      if (s === "rescheduled") rescheduled++;
 
-      if (a.consultationType === "video") videoCount++;
+      if (a.consultationType === "video") {
+        videoCount++;
+      } else {
+        inPerson++;
+      }
+
       if (a.followUpAdvice?.trim()) followUpsAdvised++;
 
       if (
@@ -298,10 +369,14 @@ export function OperationsCenter() {
       availableDoctors,
       completed,
       cancelled,
+      rescheduled,
+      delayed,
+      online: videoCount,
+      inPerson,
       videoCount,
       followUpsAdvised,
     };
-  }, [todayAppointments, doctors]);
+  }, [backendData, todayAppointments, doctors]);
 
   // Derived Doctor Operational View
   const doctorOperationalList: DoctorOperationalView[] = useMemo(() => {
@@ -406,6 +481,10 @@ export function OperationsCenter() {
 
   // Derived Operational Alerts (Strictly Real Backend Driven)
   const smartAlerts: OperationalAlert[] = useMemo(() => {
+    if (backendData?.smartAlerts && backendData.smartAlerts.length > 0) {
+      return backendData.smartAlerts;
+    }
+
     const highQueueDocs = doctorOperationalList
       .filter((d) => d.waitingCount >= 4)
       .map((d) => ({
@@ -430,7 +509,7 @@ export function OperationsCenter() {
       inConsultationCount: metrics.inConsultation,
       videoConsultationCount: metrics.videoCount,
     });
-  }, [doctorOperationalList, metrics, delayedAppointments]);
+  }, [backendData, doctorOperationalList, metrics, delayedAppointments]);
 
   // Derived Recent Operational Activity timeline
   const recentActivities: OperationalActivityItem[] = useMemo(() => {
@@ -468,6 +547,18 @@ export function OperationsCenter() {
           (d) => d.id === String(a._id),
         );
         if (!isDelayed) return false;
+      } else if (activeTab === "clinic") {
+        if (a.consultationType === "video") return false;
+      } else if (activeTab === "video") {
+        if (a.consultationType !== "video") return false;
+      }
+
+      // Consultation Type filter
+      if (consultationTypeFilter === "clinic" && a.consultationType === "video") {
+        return false;
+      }
+      if (consultationTypeFilter === "video" && a.consultationType !== "video") {
+        return false;
       }
 
       // Department filter
@@ -499,6 +590,7 @@ export function OperationsCenter() {
     todayAppointments,
     activeTab,
     departmentFilter,
+    consultationTypeFilter,
     searchQuery,
     delayedAppointments,
   ]);
@@ -571,6 +663,63 @@ export function OperationsCenter() {
     [rescheduleAppointment, fetchOperationsData],
   );
 
+  // Check-In Handlers (Smart Check-In & OPD Queue Token Assignment)
+  const handleDirectCheckIn = useCallback(
+    async (appt: Appointment) => {
+      const apptId = String(appt._id);
+      setCheckingInId(apptId);
+      setActionError("");
+      setActionSuccess("");
+      try {
+        const res = await checkinService.verifyAndCheckInPatient({
+          appointmentId: apptId,
+        });
+        const tokenNum =
+          res.tokenNumber || res.token || res.appointment?.queueToken || "";
+        setActionSuccess(
+          `Checked in ${appointmentPatientName(appt)} successfully! Assigned Queue Token: #${tokenNum}`,
+        );
+        void fetchOperationsData(true);
+      } catch (err) {
+        setActionError(toErrorMessage(err, "Patient check-in failed."));
+      } finally {
+        setCheckingInId("");
+      }
+    },
+    [fetchOperationsData],
+  );
+
+  const handleQuickCheckInSubmit = useCallback(async () => {
+    if (!quickReferenceInput.trim()) {
+      setQuickCheckInError(
+        "Please enter an appointment ID, reference, or QR code.",
+      );
+      return;
+    }
+    setQuickCheckInLoading(true);
+    setQuickCheckInError("");
+    try {
+      const res = await checkinService.verifyAndCheckInPatient({
+        rawReference: quickReferenceInput.trim(),
+      });
+      const tokenNum =
+        res.tokenNumber || res.token || res.appointment?.queueToken || "";
+      const pName = res.appointment?.patientName || "Patient";
+      setActionSuccess(
+        `Checked in ${pName} successfully! Assigned Queue Token: #${tokenNum}`,
+      );
+      setQuickCheckInVisible(false);
+      setQuickReferenceInput("");
+      void fetchOperationsData(true);
+    } catch (err) {
+      setQuickCheckInError(
+        toErrorMessage(err, "Check-in failed. Please verify reference."),
+      );
+    } finally {
+      setQuickCheckInLoading(false);
+    }
+  }, [quickReferenceInput, fetchOperationsData]);
+
   const handleToggleDoctor = useCallback(
     async (doc: Doctor, nextVal: boolean) => {
       const docId = String(doc._id);
@@ -609,6 +758,23 @@ export function OperationsCenter() {
     }
 
     if (st === "confirmed") {
+      if (
+        !selectedAppointment.checkedIn &&
+        !selectedAppointment.checkInAt
+      ) {
+        actions.push({
+          key: "check_in",
+          label: "Check-In Patient to OPD",
+          icon: "qr-code-outline",
+          variant: "primary",
+          onPress: () => {
+            const appt = selectedAppointment;
+            setSelectedAppointment(null);
+            void handleDirectCheckIn(appt);
+          },
+        });
+      }
+
       actions.push({
         key: "complete",
         label: "Complete Consultation",
@@ -734,14 +900,28 @@ export function OperationsCenter() {
           </View>
         </View>
         <View style={styles.topLiveRight}>
-          <Ionicons name="sync-outline" size={13} color={Palette.primaryDark} />
-          <Text style={styles.topLiveTimestamp}>
-            Live{" "}
-            {lastSyncTime.toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              setQuickReferenceInput("");
+              setQuickCheckInError("");
+              setQuickCheckInVisible(true);
+            }}
+            style={styles.receptionCheckInBtn}
+          >
+            <Ionicons name="qr-code" size={14} color="#fff" />
+            <Text style={styles.receptionCheckInText}>Reception Check-In</Text>
+          </Pressable>
+          <View style={styles.topLiveSyncBadge}>
+            <Ionicons name="sync-outline" size={12} color={Palette.primaryDark} />
+            <Text style={styles.topLiveTimestamp}>
+              Live{" "}
+              {lastSyncTime.toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -751,8 +931,9 @@ export function OperationsCenter() {
       ) : null}
       {actionError ? <FormMessage type="error" message={actionError} /> : null}
 
-      {/* ----------------- TOP OPERATIONAL KPI CARDS ----------------- */}
+      {/* ----------------- TOP OPERATIONAL KPI CARDS (ALL 12 CORE OPERATIONS) ----------------- */}
       <View style={styles.kpiContainer}>
+        {/* 1. Today's Bookings */}
         <Pressable
           accessibilityRole="button"
           onPress={() => setActiveTab("all")}
@@ -771,6 +952,7 @@ export function OperationsCenter() {
           <Text style={styles.kpiSub}>All scheduled visits</Text>
         </Pressable>
 
+        {/* 2. Checked In */}
         <Pressable
           accessibilityRole="button"
           onPress={() => setActiveTab("checked_in")}
@@ -789,6 +971,7 @@ export function OperationsCenter() {
           <Text style={styles.kpiSub}>Present at hospital</Text>
         </Pressable>
 
+        {/* 3. Waiting Queue */}
         <Pressable
           accessibilityRole="button"
           onPress={() => setActiveTab("waiting")}
@@ -807,6 +990,7 @@ export function OperationsCenter() {
           <Text style={styles.kpiSub}>OPD lounge line</Text>
         </Pressable>
 
+        {/* 4. In Consultation */}
         <Pressable
           accessibilityRole="button"
           onPress={() => setActiveTab("in_consultation")}
@@ -825,6 +1009,7 @@ export function OperationsCenter() {
           <Text style={styles.kpiSub}>With doctors now</Text>
         </Pressable>
 
+        {/* 5. Available Staff Doctors */}
         <Pressable
           accessibilityRole="button"
           onPress={() => router.push("/admin/doctor-availability" as never)}
@@ -842,6 +1027,7 @@ export function OperationsCenter() {
           <Text style={styles.kpiSub}>{doctors.length} total staff</Text>
         </Pressable>
 
+        {/* 6. Completed Consultations */}
         <Pressable
           accessibilityRole="button"
           onPress={() => setActiveTab("completed")}
@@ -860,6 +1046,144 @@ export function OperationsCenter() {
           <Text style={styles.kpiSub}>Consulted today</Text>
         </Pressable>
 
+        {/* 7. Pending Confirmations */}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setActiveTab("pending")}
+          style={[
+            styles.kpiCard,
+            activeTab === "pending" && styles.kpiCardActive,
+            isDesktop && styles.kpiCardDesktop,
+            isTablet && styles.kpiCardTablet,
+          ]}
+        >
+          <View style={[styles.kpiIconWrap, { backgroundColor: "#FFF7ED" }]}>
+            <Ionicons name="alert-circle-outline" size={20} color="#EA580C" />
+          </View>
+          <Text style={styles.kpiValue}>{metrics.pending}</Text>
+          <Text style={styles.kpiLabel}>Pending Confirm</Text>
+          <Text style={styles.kpiSub}>Awaiting triage</Text>
+        </Pressable>
+
+        {/* 8. Delayed Appointments */}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setActiveTab("delayed")}
+          style={[
+            styles.kpiCard,
+            (metrics.delayed > 0 || delayedAppointments.length > 0) && {
+              borderColor: "#EF4444",
+              backgroundColor: "#FEF2F2",
+            },
+            activeTab === "delayed" && styles.kpiCardActive,
+            isDesktop && styles.kpiCardDesktop,
+            isTablet && styles.kpiCardTablet,
+          ]}
+        >
+          <View
+            style={[
+              styles.kpiIconWrap,
+              {
+                backgroundColor:
+                  metrics.delayed > 0 || delayedAppointments.length > 0
+                    ? "#FEE2E2"
+                    : "#F1F5F9",
+              },
+            ]}
+          >
+            <Ionicons
+              name="time"
+              size={20}
+              color={
+                metrics.delayed > 0 || delayedAppointments.length > 0
+                  ? "#DC2626"
+                  : Palette.textMuted
+              }
+            />
+          </View>
+          <Text
+            style={[
+              styles.kpiValue,
+              (metrics.delayed > 0 || delayedAppointments.length > 0) && {
+                color: "#DC2626",
+              },
+            ]}
+          >
+            {metrics.delayed || delayedAppointments.length}
+          </Text>
+          <Text
+            style={[
+              styles.kpiLabel,
+              (metrics.delayed > 0 || delayedAppointments.length > 0) && {
+                color: "#991B1B",
+              },
+            ]}
+          >
+            Delayed Visits
+          </Text>
+          <Text style={styles.kpiSub}>&gt;20m past slot</Text>
+        </Pressable>
+
+        {/* 9. In-Clinic Visits */}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setActiveTab("clinic")}
+          style={[
+            styles.kpiCard,
+            activeTab === "clinic" && styles.kpiCardActive,
+            isDesktop && styles.kpiCardDesktop,
+            isTablet && styles.kpiCardTablet,
+          ]}
+        >
+          <View style={[styles.kpiIconWrap, { backgroundColor: "#F0FDF4" }]}>
+            <Ionicons name="business" size={20} color="#15803D" />
+          </View>
+          <Text style={styles.kpiValue}>{metrics.inPerson}</Text>
+          <Text style={styles.kpiLabel}>In-Clinic</Text>
+          <Text style={styles.kpiSub}>Physical visits</Text>
+        </Pressable>
+
+        {/* 10. Video Consultations */}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setActiveTab("video")}
+          style={[
+            styles.kpiCard,
+            activeTab === "video" && styles.kpiCardActive,
+            isDesktop && styles.kpiCardDesktop,
+            isTablet && styles.kpiCardTablet,
+          ]}
+        >
+          <View style={[styles.kpiIconWrap, { backgroundColor: "#F3E8FF" }]}>
+            <Ionicons name="videocam" size={20} color="#7C3AED" />
+          </View>
+          <Text style={styles.kpiValue}>
+            {metrics.online || metrics.videoCount}
+          </Text>
+          <Text style={styles.kpiLabel}>Video Calls</Text>
+          <Text style={styles.kpiSub}>Google Meet visits</Text>
+        </Pressable>
+
+        {/* 11. Cancelled / Missed */}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setActiveTab("cancelled")}
+          style={[
+            styles.kpiCard,
+            activeTab === "cancelled" && styles.kpiCardActive,
+            isDesktop && styles.kpiCardDesktop,
+            isTablet && styles.kpiCardTablet,
+          ]}
+        >
+          <View style={[styles.kpiIconWrap, { backgroundColor: "#FEE2E2" }]}>
+            <Ionicons name="close-circle" size={20} color="#DC2626" />
+          </View>
+          <Text style={styles.kpiValue}>{metrics.cancelled}</Text>
+          <Text style={styles.kpiLabel}>Cancelled / Missed</Text>
+          <Text style={styles.kpiSub}>No-shows & releases</Text>
+        </Pressable>
+
+        {/* 12. Care Plans / Follow-Ups */}
         <Pressable
           accessibilityRole="button"
           onPress={() => setActiveTab("all")}
@@ -876,31 +1200,6 @@ export function OperationsCenter() {
           <Text style={styles.kpiLabel}>Care Plans</Text>
           <Text style={styles.kpiSub}>Follow-ups advised</Text>
         </Pressable>
-
-        {delayedAppointments.length > 0 ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setActiveTab("delayed")}
-            style={[
-              styles.kpiCard,
-              { borderColor: "#EF4444", backgroundColor: "#FEF2F2" },
-              activeTab === "delayed" && styles.kpiCardActive,
-              isDesktop && styles.kpiCardDesktop,
-              isTablet && styles.kpiCardTablet,
-            ]}
-          >
-            <View style={[styles.kpiIconWrap, { backgroundColor: "#FEE2E2" }]}>
-              <Ionicons name="alert-circle" size={20} color="#DC2626" />
-            </View>
-            <Text style={[styles.kpiValue, { color: "#DC2626" }]}>
-              {delayedAppointments.length}
-            </Text>
-            <Text style={[styles.kpiLabel, { color: "#991B1B" }]}>Delayed</Text>
-            <Text style={[styles.kpiSub, { color: "#B91C1C" }]}>
-              &gt;20m past slot
-            </Text>
-          </Pressable>
-        ) : null}
       </View>
 
       {/* ----------------- SMART ALERTS SECTION ----------------- */}
@@ -1049,6 +1348,9 @@ export function OperationsCenter() {
                 const docName = formatDoctorName(item.doctor.name);
                 const dept =
                   item.doctor.speciality || item.doctor.department || "OPD";
+                const liveDoc = backendData?.liveQueue?.find(
+                  (q) => String(q.doctorId) === String(item.doctor._id),
+                );
 
                 return (
                   <Card
@@ -1130,8 +1432,60 @@ export function OperationsCenter() {
                       </View>
                     </View>
 
-                    {/* Next in line */}
-                    {item.nextPatient ? (
+                    {/* Next in line or Live Waiting Line */}
+                    {liveDoc && liveDoc.waitingList && liveDoc.waitingList.length > 0 ? (
+                      <View style={styles.waitingQueueListWrap}>
+                        <Text style={styles.queueWaitingListHeader}>
+                          WAITING IN LINE ({liveDoc.waitingList.length})
+                        </Text>
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.waitingTokensRow}
+                        >
+                          {liveDoc.waitingList.map((wp) => (
+                            <View
+                              key={wp._id}
+                              style={[
+                                styles.waitingTokenChip,
+                                wp.isDelayed && styles.waitingTokenChipDelayed,
+                              ]}
+                            >
+                              <View style={styles.waitingTokenTopRow}>
+                                <Text
+                                  style={[
+                                    styles.waitingTokenNum,
+                                    wp.isDelayed && { color: "#DC2626" },
+                                  ]}
+                                >
+                                  {wp.queueToken ? `#${wp.queueToken}` : "Queue"}
+                                </Text>
+                                <Text
+                                  style={[
+                                    styles.waitingTokenDuration,
+                                    wp.isDelayed && { color: "#DC2626" },
+                                  ]}
+                                >
+                                  {wp.waitMinutes > 0
+                                    ? `${wp.waitMinutes}m`
+                                    : "just in"}
+                                  {wp.isDelayed ? " ⏱" : ""}
+                                </Text>
+                              </View>
+                              <Text
+                                style={styles.waitingTokenPatient}
+                                numberOfLines={1}
+                              >
+                                {wp.patientName}
+                              </Text>
+                              <Text style={styles.waitingTokenSlot} numberOfLines={1}>
+                                {wp.slotTime}
+                              </Text>
+                            </View>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    ) : item.nextPatient ? (
                       <View style={styles.nextPatientStrip}>
                         <Ionicons
                           name="arrow-forward-circle"
@@ -1182,13 +1536,15 @@ export function OperationsCenter() {
               { key: "checked_in", label: "Checked In" },
               { key: "confirmed", label: "Confirmed" },
               { key: "pending", label: "Pending" },
+              { key: "clinic", label: "In-Clinic" },
+              { key: "video", label: "Video Visits" },
               { key: "completed", label: "Completed" },
               { key: "cancelled", label: "Cancelled" },
-              ...(delayedAppointments.length > 0
+              ...(metrics.delayed > 0 || delayedAppointments.length > 0
                 ? [
                     {
                       key: "delayed" as OperationalTab,
-                      label: `Delayed (${delayedAppointments.length})`,
+                      label: `Delayed (${metrics.delayed || delayedAppointments.length})`,
                     },
                   ]
                 : []),
@@ -1393,6 +1749,65 @@ export function OperationsCenter() {
                         variant={appointmentStatusBadge(appt.status)}
                       />
                     </View>
+
+                    {/* Quick Reception & Telehealth Action Row */}
+                    {(appt.status === "confirmed" && !isChecked) ||
+                    (isVideo && appt.meetingUrl) ? (
+                      <View style={styles.apptCardQuickActions}>
+                        {appt.status === "confirmed" && !isChecked ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            disabled={checkingInId === String(appt._id)}
+                            onPress={(e) => {
+                              e.stopPropagation?.();
+                              void handleDirectCheckIn(appt);
+                            }}
+                            style={[
+                              styles.cardCheckInBtn,
+                              checkingInId === String(appt._id) &&
+                                styles.cardCheckInBtnDisabled,
+                            ]}
+                          >
+                            {checkingInId === String(appt._id) ? (
+                              <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                              <>
+                                <Ionicons
+                                  name="log-in-outline"
+                                  size={14}
+                                  color="#fff"
+                                />
+                                <Text style={styles.cardCheckInBtnText}>
+                                  Check In to OPD
+                                </Text>
+                              </>
+                            )}
+                          </Pressable>
+                        ) : null}
+
+                        {isVideo && appt.meetingUrl ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            onPress={(e) => {
+                              e.stopPropagation?.();
+                              if (appt.meetingUrl) {
+                                openGoogleMeetUrl(appt.meetingUrl);
+                              }
+                            }}
+                            style={styles.cardMeetBtn}
+                          >
+                            <Ionicons
+                              name="videocam-outline"
+                              size={14}
+                              color="#fff"
+                            />
+                            <Text style={styles.cardMeetBtnText}>
+                              Launch Video
+                            </Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
+                    ) : null}
                   </Card>
                 </Pressable>
               );
@@ -1748,6 +2163,105 @@ export function OperationsCenter() {
           </View>
         </Modal>
       ) : null}
+
+      {/* 4. Reception Quick Check-In Modal */}
+      {quickCheckInVisible ? (
+        <Modal
+          visible={quickCheckInVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setQuickCheckInVisible(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.quickCheckInCard}>
+              <View style={styles.quickCheckInHeader}>
+                <View style={styles.quickCheckInTitleRow}>
+                  <View style={styles.quickCheckInIconWrap}>
+                    <Ionicons
+                      name="qr-code-outline"
+                      size={22}
+                      color={Palette.primary}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.quickCheckInTitle}>
+                      Reception OPD Check-In
+                    </Text>
+                    <Text style={styles.quickCheckInSub}>
+                      Enter Appointment ID, Reference, or QR Scan code
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => setQuickCheckInVisible(false)}
+                    hitSlop={8}
+                    style={styles.modalCloseBtn}
+                  >
+                    <Ionicons
+                      name="close"
+                      size={20}
+                      color={Palette.textMuted}
+                    />
+                  </Pressable>
+                </View>
+              </View>
+
+              {quickCheckInError ? (
+                <View
+                  style={{
+                    paddingHorizontal: Spacing.md,
+                    paddingTop: Spacing.sm,
+                  }}
+                >
+                  <FormMessage type="error" message={quickCheckInError} />
+                </View>
+              ) : null}
+
+              <View style={styles.quickCheckInBody}>
+                <Text style={styles.quickCheckInInputLabel}>
+                  APPOINTMENT REFERENCE OR CODE
+                </Text>
+                <TextInput
+                  style={styles.quickCheckInInput}
+                  placeholder="e.g. APT-260324-1234 or MongoDB ID"
+                  placeholderTextColor={Palette.textMuted}
+                  value={quickReferenceInput}
+                  onChangeText={setQuickReferenceInput}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                />
+
+                <View style={styles.quickHintBox}>
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={16}
+                    color={Palette.primary}
+                  />
+                  <Text style={styles.quickHintText}>
+                    Directly verifies hospital booking, sets status to Checked In, and assigns a sequential OPD queue token (e.g. A-001) for the doctor.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.quickCheckInFooter}>
+                <Button
+                  title="Cancel"
+                  variant="outline"
+                  onPress={() => setQuickCheckInVisible(false)}
+                  disabled={quickCheckInLoading}
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  title="Verify & Check In"
+                  variant="primary"
+                  onPress={handleQuickCheckInSubmit}
+                  loading={quickCheckInLoading}
+                  style={{ flex: 1 }}
+                />
+              </View>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
     </ScrollView>
   );
 }
@@ -1816,7 +2330,30 @@ const styles = StyleSheet.create({
   topLiveRight: {
     flexDirection: "row",
     alignItems: "center",
+    gap: Spacing.sm,
+  },
+  receptionCheckInBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: Palette.primary,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: Radius.md,
+  },
+  receptionCheckInText: {
+    ...Typography.caption,
+    color: Palette.white,
+    fontWeight: "700",
+  },
+  topLiveSyncBadge: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
+    backgroundColor: "rgba(14, 159, 142, 0.08)",
+    paddingHorizontal: 6,
+    paddingVertical: 5,
+    borderRadius: Radius.sm,
   },
   topLiveTimestamp: {
     fontSize: 11,
@@ -2556,5 +3093,179 @@ const styles = StyleSheet.create({
   modalBtnRow: {
     flexDirection: "row",
     gap: Spacing.sm,
+  },
+
+  // Live waiting queue list in doctor card
+  waitingQueueListWrap: {
+    marginTop: Spacing.xs,
+    gap: 4,
+  },
+  queueWaitingListHeader: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: Palette.textMuted,
+    letterSpacing: 0.5,
+  },
+  waitingTokensRow: {
+    gap: 6,
+    paddingVertical: 2,
+  },
+  waitingTokenChip: {
+    backgroundColor: Palette.surfaceAlt,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 110,
+    gap: 1,
+  },
+  waitingTokenChipDelayed: {
+    borderColor: "#FCA5A5",
+    backgroundColor: "#FEF2F2",
+  },
+  waitingTokenTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  waitingTokenNum: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: Palette.primaryDark,
+  },
+  waitingTokenDuration: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: Palette.textMuted,
+  },
+  waitingTokenPatient: {
+    ...Typography.caption,
+    fontWeight: "700",
+    color: Palette.text,
+  },
+  waitingTokenSlot: {
+    fontSize: 9,
+    color: Palette.textMuted,
+  },
+
+  // Appointment Card Quick Actions
+  apptCardQuickActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: Palette.divider,
+  },
+  cardCheckInBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    backgroundColor: "#059669",
+    paddingVertical: 7,
+    borderRadius: Radius.md,
+  },
+  cardCheckInBtnDisabled: {
+    opacity: 0.6,
+  },
+  cardCheckInBtnText: {
+    ...Typography.caption,
+    fontWeight: "700",
+    color: Palette.white,
+  },
+  cardMeetBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    backgroundColor: "#7C3AED",
+    paddingVertical: 7,
+    borderRadius: Radius.md,
+  },
+  cardMeetBtnText: {
+    ...Typography.caption,
+    fontWeight: "700",
+    color: Palette.white,
+  },
+
+  // Quick Check-In Reception Modal
+  quickCheckInCard: {
+    width: "100%",
+    maxWidth: 440,
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.xl,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+    ...Shadows.lg,
+  },
+  quickCheckInHeader: {
+    gap: Spacing.xs,
+  },
+  quickCheckInTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  quickCheckInIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(14, 159, 142, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickCheckInTitle: {
+    ...Typography.h3,
+    color: Palette.text,
+  },
+  quickCheckInSub: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+  },
+  modalCloseBtn: {
+    padding: Spacing.xs,
+  },
+  quickCheckInBody: {
+    gap: Spacing.sm,
+  },
+  quickCheckInInputLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: Palette.textMuted,
+    letterSpacing: 0.5,
+  },
+  quickCheckInInput: {
+    borderWidth: 1,
+    borderColor: Palette.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    ...Typography.bodyMedium,
+    color: Palette.text,
+    backgroundColor: Palette.surfaceAlt,
+    minHeight: 44,
+  },
+  quickHintBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    backgroundColor: "rgba(14, 159, 142, 0.08)",
+    padding: Spacing.sm,
+    borderRadius: Radius.sm,
+  },
+  quickHintText: {
+    ...Typography.caption,
+    color: Palette.primaryDark,
+    flex: 1,
+    lineHeight: 16,
+  },
+  quickCheckInFooter: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    paddingTop: Spacing.xs,
   },
 });

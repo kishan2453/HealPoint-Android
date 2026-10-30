@@ -45,7 +45,7 @@ export function HealPointLogo({
   const aperture = Math.round(crossW * 1.36);
   const beacon = Math.round(aperture * 0.45);
 
-  const brandPrimary = light ? "#3FD4C0" : Palette.primary;
+  const brandPrimary = light ? "#60A5FA" : Palette.primary;
   const brandBase = light ? Palette.white : Palette.text;
 
   const mark = (
@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(14, 159, 142, 0.15)",
+    borderColor: "rgba(37, 99, 235, 0.15)",
   },
   wordmark: {
     alignItems: "center",

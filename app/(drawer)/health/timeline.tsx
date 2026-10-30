@@ -1,8 +1,11 @@
 /**
- * HealPoint — Personal Health Timeline & Connected Health History Screen.
+ * HealPoint — Smart Patient Health & Care Timeline 2.0
  *
- * A production-grade chronological health journey unifying authentic patient data:
- * Appointment -> Payment -> Doctor Consultation -> Digital Prescription -> Medical Report -> Follow-up -> Next Appointment.
+ * A flagship patient-side personal healthcare journey unifying 100% authentic data:
+ * Appointment -> Payment -> Doctor Acceptance -> Hospital QR Check-in -> OPD Queue Token
+ * -> Consultation -> Digital Prescription -> Lab Reports -> Follow-up Advice -> Re-booking.
+ *
+ * Strictly Patient-side, with full family member isolation and zero duplicate records.
  */
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -15,6 +18,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -22,6 +26,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { DrawerToggleButton } from "@/components/DrawerToggleButton";
 import { FamilyMemberFilterBar } from "@/components/FamilyMemberFilterBar";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import {
@@ -36,6 +42,10 @@ import { useScreenFocus } from "@/hooks/use-screen-focus";
 import { formatDDMMYYYY, formatDoctorName } from "@/lib/format";
 import { toErrorMessage } from "@/services/api";
 import * as appointmentService from "@/services/appointments";
+import {
+  subscribeToAppointmentSync,
+  subscribeToClinicalDocSync,
+} from "@/services/socket";
 import type {
   PatientTimelineAction,
   PatientTimelineEvent,
@@ -58,7 +68,29 @@ const FILTER_TABS: {
     icon: "document-text-outline",
   },
   { key: "reports", label: "Lab Reports", icon: "bar-chart-outline" },
+  { key: "documents", label: "Documents", icon: "folder-outline" },
   { key: "followups", label: "Follow-ups", icon: "refresh-outline" },
+  { key: "reviews", label: "Reviews", icon: "star-outline" },
+];
+
+const AI_QUICK_PROMPTS = [
+  {
+    label: "Last visit summary",
+    prompt: "Summarize what happened in my last doctor consultation.",
+  },
+  {
+    label: "Recent medications",
+    prompt: "Show my current active prescriptions and medications prescribed.",
+  },
+  {
+    label: "Next care steps",
+    prompt:
+      "What do I need to prepare or do next for my upcoming healthcare appointments?",
+  },
+  {
+    label: "Follow-up due?",
+    prompt: "Check if my doctor advised any pending follow-up visits or tests.",
+  },
 ];
 
 export default function HealthTimelineScreen() {
@@ -70,8 +102,12 @@ export default function HealthTimelineScreen() {
   const [familyMemberFilter, setFamilyMemberFilter] = useState<string>(
     memberId || "all",
   );
+  const [searchQuery, setSearchQuery] = useState("");
   const [events, setEvents] = useState<PatientTimelineEvent[]>([]);
   const [summary, setSummary] = useState<PatientTimelineSummary | null>(null);
+  const [expandedJourneyIds, setExpandedJourneyIds] = useState<
+    Record<string, boolean>
+  >({});
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -92,13 +128,15 @@ export default function HealthTimelineScreen() {
             filter: activeFilter,
             familyMemberId: familyMemberFilter,
             page: targetPage,
-            limit: 15,
+            limit: 20,
           });
 
         if (append) {
           setEvents((prev) => {
             const existingIds = new Set(prev.map((e) => e.id));
-            const newOnes = res.events.filter((e) => !existingIds.has(e.id));
+            const newOnes = (res.events || []).filter(
+              (e) => !existingIds.has(e.id),
+            );
             return [...prev, ...newOnes];
           });
         } else {
@@ -131,6 +169,27 @@ export default function HealthTimelineScreen() {
     loadTimeline(1, false);
   }, [activeFilter, familyMemberFilter, user?._id]);
 
+  // Real-time cross-portal sync: automatically refresh when appointments or clinical docs update
+  useEffect(() => {
+    if (!user?._id) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const trigger = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        loadTimeline(1, false);
+      }, 300);
+    };
+
+    const unsubAppt = subscribeToAppointmentSync(() => trigger());
+    const unsubDoc = subscribeToClinicalDocSync(() => trigger());
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      unsubAppt();
+      unsubDoc();
+    };
+  }, [user?._id, loadTimeline]);
+
   const onRefresh = () => {
     loadTimeline(1, false, true);
   };
@@ -155,47 +214,279 @@ export default function HealthTimelineScreen() {
     }
   };
 
-  // Render metric card
+  const handleAiPromptPress = (prompt: string) => {
+    router.push({
+      pathname: "/ai-assistant" as never,
+      params: { initialPrompt: prompt },
+    });
+  };
+
+  // Filtered by Search Query
+  const displayedEvents = useMemo(() => {
+    if (!searchQuery.trim()) return events;
+    const q = searchQuery.toLowerCase().trim();
+    return events.filter((ev) => {
+      const matchTitle = ev.title?.toLowerCase().includes(q);
+      const matchDesc = ev.description?.toLowerCase().includes(q);
+      const matchDoc = ev.doctor?.name?.toLowerCase().includes(q);
+      const matchHosp = ev.hospital?.name?.toLowerCase().includes(q);
+      const matchDetails = ev.details?.toLowerCase().includes(q);
+      return matchTitle || matchDesc || matchDoc || matchHosp || matchDetails;
+    });
+  }, [events, searchQuery]);
+
+  // 1. SMART CURRENT STATUS CARD
+  const renderSmartStatusCard = () => {
+    const status = summary?.smartCurrentStatus;
+    if (!status) return null;
+
+    const isAlert =
+      status.key === "in_queue" ||
+      status.key === "ready_checkin" ||
+      status.key === "consultation_available";
+
+    return (
+      <View
+        style={[styles.smartStatusCard, isAlert && styles.smartStatusCardAlert]}
+      >
+        <View style={styles.smartStatusHeader}>
+          <View style={styles.smartStatusIconWrap}>
+            <Ionicons
+              name={
+                status.key === "in_queue"
+                  ? "people"
+                  : status.key === "ready_checkin"
+                    ? "qr-code"
+                    : status.key === "consultation_available"
+                      ? "videocam"
+                      : status.key === "waiting_doctor"
+                        ? "hourglass-outline"
+                        : status.key === "prescription_ready"
+                          ? "document-text"
+                          : "shield-checkmark"
+              }
+              size={20}
+              color={
+                status.key === "in_queue"
+                  ? "#0284C7"
+                  : status.key === "ready_checkin"
+                    ? "#16A34A"
+                    : Palette.primary
+              }
+            />
+          </View>
+          <View style={styles.smartStatusTitleCol}>
+            <Text style={styles.smartStatusLabel}>Active Care Status</Text>
+            <Text style={styles.smartStatusTitle}>{status.title}</Text>
+          </View>
+          <Badge label={status.badgeLabel} variant={status.badgeVariant} />
+        </View>
+
+        <Text style={styles.smartStatusDesc}>{status.description}</Text>
+
+        {status.queueToken ? (
+          <View style={styles.queueTokenBanner}>
+            <View style={styles.queueTokenLeft}>
+              <Text style={styles.queueTokenPrefix}>OPD Token</Text>
+              <Text style={styles.queueTokenNum}>{status.queueToken}</Text>
+            </View>
+            <Text style={styles.queueTokenStatus}>
+              Status:{" "}
+              {(status.queueStatus || "waiting")
+                .replace(/_/g, " ")
+                .toUpperCase()}
+            </Text>
+          </View>
+        ) : null}
+
+        {status.actionLabel && status.actionRoute ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={status.actionLabel}
+            onPress={() => {
+              if (
+                status.actionParams &&
+                Object.keys(status.actionParams).length > 0
+              ) {
+                router.push({
+                  pathname: status.actionRoute as never,
+                  params: status.actionParams,
+                });
+              } else {
+                router.push(status.actionRoute as never);
+              }
+            }}
+            style={({ pressed }) => [
+              styles.smartStatusActionBtn,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.smartStatusActionText}>
+              {status.actionLabel}
+            </Text>
+            <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+          </Pressable>
+        ) : null}
+      </View>
+    );
+  };
+
+  // 2. RECENT HEALTH ACTIVITY STRIP
+  const renderRecentActivityStrip = () => {
+    const act = summary?.recentActivity;
+    if (!act) return null;
+    const hasAny =
+      act.latestAppointment ||
+      act.latestPrescription ||
+      act.latestReport ||
+      act.latestDocument;
+    if (!hasAny) return null;
+
+    return (
+      <View style={styles.recentActivityWrap}>
+        <View style={styles.recentActivityHeader}>
+          <Text style={styles.recentActivityHeading}>
+            Recent Health Highlights
+          </Text>
+          <Pressable onPress={() => router.push("/health-wallet" as never)}>
+            <Text style={styles.walletLinkText}>Open Health Wallet ›</Text>
+          </Pressable>
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.recentStripScroll}
+        >
+          {act.latestAppointment && (
+            <Pressable
+              style={styles.recentMiniCard}
+              onPress={() =>
+                router.push({
+                  pathname: "/appointment/[id]" as never,
+                  params: { id: act.latestAppointment?.id },
+                })
+              }
+            >
+              <View
+                style={[styles.recentMiniIcon, { backgroundColor: "#EFF6FF" }]}
+              >
+                <Ionicons name="calendar" size={16} color="#0284C7" />
+              </View>
+              <Text style={styles.recentMiniTag}>Latest Visit</Text>
+              <Text style={styles.recentMiniTitle} numberOfLines={1}>
+                {act.latestAppointment.doctorName}
+              </Text>
+              <Text style={styles.recentMiniSub}>
+                {formatDDMMYYYY(act.latestAppointment.date)}
+              </Text>
+            </Pressable>
+          )}
+
+          {act.latestPrescription && (
+            <Pressable
+              style={styles.recentMiniCard}
+              onPress={() => router.push("/health/prescriptions" as never)}
+            >
+              <View
+                style={[styles.recentMiniIcon, { backgroundColor: "#F0F9FF" }]}
+              >
+                <Ionicons name="document-text" size={16} color="#0284C7" />
+              </View>
+              <Text style={styles.recentMiniTag}>Digital Rx</Text>
+              <Text style={styles.recentMiniTitle} numberOfLines={1}>
+                {act.latestPrescription.doctor?.name || "Active Prescription"}
+              </Text>
+              <Text style={styles.recentMiniSub}>
+                {act.latestPrescription.prescriptionDetails?.medicinesCount ||
+                  1}{" "}
+                Meds
+              </Text>
+            </Pressable>
+          )}
+
+          {act.latestReport && (
+            <Pressable
+              style={styles.recentMiniCard}
+              onPress={() => router.push("/health/reports" as never)}
+            >
+              <View
+                style={[styles.recentMiniIcon, { backgroundColor: "#ECFDF5" }]}
+              >
+                <Ionicons name="bar-chart" size={16} color="#059669" />
+              </View>
+              <Text style={styles.recentMiniTag}>Lab Result</Text>
+              <Text style={styles.recentMiniTitle} numberOfLines={1}>
+                {act.latestReport.title}
+              </Text>
+              <Text style={styles.recentMiniSub}>
+                {formatDDMMYYYY(act.latestReport.date)}
+              </Text>
+            </Pressable>
+          )}
+
+          {act.latestDocument && (
+            <Pressable
+              style={styles.recentMiniCard}
+              onPress={() => router.push("/health/records" as never)}
+            >
+              <View
+                style={[styles.recentMiniIcon, { backgroundColor: "#F3F4F6" }]}
+              >
+                <Ionicons name="folder-open" size={16} color="#4B5563" />
+              </View>
+              <Text style={styles.recentMiniTag}>Document</Text>
+              <Text style={styles.recentMiniTitle} numberOfLines={1}>
+                {act.latestDocument.title}
+              </Text>
+              <Text style={styles.recentMiniSub}>
+                {act.latestDocument.category || "Record"}
+              </Text>
+            </Pressable>
+          )}
+        </ScrollView>
+      </View>
+    );
+  };
+
+  // 3. CONTEXTUAL AI ASSISTANT PROMPTS
+  const renderAiPromptsBar = () => (
+    <View style={styles.aiBarContainer}>
+      <View style={styles.aiBarHeader}>
+        <Ionicons name="sparkles" size={15} color="#0284C7" />
+        <Text style={styles.aiBarTitle}>Ask HealPoint AI About Your Care</Text>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.aiPromptsScroll}
+      >
+        {AI_QUICK_PROMPTS.map((q, idx) => (
+          <Pressable
+            key={idx}
+            style={({ pressed }) => [styles.aiChip, pressed && styles.pressed]}
+            onPress={() => handleAiPromptPress(q.prompt)}
+          >
+            <Ionicons
+              name="chatbubble-ellipses-outline"
+              size={13}
+              color="#0284C7"
+            />
+            <Text style={styles.aiChipText}>{q.label}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
+  );
+
+  // 4. MILESTONES SUMMARY METRICS GRID
   const renderSummaryHeader = () => {
     if (!summary) return null;
     return (
       <View style={styles.summaryContainer}>
-        {/* Next Scheduled Care / Upcoming Notice */}
-        {summary.nextAppointment && (
-          <View style={styles.nextVisitBanner}>
-            <View style={styles.nextVisitIconWrap}>
-              <Ionicons name="sparkles" size={18} color="#0284C7" />
-            </View>
-            <View style={styles.nextVisitInfo}>
-              <Text style={styles.nextVisitLabel}>Next Scheduled Care</Text>
-              <Text style={styles.nextVisitTitle} numberOfLines={1}>
-                {summary.nextAppointment.doctorName} •{" "}
-                {formatDDMMYYYY(summary.nextAppointment.date)} (
-                {summary.nextAppointment.time})
-              </Text>
-              <Text style={styles.nextVisitSub} numberOfLines={1}>
-                {summary.nextAppointment.hospitalName}
-              </Text>
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="View next appointment"
-              onPress={() =>
-                router.push({
-                  pathname: "/appointment/[id]" as never,
-                  params: { id: summary.nextAppointment?.appointmentId },
-                })
-              }
-              style={({ pressed }) => [
-                styles.nextVisitBtn,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={styles.nextVisitBtnText}>View</Text>
-              <Ionicons name="chevron-forward" size={14} color="#0284C7" />
-            </Pressable>
-          </View>
-        )}
+        {renderSmartStatusCard()}
+        {renderRecentActivityStrip()}
+        {renderAiPromptsBar()}
 
         {/* Milestone Metrics Grid */}
         <View style={styles.metricsGrid}>
@@ -203,7 +494,7 @@ export default function HealthTimelineScreen() {
             <View
               style={[styles.metricIconWrap, { backgroundColor: "#EFF6FF" }]}
             >
-              <Ionicons name="git-commit" size={18} color="#2563EB" />
+              <Ionicons name="git-commit" size={16} color="#2563EB" />
             </View>
             <Text style={styles.metricVal}>{summary.totalEvents || 0}</Text>
             <Text style={styles.metricName}>Milestones</Text>
@@ -213,7 +504,7 @@ export default function HealthTimelineScreen() {
             <View
               style={[styles.metricIconWrap, { backgroundColor: "#F0FDF4" }]}
             >
-              <Ionicons name="medkit" size={18} color="#16A34A" />
+              <Ionicons name="medkit" size={16} color="#16A34A" />
             </View>
             <Text style={styles.metricVal}>
               {summary.totalConsultations || 0}
@@ -225,23 +516,44 @@ export default function HealthTimelineScreen() {
             <View
               style={[styles.metricIconWrap, { backgroundColor: "#F0F9FF" }]}
             >
-              <Ionicons name="document-text" size={18} color="#0284C7" />
+              <Ionicons name="document-text" size={16} color="#0284C7" />
             </View>
             <Text style={styles.metricVal}>
               {summary.totalPrescriptions || 0}
             </Text>
-            <Text style={styles.metricName}>Prescriptions</Text>
+            <Text style={styles.metricName}>Digital Rx</Text>
           </View>
 
           <View style={styles.metricCard}>
             <View
               style={[styles.metricIconWrap, { backgroundColor: "#ECFDF5" }]}
             >
-              <Ionicons name="bar-chart" size={18} color="#059669" />
+              <Ionicons name="bar-chart" size={16} color="#059669" />
             </View>
             <Text style={styles.metricVal}>{summary.totalReports || 0}</Text>
-            <Text style={styles.metricName}>Reports</Text>
+            <Text style={styles.metricName}>Lab Reports</Text>
           </View>
+        </View>
+
+        {/* Search Bar */}
+        <View style={styles.searchBar}>
+          <Ionicons name="search-outline" size={16} color={Palette.textMuted} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search milestones, doctor, medication, tests..."
+            placeholderTextColor={Palette.textMuted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery ? (
+            <Pressable onPress={() => setSearchQuery("")}>
+              <Ionicons
+                name="close-circle"
+                size={16}
+                color={Palette.textMuted}
+              />
+            </Pressable>
+          ) : null}
         </View>
       </View>
     );
@@ -249,50 +561,46 @@ export default function HealthTimelineScreen() {
 
   // Render Filter Tabs
   const renderFilterTabs = () => (
-    <View style={styles.filterTabsWrap}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterTabsScroll}
-      >
-        {FILTER_TABS.map((tab) => {
-          const isActive = activeFilter === tab.key;
-          return (
-            <Pressable
-              key={tab.key}
-              accessibilityRole="button"
-              accessibilityLabel={tab.label}
-              onPress={() => {
-                setActiveFilter(tab.key);
-                setPage(1);
-              }}
-              style={({ pressed }) => [
-                styles.filterTab,
-                isActive && styles.filterTabActive,
-                pressed && styles.pressed,
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.tabsScrollView}
+      contentContainerStyle={styles.tabsContainer}
+    >
+      {FILTER_TABS.map((tab) => {
+        const isActive = activeFilter === tab.key;
+        return (
+          <Pressable
+            key={tab.key}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: isActive }}
+            accessibilityLabel={tab.label}
+            onPress={() => {
+              setActiveFilter(tab.key);
+              setPage(1);
+            }}
+            style={[styles.tabButton, isActive && styles.tabButtonActive]}
+          >
+            <Ionicons
+              name={tab.icon}
+              size={15}
+              color={isActive ? "#FFFFFF" : Palette.textMuted}
+            />
+            <Text
+              style={[
+                styles.tabButtonText,
+                isActive && styles.tabButtonTextActive,
               ]}
             >
-              <Ionicons
-                name={tab.icon}
-                size={16}
-                color={isActive ? "#0284C7" : "#64748B"}
-              />
-              <Text
-                style={[
-                  styles.filterTabText,
-                  isActive && styles.filterTabTextActive,
-                ]}
-              >
-                {tab.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-    </View>
+              {tab.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
   );
 
-  // Render Timeline Card Item
+  // Render Individual Timeline Event
   const renderTimelineItem = ({
     item,
     index,
@@ -300,7 +608,11 @@ export default function HealthTimelineScreen() {
     item: PatientTimelineEvent;
     index: number;
   }) => {
-    const isLast = index === events.length - 1;
+    const isLast = index === displayedEvents.length - 1;
+    const isAppointment =
+      item.eventType === "appointment" || item.eventType === "hospital_checkin";
+    const isJourneyExpanded = Boolean(expandedJourneyIds[item.id]);
+
     return (
       <View style={styles.timelineRow}>
         {/* Left Vertical Spine & Node */}
@@ -344,28 +656,124 @@ export default function HealthTimelineScreen() {
             <Text style={styles.eventDesc}>{item.description}</Text>
 
             {/* Doctor & Hospital Details */}
-            <View style={styles.metaRow}>
-              <View style={styles.metaDocAvatar}>
-                <Ionicons name="person" size={12} color="#0284C7" />
+            {item.doctor?.name && (
+              <View style={styles.metaRow}>
+                <View style={styles.metaDocAvatar}>
+                  <Ionicons name="person" size={12} color="#0284C7" />
+                </View>
+                <View style={styles.metaTexts}>
+                  <Text style={styles.metaDocName} numberOfLines={1}>
+                    {formatDoctorName(item.doctor.name, "Attending Physician")}
+                    {item.doctor.qualification
+                      ? ` (${item.doctor.qualification})`
+                      : ""}
+                  </Text>
+                  <Text style={styles.metaHospName} numberOfLines={1}>
+                    {item.hospital?.name || "HealPoint Partner Hospital"}
+                    {item.hospital?.city ? ` • ${item.hospital.city}` : ""}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.metaTexts}>
-                <Text style={styles.metaDocName} numberOfLines={1}>
-                  {formatDoctorName(item.doctor?.name, "Attending Physician")}
-                  {item.doctor?.qualification
-                    ? ` (${item.doctor.qualification})`
-                    : ""}
-                </Text>
-                <Text style={styles.metaHospName} numberOfLines={1}>
-                  {item.hospital?.name || "HealPoint Clinic"}
-                  {item.hospital?.city ? ` • ${item.hospital.city}` : ""}
-                </Text>
-              </View>
-            </View>
+            )}
 
-            {/* Clinical Highlights / Details Box */}
+            {/* Details Box */}
             {item.details && (
               <View style={styles.detailsBox}>
                 <Text style={styles.detailsText}>{item.details}</Text>
+              </View>
+            )}
+
+            {/* In-Clinic Queue Highlight */}
+            {item.queueDetails?.token ? (
+              <View style={styles.queueTokenMiniRow}>
+                <Ionicons name="ticket-outline" size={14} color="#0284C7" />
+                <Text style={styles.queueTokenMiniText}>
+                  Queue Token: {item.queueDetails.token} • Status:{" "}
+                  {(item.queueDetails.status || "waiting").toUpperCase()}
+                </Text>
+              </View>
+            ) : null}
+
+            {/* Care Journey Lifecycle Stages Accordion */}
+            {isAppointment && item.appointmentId && (
+              <View style={styles.careJourneyBox}>
+                <Pressable
+                  style={styles.careJourneyToggle}
+                  onPress={() =>
+                    setExpandedJourneyIds((prev) => ({
+                      ...prev,
+                      [item.id]: !prev[item.id],
+                    }))
+                  }
+                >
+                  <View style={styles.careJourneyToggleLeft}>
+                    <Ionicons
+                      name="git-network-outline"
+                      size={14}
+                      color={Palette.primary}
+                    />
+                    <Text style={styles.careJourneyToggleText}>
+                      Smart Care Journey Stages
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name={isJourneyExpanded ? "chevron-up" : "chevron-down"}
+                    size={16}
+                    color={Palette.textMuted}
+                  />
+                </Pressable>
+
+                {isJourneyExpanded && (
+                  <View style={styles.journeyStagesRow}>
+                    {[
+                      { label: "Booked", done: true },
+                      { label: "Payment", done: true },
+                      { label: "Confirmed", done: item.status !== "cancelled" },
+                      {
+                        label: "Check-In",
+                        done: Boolean(
+                          item.queueDetails?.token ||
+                          item.eventType === "hospital_checkin",
+                        ),
+                      },
+                      {
+                        label: "Consultation",
+                        done: item.status === "completed",
+                      },
+                      {
+                        label: "Digital Rx",
+                        done: item.status === "completed",
+                      },
+                    ].map((st, sIdx) => (
+                      <View key={sIdx} style={styles.journeyStageItem}>
+                        <View
+                          style={[
+                            styles.journeyStageDot,
+                            st.done && styles.journeyStageDotDone,
+                          ]}
+                        >
+                          {st.done ? (
+                            <Ionicons
+                              name="checkmark"
+                              size={10}
+                              color="#FFFFFF"
+                            />
+                          ) : (
+                            <View style={styles.journeyStageInnerDot} />
+                          )}
+                        </View>
+                        <Text
+                          style={[
+                            styles.journeyStageText,
+                            st.done && styles.journeyStageTextDone,
+                          ]}
+                        >
+                          {st.label}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
             )}
 
@@ -454,10 +862,12 @@ export default function HealthTimelineScreen() {
             <View style={styles.headerTitleRow}>
               <Text style={styles.headerTitle}>Health Timeline</Text>
               <View style={styles.timelinePill}>
-                <Text style={styles.timelinePillText}>Personal EMR</Text>
+                <Text style={styles.timelinePillText}>Care Journey 2.0</Text>
               </View>
             </View>
-            <Text style={styles.headerSub}>Chronological Healthcare Story</Text>
+            <Text style={styles.headerSub}>
+              Personal Health Story & Milestones
+            </Text>
           </View>
         </View>
 
@@ -525,9 +935,13 @@ export default function HealthTimelineScreen() {
         </ScrollView>
       ) : (
         <FlatList
-          data={events}
+          data={displayedEvents}
           keyExtractor={(item) => item.id}
           renderItem={renderTimelineItem}
+          initialNumToRender={8}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+          removeClippedSubviews={true}
           ListHeaderComponent={
             <>
               {renderSummaryHeader()}
@@ -536,11 +950,15 @@ export default function HealthTimelineScreen() {
           }
           ListEmptyComponent={
             <EmptyState
-              title="No Milestones Found"
+              title={
+                searchQuery ? "No Matching Milestones" : "No Milestones Found"
+              }
               message={
-                activeFilter === "all"
-                  ? "Your authenticated medical milestones will appear here chronologically as you book visits, complete consultations, and receive prescriptions."
-                  : `No records found under ${activeFilter}. Switch filter tab or book an appointment to start your journey.`
+                searchQuery
+                  ? `No events matching "${searchQuery}". Clear search or switch filter.`
+                  : activeFilter === "all"
+                    ? "Your authenticated medical milestones will appear here chronologically as you book visits, complete consultations, and receive prescriptions."
+                    : `No records found under ${activeFilter}. Switch filter tab or book an appointment to start your journey.`
               }
               action={
                 <Pressable
@@ -584,7 +1002,7 @@ export default function HealthTimelineScreen() {
                 </Text>
                 <Ionicons name="chevron-down" size={16} color="#0284C7" />
               </Pressable>
-            ) : events.length > 0 ? (
+            ) : displayedEvents.length > 0 ? (
               <View style={styles.timelineEndBadge}>
                 <Ionicons
                   name="checkmark-circle-outline"
@@ -698,73 +1116,220 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Palette.textMuted,
     fontSize: 11,
+    marginTop: 1,
   },
-
-  // Summary Metrics Header
+  pressed: {
+    opacity: 0.75,
+  },
   summaryContainer: {
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.sm,
     paddingBottom: Spacing.xs,
   },
-  nextVisitBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F0F9FF",
-    borderRadius: Radius.md,
-    padding: Spacing.sm,
-    marginBottom: Spacing.sm,
+
+  /* Smart Current Care Status Card */
+  smartStatusCard: {
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
     borderWidth: 1,
     borderColor: "#BAE6FD",
-    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+    ...Shadows.sm,
   },
-  nextVisitIconWrap: {
+  smartStatusCardAlert: {
+    borderColor: "#38BDF8",
+    backgroundColor: "#F0F9FF",
+  },
+  smartStatusHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  smartStatusIconWrap: {
     width: 36,
     height: 36,
-    borderRadius: Radius.sm,
+    borderRadius: 18,
     backgroundColor: "#E0F2FE",
     alignItems: "center",
     justifyContent: "center",
   },
-  nextVisitInfo: {
+  smartStatusTitleCol: {
     flex: 1,
   },
-  nextVisitLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#0369A1",
+  smartStatusLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#0284C7",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  nextVisitTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#0F172A",
-    marginTop: 1,
+  smartStatusTitle: {
+    ...Typography.h4,
+    color: Palette.text,
+    fontSize: 15,
   },
-  nextVisitSub: {
-    fontSize: 11,
-    color: "#475569",
+  smartStatusDesc: {
+    ...Typography.bodySmall,
+    color: Palette.textMuted,
+    lineHeight: 18,
+    marginVertical: Spacing.xs,
   },
-  nextVisitBtn: {
+  queueTokenBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 2,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
+    justifyContent: "space-between",
     backgroundColor: "#FFFFFF",
-    borderRadius: Radius.sm,
+    borderRadius: Radius.md,
+    padding: Spacing.sm,
+    marginVertical: Spacing.xs,
     borderWidth: 1,
-    borderColor: "#BAE6FD",
+    borderColor: "#E0F2FE",
   },
-  nextVisitBtnText: {
-    fontSize: 12,
+  queueTokenLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  queueTokenPrefix: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+  },
+  queueTokenNum: {
+    ...Typography.h4,
+    color: Palette.primary,
+    fontWeight: "700",
+  },
+  queueTokenStatus: {
+    ...Typography.caption,
     fontWeight: "600",
     color: "#0284C7",
   },
+  smartStatusActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    backgroundColor: Palette.primary,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+    marginTop: Spacing.xs,
+  },
+  smartStatusActionText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
+  /* Recent Health Highlights Strip */
+  recentActivityWrap: {
+    marginVertical: Spacing.xs,
+  },
+  recentActivityHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+    paddingHorizontal: 2,
+  },
+  recentActivityHeading: {
+    ...Typography.caption,
+    fontWeight: "700",
+    color: Palette.text,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  walletLinkText: {
+    ...Typography.caption,
+    color: Palette.primary,
+    fontWeight: "600",
+  },
+  recentStripScroll: {
+    gap: Spacing.xs,
+    paddingVertical: 2,
+  },
+  recentMiniCard: {
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.md,
+    padding: Spacing.sm,
+    minWidth: 120,
+    borderWidth: 1,
+    borderColor: Palette.border,
+  },
+  recentMiniIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  recentMiniTag: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: Palette.textMuted,
+    textTransform: "uppercase",
+  },
+  recentMiniTitle: {
+    ...Typography.caption,
+    fontWeight: "700",
+    color: Palette.text,
+    marginTop: 2,
+  },
+  recentMiniSub: {
+    fontSize: 11,
+    color: Palette.textMuted,
+    marginTop: 1,
+  },
+
+  /* AI Contextual Prompts */
+  aiBarContainer: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: Radius.md,
+    padding: Spacing.xs,
+    marginVertical: Spacing.xs,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  aiBarHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.xs,
+    marginBottom: 4,
+  },
+  aiBarTitle: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#0284C7",
+  },
+  aiPromptsScroll: {
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.xxs,
+  },
+  aiChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+  },
+  aiChipText: {
+    fontSize: 11,
+    color: "#0369A1",
+    fontWeight: "500",
+  },
+
+  /* Metrics Grid */
   metricsGrid: {
     flexDirection: "row",
     gap: Spacing.xs,
-    justifyContent: "space-between",
+    marginVertical: Spacing.xs,
   },
   metricCard: {
     flex: 1,
@@ -774,89 +1339,103 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: Palette.border,
-    ...Shadows.sm,
   },
   metricIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: Radius.sm,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
   },
   metricVal: {
-    fontSize: 16,
-    fontWeight: "800",
+    ...Typography.bodyMedium,
+    fontWeight: "700",
     color: Palette.text,
   },
   metricName: {
-    fontSize: 11,
-    fontWeight: "500",
+    fontSize: 10,
     color: Palette.textMuted,
     marginTop: 1,
   },
 
-  // Filter Tabs
-  filterTabsWrap: {
-    paddingVertical: Spacing.sm,
-    backgroundColor: Palette.background,
+  /* Search Bar */
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    gap: Spacing.xs,
+    marginTop: Spacing.xs,
   },
-  filterTabsScroll: {
+  searchInput: {
+    flex: 1,
+    ...Typography.bodySmall,
+    color: Palette.text,
+    padding: 0,
+  },
+
+  /* Tabs */
+  tabsScrollView: {
+    marginVertical: Spacing.xs,
+  },
+  tabsContainer: {
     paddingHorizontal: Spacing.md,
     gap: Spacing.xs,
   },
-  filterTab: {
+  tabButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: Spacing.sm + 2,
+    gap: 5,
+    paddingHorizontal: Spacing.md,
     paddingVertical: 7,
     borderRadius: Radius.pill,
     backgroundColor: Palette.surface,
     borderWidth: 1,
     borderColor: Palette.border,
   },
-  filterTabActive: {
-    backgroundColor: "#F0F9FF",
-    borderColor: "#0284C7",
+  tabButtonActive: {
+    backgroundColor: Palette.primary,
+    borderColor: Palette.primary,
   },
-  filterTabText: {
-    fontSize: 12,
+  tabButtonText: {
+    ...Typography.caption,
     fontWeight: "600",
-    color: "#64748B",
+    color: Palette.textMuted,
   },
-  filterTabTextActive: {
-    color: "#0284C7",
-    fontWeight: "700",
+  tabButtonTextActive: {
+    color: "#FFFFFF",
   },
 
-  // Timeline Structure
+  /* Timeline Row */
   timelineRow: {
     flexDirection: "row",
     paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.xs,
   },
   spineColumn: {
-    width: 36,
+    width: 32,
     alignItems: "center",
   },
   spineNode: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-    ...Shadows.sm,
     zIndex: 2,
+    borderWidth: 2,
+    borderColor: Palette.surface,
+    ...Shadows.sm,
   },
   spineLine: {
-    width: 2,
     flex: 1,
-    backgroundColor: "#E2E8F0",
-    marginTop: -2,
-    marginBottom: -2,
+    width: 2,
+    backgroundColor: Palette.border,
+    marginVertical: 2,
   },
   cardWrapper: {
     flex: 1,
@@ -883,35 +1462,34 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   dateTimeText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#0284C7",
+    ...Typography.caption,
+    color: Palette.textMuted,
   },
   eventTitle: {
-    fontSize: 15,
+    ...Typography.bodyMedium,
     fontWeight: "700",
     color: Palette.text,
-    marginBottom: 2,
   },
   eventDesc: {
-    fontSize: 13,
-    color: "#475569",
-    marginBottom: Spacing.xs,
+    ...Typography.bodySmall,
+    color: Palette.textMuted,
+    lineHeight: 18,
+    marginTop: 2,
   },
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.xs,
-    paddingVertical: 6,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Palette.border,
-    marginTop: 4,
+    marginTop: Spacing.sm,
+    backgroundColor: Palette.surfaceAlt,
+    padding: Spacing.xs,
+    borderRadius: Radius.sm,
   },
   metaDocAvatar: {
-    width: 22,
-    height: 22,
-    borderRadius: Radius.pill,
-    backgroundColor: "#EFF6FF",
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#E0F2FE",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -919,35 +1497,106 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   metaDocName: {
-    fontSize: 12,
+    ...Typography.caption,
     fontWeight: "700",
     color: Palette.text,
   },
   metaHospName: {
-    fontSize: 11,
+    fontSize: 10,
     color: Palette.textMuted,
   },
   detailsBox: {
-    backgroundColor: "#F8FAFC",
+    backgroundColor: Palette.surfaceAlt,
+    padding: Spacing.xs,
     borderRadius: Radius.sm,
-    padding: Spacing.xs + 2,
-    marginTop: 6,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#E2E8F0",
+    marginTop: Spacing.xs,
   },
   detailsText: {
-    fontSize: 12,
-    color: "#334155",
-    lineHeight: 17,
+    ...Typography.caption,
+    color: Palette.text,
+    lineHeight: 16,
   },
+  queueTokenMiniRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#EFF6FF",
+    padding: Spacing.xs,
+    borderRadius: Radius.sm,
+    marginTop: Spacing.xs,
+  },
+  queueTokenMiniText: {
+    ...Typography.caption,
+    fontWeight: "600",
+    color: "#0284C7",
+  },
+
+  /* Care Journey Stages Accordion */
+  careJourneyBox: {
+    marginTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Palette.border,
+    paddingTop: Spacing.xs,
+  },
+  careJourneyToggle: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 2,
+  },
+  careJourneyToggleLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  careJourneyToggleText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Palette.primary,
+  },
+  journeyStagesRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: Spacing.xs,
+    paddingHorizontal: 2,
+  },
+  journeyStageItem: {
+    alignItems: "center",
+  },
+  journeyStageDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+  },
+  journeyStageDotDone: {
+    backgroundColor: Palette.primary,
+  },
+  journeyStageInnerDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#94A3B8",
+  },
+  journeyStageText: {
+    fontSize: 9,
+    color: Palette.textMuted,
+  },
+  journeyStageTextDone: {
+    color: Palette.text,
+    fontWeight: "600",
+  },
+
+  /* Actions */
   actionsWrap: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: Spacing.xs,
     marginTop: Spacing.sm,
-    paddingTop: Spacing.xs,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#F1F5F9",
   },
   actionButton: {
     flexDirection: "row",
@@ -956,16 +1605,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: 6,
     borderRadius: Radius.sm,
-    backgroundColor: "#F0F9FF",
     borderWidth: 1,
     borderColor: "#BAE6FD",
+    backgroundColor: "#F0F9FF",
   },
   actionButtonPrimary: {
-    backgroundColor: "#0284C7",
-    borderColor: "#0284C7",
+    backgroundColor: Palette.primary,
+    borderColor: Palette.primary,
   },
   actionButtonText: {
-    fontSize: 12,
+    ...Typography.caption,
     fontWeight: "600",
     color: "#0284C7",
   },
@@ -973,38 +1622,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
 
-  // Skeleton Loader styles
-  skeletonWrap: {
-    paddingTop: Spacing.sm,
-  },
-  skeletonNode: {
-    backgroundColor: "#E2E8F0",
-  },
-  skeletonCard: {
-    backgroundColor: "#F8FAFC",
-  },
-  skeletonLineShort: {
-    width: "40%",
-    height: 12,
-    backgroundColor: "#E2E8F0",
-    borderRadius: Radius.sm,
-    marginBottom: 8,
-  },
-  skeletonLineMed: {
-    width: "70%",
-    height: 14,
-    backgroundColor: "#E2E8F0",
-    borderRadius: Radius.sm,
-    marginBottom: 8,
-  },
-  skeletonLineLong: {
-    width: "90%",
-    height: 12,
-    backgroundColor: "#E2E8F0",
-    borderRadius: Radius.sm,
-  },
-
-  // Pagination & Footer
+  /* Footer & Skeletons */
   footerLoader: {
     flexDirection: "row",
     alignItems: "center",
@@ -1013,7 +1631,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
   },
   footerLoaderText: {
-    fontSize: 12,
+    ...Typography.caption,
     color: Palette.textMuted,
   },
   loadMoreBtn: {
@@ -1021,17 +1639,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 4,
+    paddingVertical: Spacing.sm,
     marginHorizontal: Spacing.md,
-    marginTop: Spacing.sm,
-    paddingVertical: 10,
     borderRadius: Radius.md,
-    backgroundColor: "#F0F9FF",
+    backgroundColor: Palette.surface,
     borderWidth: 1,
-    borderColor: "#BAE6FD",
+    borderColor: Palette.border,
+    marginVertical: Spacing.sm,
   },
   loadMoreBtnText: {
-    fontSize: 13,
-    fontWeight: "700",
+    ...Typography.caption,
+    fontWeight: "600",
     color: "#0284C7",
   },
   timelineEndBadge: {
@@ -1039,15 +1657,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 4,
-    marginTop: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
   },
   timelineEndText: {
-    fontSize: 12,
-    color: "#94A3B8",
-    fontWeight: "500",
+    ...Typography.caption,
+    color: Palette.textMuted,
   },
-  pressed: {
-    opacity: 0.75,
+  skeletonWrap: {
+    marginTop: Spacing.xs,
+  },
+  skeletonNode: {
+    backgroundColor: "#E2E8F0",
+  },
+  skeletonCard: {
+    gap: Spacing.xs,
+  },
+  skeletonLineShort: {
+    width: "40%",
+    height: 12,
+    backgroundColor: "#E2E8F0",
+    borderRadius: 4,
+  },
+  skeletonLineMed: {
+    width: "70%",
+    height: 16,
+    backgroundColor: "#E2E8F0",
+    borderRadius: 4,
+  },
+  skeletonLineLong: {
+    width: "90%",
+    height: 12,
+    backgroundColor: "#E2E8F0",
+    borderRadius: 4,
   },
 });

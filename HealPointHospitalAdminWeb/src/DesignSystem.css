@@ -1,0 +1,572 @@
+/* ============================================================
+   HealPoint — Unified Design System (Hospital Admin)
+   Modern healthcare platform polish layer.
+   Applied on top of existing styles — no functionality changes.
+   ============================================================ */
+
+/* ---------- 1. DESIGN TOKENS ---------- */
+:root {
+  --hp-primary: #2563eb;
+  --hp-primary-dark: #1d4ed8;
+  --hp-primary-light: #60a5fa;
+  --hp-secondary: #7c3aed;
+  --hp-accent: #14b8a6;
+  --hp-blue: #2563eb;
+  --hp-blue-dark: #1d4ed8;
+  --hp-blue-light: #60a5fa;
+  --hp-bg: #f8fafc;
+  --hp-surface: #ffffff;
+  --hp-surface-2: #f1f5f9;
+  --hp-ink: #0f172a;
+  --hp-muted: #64748b;
+  --hp-border: #e2e8f0;
+  --hp-border-soft: #eef2f7;
+  --hp-success: #22c55e;
+  --hp-success-bg: #dcfce7;
+  --hp-success-ink: #15803d;
+  --hp-warning: #f59e0b;
+  --hp-warning-bg: #fef3c7;
+  --hp-warning-ink: #b45309;
+  --hp-danger: #ef4444;
+  --hp-danger-bg: #fee2e2;
+  --hp-danger-ink: #b91c1c;
+  --hp-info: #2563eb;
+  --hp-info-bg: #dbeafe;
+  --hp-info-ink: #1d4ed8;
+  --hp-radius-sm: 8px;
+  --hp-radius: 10px;
+  --hp-radius-lg: 14px;
+  --hp-radius-xl: 20px;
+  --hp-radius-pill: 999px;
+  --hp-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --hp-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.06);
+  --hp-shadow-lg: 0 2px 4px rgba(15, 23, 42, 0.06), 0 16px 40px rgba(15, 23, 42, 0.12);
+  --hp-shadow-primary: 0 8px 20px rgba(37, 99, 235, 0.18);
+  --hp-font:
+    "Manrope", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --hp-transition: 0.2s ease;
+}
+
+/* ---------- 2. GLOBAL TYPOGRAPHY & SPACING ---------- */
+body,
+.hospital-shell,
+.hospital-main {
+  font-family: var(--hp-font) !important;
+  letter-spacing: -0.01em;
+}
+
+.hospital-main {
+  padding: 28px !important;
+}
+
+.hospital-header h1 {
+  letter-spacing: -0.03em !important;
+  font-weight: 900 !important;
+}
+
+.hospital-header p {
+  color: var(--hp-muted) !important;
+  font-weight: 600 !important;
+}
+
+/* ---------- 3. CARDS — soft shadows, rounded, hover ---------- */
+.panel,
+.stat-grid button,
+.settings-summary > div {
+  border-radius: var(--hp-radius-lg) !important;
+  box-shadow: var(--hp-shadow) !important;
+  transition:
+    transform var(--hp-transition),
+    box-shadow var(--hp-transition),
+    border-color var(--hp-transition) !important;
+}
+
+.panel:hover,
+.stat-grid button:hover,
+.settings-summary > div:hover {
+  transform: translateY(-3px) !important;
+  box-shadow: var(--hp-shadow-lg) !important;
+  border-color: rgba(37, 99, 235, 0.25) !important;
+}
+
+.stat-grid strong {
+  color: var(--hp-primary) !important;
+  font-weight: 900 !important;
+}
+
+.stat-grid span,
+.stat-grid small {
+  color: var(--hp-muted) !important;
+}
+
+/* ---------- 4. TABLES — zebra, spacing, sticky headers, badges ---------- */
+.data-table {
+  border-radius: var(--hp-radius-lg) !important;
+  border: 1px solid var(--hp-border) !important;
+  box-shadow: var(--hp-shadow) !important;
+  overflow: hidden !important;
+}
+
+.data-table table {
+  min-width: 780px !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+}
+
+.data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 15px 14px !important;
+  color: #1e40af !important;
+  background: #eff6ff !important;
+  border-bottom: 1px solid var(--hp-border) !important;
+  font-size: 0.72rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  white-space: nowrap;
+}
+
+.data-table td {
+  padding: 14px !important;
+  border-top: 1px solid var(--hp-border-soft) !important;
+  color: #1e293b !important;
+  background: #ffffff !important;
+  font-weight: 600 !important;
+  vertical-align: middle;
+}
+
+.data-table tbody tr:nth-child(even) td {
+  background: #f7fafc !important;
+}
+
+.data-table tbody tr:hover td {
+  background: #eff6ff !important;
+}
+
+/* Status badges — pill style */
+.status-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 6px 12px !important;
+  border-radius: 999px !important;
+  border: 1px solid transparent !important;
+  font-size: 0.72rem !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  text-transform: capitalize !important;
+}
+
+.status-badge.confirmed,
+.status-badge.completed,
+.status-badge.verified {
+  color: var(--hp-success-ink) !important;
+  background: var(--hp-success-bg) !important;
+  border-color: rgba(34, 197, 94, 0.2) !important;
+}
+
+.status-badge.pending,
+.status-badge.rescheduled {
+  color: var(--hp-warning-ink) !important;
+  background: var(--hp-warning-bg) !important;
+  border-color: rgba(245, 158, 11, 0.2) !important;
+}
+
+.status-badge.cancel,
+.status-badge.rejected,
+.status-badge.suspended {
+  color: var(--hp-danger-ink) !important;
+  background: var(--hp-danger-bg) !important;
+  border-color: rgba(239, 68, 68, 0.2) !important;
+}
+
+/* ---------- 5. BUTTONS — consistent across app ---------- */
+.refresh-button,
+.profile-form button,
+.gallery-add button,
+.reschedule-form > button,
+.btn-add,
+.doctor-form-submit {
+  border-radius: var(--hp-radius) !important;
+  font-weight: 800 !important;
+  letter-spacing: 0 !important;
+  transition:
+    transform var(--hp-transition),
+    box-shadow var(--hp-transition),
+    background-color var(--hp-transition) !important;
+}
+
+.refresh-button,
+.profile-form button,
+.gallery-add button,
+.reschedule-form > button {
+  background: linear-gradient(
+    135deg,
+    var(--hp-primary) 0%,
+    var(--hp-primary-light) 100%
+  ) !important;
+  box-shadow: var(--hp-shadow-primary) !important;
+}
+
+.refresh-button:hover,
+.profile-form button:hover,
+.gallery-add button:hover,
+.reschedule-form > button:hover {
+  background: linear-gradient(
+    135deg,
+    var(--hp-primary-dark) 0%,
+    var(--hp-primary) 100%
+  ) !important;
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.24) !important;
+  transform: translateY(-2px) !important;
+}
+
+.btn-add {
+  background: linear-gradient(
+    135deg,
+    var(--hp-primary) 0%,
+    var(--hp-primary-light) 100%
+  ) !important;
+  box-shadow: var(--hp-shadow-primary) !important;
+}
+
+.btn-add:hover {
+  background: linear-gradient(
+    135deg,
+    var(--hp-primary-dark) 0%,
+    var(--hp-primary) 100%
+  ) !important;
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.24) !important;
+  transform: translateY(-2px) !important;
+}
+
+.row-actions button {
+  border-radius: var(--hp-radius-sm) !important;
+  font-weight: 800 !important;
+  transition:
+    transform var(--hp-transition),
+    box-shadow var(--hp-transition) !important;
+}
+
+.row-actions button:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.1) !important;
+}
+
+.row-actions button.accept {
+  border-color: rgba(34, 197, 94, 0.3) !important;
+  color: var(--hp-success-ink) !important;
+  background: var(--hp-success-bg) !important;
+}
+
+.row-actions button.reject {
+  border-color: rgba(239, 68, 68, 0.3) !important;
+  color: var(--hp-danger-ink) !important;
+  background: var(--hp-danger-bg) !important;
+}
+
+/* ---------- 6. FORMS — clean inputs, labels, focus states ---------- */
+.profile-form input,
+.gallery-add input,
+.reschedule-form input,
+.doctor-form-field input,
+.doctor-form-field select,
+.filter-select,
+.search-field {
+  border: 1px solid var(--hp-border) !important;
+  border-radius: var(--hp-radius) !important;
+  color: #0f172a !important;
+  background: #ffffff !important;
+  font-weight: 600 !important;
+  transition:
+    border-color var(--hp-transition),
+    box-shadow var(--hp-transition) !important;
+}
+
+.profile-form input:focus,
+.gallery-add input:focus,
+.reschedule-form input:focus,
+.doctor-form-field input:focus,
+.doctor-form-field select:focus,
+.filter-select:focus,
+.search-field:focus-within {
+  border-color: var(--hp-primary) !important;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12) !important;
+  outline: none !important;
+}
+
+.profile-form label,
+.reschedule-form label,
+.doctor-form-field {
+  color: #475569 !important;
+  font-size: 0.76rem !important;
+  font-weight: 800 !important;
+  text-transform: capitalize !important;
+}
+
+/* ---------- 7. SIDEBAR — active highlighting, icons ---------- */
+.hospital-sidebar {
+  color: var(--hp-ink) !important;
+  background: #ffffff !important;
+  border-right: 1px solid var(--hp-border) !important;
+  box-shadow: 6px 0 24px rgba(15, 23, 42, 0.05) !important;
+}
+
+.hospital-brand > span {
+  border-radius: 14px !important;
+  background: linear-gradient(
+    135deg,
+    var(--hp-primary),
+    var(--hp-blue)
+  ) !important;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.24) !important;
+}
+
+.hospital-sidebar nav button {
+  min-height: 44px !important;
+  border-radius: var(--hp-radius) !important;
+  color: #475569 !important;
+  font-weight: 700 !important;
+  transition: all var(--hp-transition) !important;
+}
+
+.hospital-sidebar nav button svg {
+  color: #64748b !important;
+  font-size: 0.95rem !important;
+}
+
+.hospital-sidebar nav button:hover,
+.hospital-sidebar nav button.active {
+  color: var(--hp-primary) !important;
+  background: #eff6ff !important;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.18) !important;
+  transform: translateX(3px) !important;
+}
+
+.hospital-sidebar nav button.active svg {
+  color: var(--hp-primary) !important;
+}
+
+.hospital-sidebar .logout {
+  border-radius: var(--hp-radius) !important;
+  background: #fef2f2 !important;
+  color: #dc2626 !important;
+  border: 1px solid #fecaca !important;
+  transition: all var(--hp-transition) !important;
+}
+
+.hospital-sidebar .logout:hover {
+  background: #fee2e2 !important;
+  color: #b91c1c !important;
+  transform: translateY(-1px) !important;
+}
+
+.hospital-brand strong {
+  color: var(--hp-ink) !important;
+}
+
+.hospital-brand small {
+  color: var(--hp-muted) !important;
+}
+
+.hospital-brand-logo {
+  background: #fff !important;
+  border-color: var(--hp-border) !important;
+}
+
+/* ---------- 8. EMPTY STATES — friendly ---------- */
+.empty-state {
+  display: grid !important;
+  place-items: center !important;
+  align-content: center !important;
+  gap: 10px !important;
+  min-height: 200px !important;
+  padding: 28px !important;
+  border: 1px dashed var(--hp-border) !important;
+  border-radius: var(--hp-radius-lg) !important;
+  color: var(--hp-muted) !important;
+  background: #f8fafc !important;
+  text-align: center !important;
+}
+
+.empty-state svg {
+  color: var(--hp-primary) !important;
+  font-size: 2rem !important;
+  opacity: 0.6;
+}
+
+.empty-state strong {
+  color: #334155 !important;
+  font-size: 1rem !important;
+}
+
+.empty-state span {
+  max-width: 380px !important;
+  font-size: 0.85rem !important;
+  line-height: 1.5 !important;
+}
+
+/* ---------- 9. LOADING STATES ---------- */
+.portal-loading {
+  background: linear-gradient(135deg, #f8fafc, #eef2f7) !important;
+  color: var(--hp-primary) !important;
+  font-weight: 800 !important;
+}
+
+.portal-loading span {
+  border-color: #93c5fd !important;
+  border-top-color: var(--hp-primary) !important;
+}
+
+/* ---------- 10. RESPONSIVE ---------- */
+@media (max-width: 1250px) {
+  .stat-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .hospital-sidebar {
+    position: fixed !important;
+    z-index: 20 !important;
+    width: 76px !important;
+    flex-basis: 76px !important;
+    padding: 16px 10px !important;
+  }
+
+  .hospital-brand {
+    justify-content: center !important;
+    padding: 5px 0 20px !important;
+  }
+
+  .hospital-brand > div,
+  .hospital-sidebar nav span,
+  .logout span {
+    display: none !important;
+  }
+
+  .hospital-sidebar nav button,
+  .logout {
+    justify-content: center !important;
+    padding: 12px !important;
+  }
+
+  .hospital-main {
+    margin-left: 76px !important;
+    padding: 24px !important;
+  }
+
+  .content-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .settings-summary {
+    grid-template-columns: 1fr !important;
+  }
+
+  .hospital-header {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+  }
+
+  .profile-form {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 620px) {
+  .hospital-sidebar {
+    position: sticky !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    flex-basis: auto !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    padding: 8px !important;
+    overflow-x: auto !important;
+  }
+
+  .hospital-brand {
+    display: none !important;
+  }
+
+  .hospital-sidebar nav {
+    display: flex !important;
+    gap: 4px !important;
+    overflow: visible !important;
+  }
+
+  .hospital-sidebar nav button {
+    width: 42px !important;
+    padding: 10px !important;
+  }
+
+  .hospital-sidebar nav svg {
+    font-size: 16px !important;
+  }
+
+  .logout {
+    width: 42px !important;
+    flex: 0 0 42px !important;
+    margin: 0 !important;
+    padding: 10px !important;
+  }
+
+  .hospital-main {
+    margin-left: 0 !important;
+    padding: 17px !important;
+  }
+
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .stat-grid button {
+    min-height: 108px !important;
+    padding: 14px !important;
+  }
+
+  .table-toolbar,
+  .gallery-add {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+
+  .search-field {
+    min-width: 0 !important;
+  }
+
+  .range-tabs {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    padding-bottom: 2px !important;
+  }
+
+  .range-tabs button {
+    white-space: nowrap !important;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .panel {
+    padding: 15px !important;
+  }
+
+  .hospital-header h1 {
+    font-size: 1.65rem !important;
+  }
+
+  .pagination {
+    justify-content: space-between !important;
+  }
+
+  .bar-chart {
+    height: 170px !important;
+  }
+}

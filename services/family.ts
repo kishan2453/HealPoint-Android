@@ -5,7 +5,6 @@
  * dependents, and maintain separate medical timelines while sharing centralized
  * subscription consultation quotas.
  */
-import * as SecureStore from "expo-secure-store";
 import { api } from "./api";
 import {
   getPatientFollowUps,
@@ -14,7 +13,8 @@ import {
 } from "./appointments";
 import type { Appointment, FamilyMember, FamilyRelationship } from "@/types";
 
-const STORAGE_PREFIX = "healpoint_family_members_";
+// In-memory session cache for family members (prevents storing multi-KB medical arrays in hardware SecureStore)
+const inMemoryMembersCache = new Map<string, FamilyMember[]>();
 
 export interface CreateFamilyMemberPayload {
   name: string;
@@ -41,33 +41,15 @@ export interface UpdateFamilyMemberPayload {
   isArchived?: boolean;
 }
 
-function getStorageKey(userId: string): string {
-  return `${STORAGE_PREFIX}${userId}`;
-}
-
 async function loadLocalMembers(userId: string): Promise<FamilyMember[]> {
-  try {
-    const raw = await SecureStore.getItemAsync(getStorageKey(userId));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return inMemoryMembersCache.get(userId) || [];
 }
 
 async function saveLocalMembers(
   userId: string,
   members: FamilyMember[],
 ): Promise<void> {
-  try {
-    await SecureStore.setItemAsync(
-      getStorageKey(userId),
-      JSON.stringify(members),
-    );
-  } catch (err) {
-    console.warn("Failed to persist family members to SecureStore:", err);
-  }
+  inMemoryMembersCache.set(userId, members);
 }
 
 /**

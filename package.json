@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit",
     "postinstall": "patch-package",
     "start:clear": "expo start --clear --dev-client",
-    "verify:backend": "node ./scripts/verify-backend.mjs"
+    "verify:backend": "node ./scripts/verify-backend.mjs",
+    "build": "expo export -p web && node ./scripts/prepare-web-build.js",
+    "postexport": "node ./scripts/prepare-web-build.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -32,6 +34,7 @@
     "expo-image": "~3.0.11",
     "expo-image-picker": "~17.0.11",
     "expo-linking": "~8.0.12",
+    "expo-location": "~19.0.8",
     "expo-router": "~6.0.24",
     "expo-secure-store": "~15.0.8",
     "expo-splash-screen": "~31.0.13",

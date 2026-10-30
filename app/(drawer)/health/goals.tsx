@@ -47,7 +47,7 @@ import { useAppointments } from "@/hooks/use-appointments";
 import { useAuth } from "@/hooks/use-auth";
 import { useHealthOverview } from "@/hooks/use-health-overview";
 import { useScreenFocus } from "@/hooks/use-screen-focus";
-import { formatDDMMYYYY } from "@/lib/format";
+import { formatDDMMYYYY, formatDoctorName } from "@/lib/format";
 import {
   calculateGoalProgress,
   computeCareScore,
@@ -798,7 +798,7 @@ export default function HealthGoalsScreen() {
                       Recommended Follow-Up
                     </Text>
                     <Text style={styles.upcomingSubtitle}>
-                      Dr. {nextFollowUp?.doctorName || "Doctor"} •{" "}
+                      {formatDoctorName(nextFollowUp?.doctorName)} •{" "}
                       {nextFollowUp?.timeframe || "Follow-up due"}
                     </Text>
                   </View>

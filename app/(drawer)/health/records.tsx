@@ -22,6 +22,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { DrawerToggleButton } from "@/components/DrawerToggleButton";
 import { FamilyMemberFilterBar } from "@/components/FamilyMemberFilterBar";
+import { PatientBottomNav } from "@/components/PatientBottomNav";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -315,10 +316,6 @@ export default function HealthRecordsScreen() {
       <View pointerEvents="none" style={styles.screenDecor}>
         <View style={styles.screenGlowTop} />
         <View style={styles.screenGlowBottom} />
-        <View style={styles.screenCross}>
-          <View style={styles.crossBarV} />
-          <View style={styles.crossBarH} />
-        </View>
       </View>
 
       {/* Screen Header */}
@@ -950,6 +947,7 @@ export default function HealthRecordsScreen() {
           )}
         </ScrollView>
       )}
+      <PatientBottomNav activeTab="health" />
     </SafeAreaView>
   );
 }
@@ -980,32 +978,6 @@ const styles = StyleSheet.create({
     height: 340,
     borderRadius: 170,
     backgroundColor: "rgba(20, 184, 166, 0.06)",
-  },
-  screenCross: {
-    position: "absolute",
-    top: 60,
-    right: 24,
-    width: 40,
-    height: 40,
-    opacity: 0.12,
-  },
-  crossBarV: {
-    position: "absolute",
-    left: 17,
-    top: 0,
-    width: 6,
-    height: 40,
-    borderRadius: 3,
-    backgroundColor: Palette.primary,
-  },
-  crossBarH: {
-    position: "absolute",
-    top: 17,
-    left: 0,
-    height: 6,
-    width: 40,
-    borderRadius: 3,
-    backgroundColor: Palette.primary,
   },
   header: {
     paddingHorizontal: Spacing.lg,
@@ -1046,7 +1018,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.lg,
-    paddingBottom: Spacing.huge,
+    paddingBottom: 110,
     gap: Spacing.lg,
   },
   patientCard: {
@@ -1082,14 +1054,16 @@ const styles = StyleSheet.create({
   },
   metricGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.sm,
   },
   metricTile: {
-    flex: 1,
+    flexBasis: "48%",
+    flexGrow: 1,
     backgroundColor: Palette.surface,
     borderRadius: Radius.md,
     paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
     alignItems: "center",
     borderWidth: 1,
     borderColor: Palette.border,
@@ -1389,9 +1363,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#BAE6FD",
     borderRadius: Radius.md,
-    padding: Spacing.sm + 2,
-    marginHorizontal: Spacing.md,
-    marginBottom: Spacing.md,
+    padding: Spacing.md,
     ...Shadows.sm,
   },
   timelineBannerLeft: {

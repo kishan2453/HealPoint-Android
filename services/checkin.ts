@@ -87,3 +87,40 @@ export async function getPatientQueueStatus(
     `/checkin/appointment/${appointmentId}/queue-status`,
   );
 }
+
+export interface CheckInVerifyResponse {
+  success: boolean;
+  message: string;
+  token?: string;
+  tokenNumber?: string;
+  alreadyCheckedIn?: boolean;
+  appointment?: {
+    _id: string;
+    appointmentId?: string;
+    patientName: string;
+    patientPhone?: string;
+    doctorName: string;
+    doctorSpeciality?: string;
+    hospitalName?: string;
+    slotDate: string;
+    slotTime: string;
+    queueToken?: string;
+    queueStatus?: string;
+    checkInAt?: string;
+    status: string;
+  };
+}
+
+/**
+ * Hospital Admin verifies QR or enters appointment reference/ID to check in a patient.
+ */
+export async function verifyAndCheckInPatient(payload: {
+  token?: string;
+  rawReference?: string;
+  appointmentId?: string;
+}): Promise<CheckInVerifyResponse> {
+  return api.post<CheckInVerifyResponse>("/checkin/scan", payload, {
+    auth: true,
+  });
+}
+

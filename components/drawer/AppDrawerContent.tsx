@@ -149,8 +149,8 @@ export function AppDrawerContent(props: DrawerContentComponentProps) {
                     >
                       <Ionicons
                         name={item.icon}
-                        size={20}
-                        color={active ? Palette.primaryDark : Palette.textMuted}
+                        size={19}
+                        color={active ? Palette.white : Palette.textMuted}
                       />
                     </View>
                     <Text
@@ -276,57 +276,66 @@ const styles = StyleSheet.create({
   menu: {
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.md,
-    gap: Spacing.md,
+    gap: Spacing.lg,
   },
   section: {
-    gap: 2,
+    gap: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    paddingBottom: Spacing.sm,
   },
   sectionTitle: {
-    ...Typography.caption,
+    fontSize: 11,
     color: Palette.textMuted,
-    fontWeight: "700",
+    fontWeight: "800",
     letterSpacing: 1,
     paddingHorizontal: Spacing.sm,
-    paddingBottom: Spacing.xs,
+    paddingBottom: 4,
+    textTransform: "uppercase",
   },
   item: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
-    paddingVertical: Spacing.sm + 2,
+    paddingVertical: 7,
     paddingHorizontal: Spacing.sm,
-    borderRadius: Radius.md,
+    borderRadius: Radius.lg,
+    minHeight: 48,
   },
   itemActive: {
-    backgroundColor: Palette.primaryLight,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "rgba(191, 219, 254, 0.8)",
   },
   itemPressed: {
-    opacity: 0.7,
+    opacity: 0.78,
+    transform: [{ scale: 0.98 }],
   },
   itemIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: Palette.background,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F1F5F9",
     alignItems: "center",
     justifyContent: "center",
   },
   itemIconActive: {
-    backgroundColor: Palette.surface,
+    backgroundColor: Palette.primary,
   },
   itemLabel: {
-    ...Typography.bodyMedium,
+    fontSize: 14,
     color: Palette.text,
+    fontWeight: "600",
     flex: 1,
   },
   itemLabelActive: {
     color: Palette.primaryDark,
-    fontWeight: "600",
+    fontWeight: "800",
   },
   activeDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
     backgroundColor: Palette.primary,
   },
   footer: {

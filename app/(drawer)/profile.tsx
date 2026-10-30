@@ -26,6 +26,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { DrawerToggleButton } from "@/components/DrawerToggleButton";
+import { PatientBottomNav } from "@/components/PatientBottomNav";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -586,21 +587,21 @@ export default function ProfileScreen() {
                 <View key={member._id} style={styles.familyMemberItem}>
                   <View style={styles.familyAvatar}>
                     <Text style={styles.familyAvatarText}>
-                      {member.name.charAt(0).toUpperCase()}
+                      {((member?.name || "M").trim().charAt(0) || "M").toUpperCase()}
                     </Text>
                   </View>
                   <View style={styles.familyInfo}>
                     <Text style={styles.familyName} numberOfLines={1}>
-                      {member.name}
+                      {member?.name || "Family Member"}
                     </Text>
                     <Text style={styles.familyMeta}>
-                      {member.relationship}
-                      {member.gender ? ` • ${member.gender}` : ""}
-                      {member.bloodGroup ? ` • ${member.bloodGroup}` : ""}
+                      {member?.relationship || ""}
+                      {member?.gender ? ` • ${member.gender}` : ""}
+                      {member?.bloodGroup ? ` • ${member.bloodGroup}` : ""}
                     </Text>
                   </View>
                   <Badge
-                    label={member.relationship}
+                    label={member?.relationship || "Member"}
                     variant="primary"
                     style={{ backgroundColor: `${Palette.primary}15` }}
                   />
@@ -891,6 +892,7 @@ export default function ProfileScreen() {
           onCancel={() => setLogoutVisible(false)}
         />
       </ScrollView>
+      <PatientBottomNav activeTab="profile" />
     </SafeAreaView>
   );
 }
@@ -947,7 +949,7 @@ const styles = StyleSheet.create({
   },
   container: {
     padding: Spacing.lg,
-    paddingBottom: Spacing.xxxl,
+    paddingBottom: 110,
     gap: Spacing.lg,
   },
   topHeader: {

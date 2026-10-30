@@ -1,6 +1,7 @@
 /**
  * Authentication & profile API — mirrors routes/userRoutes.js on the backend.
  */
+import { Platform } from "react-native";
 import { api } from "./api";
 import type {
   Doctor,
@@ -24,6 +25,9 @@ export interface RegisterPayload {
   name: string;
   email: string;
   password: string;
+  dob?: string;
+  phone?: string;
+  gender?: string;
 }
 
 export interface LoginPayload {
@@ -188,37 +192,74 @@ export async function updateProfile(
   userId: string,
   payload: UpdateProfilePayload,
 ): Promise<{ success: boolean; user: User }> {
-  const form = new FormData();
-  if (payload.name !== undefined) form.append("name", payload.name);
-  if (payload.phone !== undefined) form.append("phone", payload.phone);
-  if (payload.dob !== undefined) form.append("dob", payload.dob);
-  if (payload.gender !== undefined) form.append("gender", payload.gender);
-  if (payload.address !== undefined) form.append("address", payload.address);
-  if (payload.bloodGroup !== undefined)
-    form.append("bloodGroup", payload.bloodGroup);
-  if (payload.allergies !== undefined)
-    form.append("allergies", JSON.stringify(payload.allergies));
-  if (payload.chronicConditions !== undefined)
-    form.append("chronicConditions", JSON.stringify(payload.chronicConditions));
-  if (payload.emergencyContact !== undefined)
-    form.append("emergencyContact", JSON.stringify(payload.emergencyContact));
-
   const image = payload.image;
+  // If an image file or object is present, use FormData
   if (image && typeof image === "object" && "uri" in image && image.uri) {
-    form.append("image", {
-      uri: image.uri,
-      name: image.name || "profile.jpg",
-      type: image.type || "image/jpeg",
-    } as unknown as Blob);
+    const form = new FormData();
+    if (payload.name !== undefined) form.append("name", payload.name);
+    if (payload.phone !== undefined) form.append("phone", payload.phone);
+    if (payload.dob !== undefined) form.append("dob", payload.dob);
+    if (payload.gender !== undefined) form.append("gender", payload.gender);
+    if (payload.address !== undefined) form.append("address", payload.address);
+    if (payload.bloodGroup !== undefined)
+      form.append("bloodGroup", payload.bloodGroup);
+    if (payload.allergies !== undefined)
+      form.append("allergies", JSON.stringify(payload.allergies));
+    if (payload.chronicConditions !== undefined)
+      form.append("chronicConditions", JSON.stringify(payload.chronicConditions));
+    if (payload.emergencyContact !== undefined)
+      form.append("emergencyContact", JSON.stringify(payload.emergencyContact));
+
+    if (Platform.OS === "web") {
+      try {
+        const response = await fetch(image.uri);
+        const blob = await response.blob();
+        form.append("image", blob, image.name || "profile.jpg");
+      } catch {
+        if (image.uri.startsWith("data:image/")) {
+          form.append("image", image.uri);
+        } else {
+          form.append("image", {
+            uri: image.uri,
+            name: image.name || "profile.jpg",
+            type: image.type || "image/jpeg",
+          } as unknown as Blob);
+        }
+      }
+    } else {
+      // Native React Native expects asset descriptor object
+      form.append("image", {
+        uri: image.uri,
+        name: image.name || "profile.jpg",
+        type: image.type || "image/jpeg",
+      } as unknown as Blob);
+    }
+
+    return api.patch<{ success: boolean; user: User }>(
+      `${RESOURCE}/update/${userId}`,
+      form,
+      {
+        isFormData: true,
+        auth: true,
+      },
+    );
   }
 
+  // Pure JSON for non-image profile updates
   return api.patch<{ success: boolean; user: User }>(
     `${RESOURCE}/update/${userId}`,
-    form,
-    {
-      isFormData: true,
-      auth: true,
-    },
+    payload,
+    { auth: true },
+  );
+}
+
+export async function changeEmail(
+  payload: { password: string; newEmail: string }
+): Promise<{ success: boolean; message: string; token?: string; user: User }> {
+  return api.patch<{ success: boolean; message: string; token?: string; user: User }>(
+    `${RESOURCE}/change-email`,
+    payload,
+    { auth: true }
   );
 }
 
