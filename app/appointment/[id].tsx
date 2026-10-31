@@ -929,6 +929,17 @@ export default function AppointmentDetailScreen() {
                   {queueData?.patientsAhead ?? 0}
                 </Text>
               </View>
+
+              {queueData?.estimatedWaitMinutes !== undefined ? (
+                <View style={styles.queueStatBox}>
+                  <Text style={styles.queueStatLabel}>EST. WAIT</Text>
+                  <Text style={styles.queueStatValue}>
+                    {queueData.estimatedWaitMinutes > 0
+                      ? `~${queueData.estimatedWaitMinutes}m`
+                      : "Ready Soon"}
+                  </Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Queue State Banner */}

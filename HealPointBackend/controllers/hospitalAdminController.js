@@ -27,20 +27,20 @@ export const toObjectId = (id) => {
 export const resolveHospitalId = async (req) => {
   if (req.user) {
     if (req.user.hospitalId) return toObjectId(req.user.hospitalId);
-    if (req.user.id) {
+    if (req.user.id && mongoose.connection.readyState === 1) {
       const user = await userModel.findById(req.user.id).select("hospitalId role");
       if (user?.hospitalId) return toObjectId(user.hospitalId);
-      if (user?.role === "Super Admin" || req.user.role === "Super Admin") {
+      const isSuper =
+        user?.role === "Super Admin" ||
+        req.user.role === "Super Admin" ||
+        user?.role === "super_admin" ||
+        req.user.role === "super_admin";
+      if (isSuper) {
         if (req.query?.hospitalId) return toObjectId(req.query.hospitalId);
         const first = await hospitalModel.findOne({});
         return first?._id ? toObjectId(first._id) : null;
       }
     }
-  }
-  // In non-production or dev fallback
-  if (process.env.NODE_ENV !== "production") {
-    const first = await hospitalModel.findOne({});
-    return first?._id ? toObjectId(first._id) : null;
   }
   return null;
 };

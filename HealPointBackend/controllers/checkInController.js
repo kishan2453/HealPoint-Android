@@ -5,6 +5,9 @@ import userModel from "../models/userModel.js";
 import hospitalModel from "../models/hospitalModel.js";
 import auditLogModel from "../models/auditLogModel.js";
 import { resolveHospitalId } from "./hospitalAdminController.js";
+import { broadcastQueueSync, broadcastAppointmentSync } from "../services/socketService.js";
+
+const isLiveQueueEnabled = () => process.env.FEATURE_LIVE_QUEUE === "true";
 
 // Helper to format appointment response for check-in UI
 const formatAppointmentForCheckIn = (appt) => {
@@ -83,7 +86,7 @@ export const processCheckIn = async (req, res) => {
 
     const appointment = await appointmentModel.findOne(query)
       .populate("userId", "name phone email")
-      .populate("doctorId", "name speciality department")
+      .populate("doctorId", "name speciality department slotDurationMinutes")
       .populate("hospitalId", "name");
 
     if (!appointment) return res.status(404).json({ success: false, message: "Appointment not found" });
@@ -99,25 +102,82 @@ export const processCheckIn = async (req, res) => {
     }
 
     const count = await appointmentModel.countDocuments({
-      hospitalId: appointment.hospitalId,
+      hospitalId: appointment.hospitalId?._id || appointment.hospitalId,
+      doctorId: appointment.doctorId?._id || appointment.doctorId,
       checkedIn: true,
       slotDate: appointment.slotDate,
     });
     const prefix = appointment.doctorId?.speciality ? appointment.doctorId.speciality.charAt(0).toUpperCase() : "A";
     const queueToken = `${prefix}-${String(count + 1).padStart(3, "0")}`;
 
-    appointment.checkedIn = true;
-    appointment.checkInAt = new Date();
-    appointment.queueToken = queueToken;
-    appointment.queueStatus = "waiting";
-    if (appointment.status === "pending") appointment.status = "confirmed";
-    await appointment.save();
+    // Atomic update to prevent duplicate check-in race conditions
+    const updatedAppointment = await appointmentModel.findOneAndUpdate(
+      { _id: appointment._id, checkedIn: { $ne: true } },
+      {
+        $set: {
+          checkedIn: true,
+          checkInAt: new Date(),
+          queueToken,
+          queueStatus: "waiting",
+          status: appointment.status === "pending" ? "confirmed" : appointment.status,
+        },
+      },
+      { new: true }
+    )
+      .populate("userId", "name phone email")
+      .populate("doctorId", "name speciality department slotDurationMinutes")
+      .populate("hospitalId", "name");
+
+    const finalAppt = updatedAppointment || (await appointmentModel.findById(appointment._id)
+      .populate("userId", "name phone email")
+      .populate("doctorId", "name speciality department")
+      .populate("hospitalId", "name"));
+
+    if (isLiveQueueEnabled() && updatedAppointment) {
+      const patientsAhead = await appointmentModel.countDocuments({
+        hospitalId: finalAppt.hospitalId?._id || finalAppt.hospitalId,
+        doctorId: finalAppt.doctorId?._id || finalAppt.doctorId,
+        slotDate: finalAppt.slotDate,
+        checkedIn: true,
+        queueStatus: "waiting",
+        checkInAt: { $lt: finalAppt.checkInAt || new Date() },
+      });
+      const avgDuration = finalAppt.doctorId?.slotDurationMinutes || 15;
+      const estimatedWaitMinutes = patientsAhead * avgDuration;
+
+      broadcastQueueSync({
+        hospitalId: finalAppt.hospitalId?._id || finalAppt.hospitalId,
+        doctorId: finalAppt.doctorId?._id || finalAppt.doctorId,
+        userId: finalAppt.userId?._id || finalAppt.userId,
+        action: "check_in",
+        appointmentId: finalAppt._id,
+        queueToken: finalAppt.queueToken,
+        queueStatus: "waiting",
+        patientsAhead,
+        estimatedWaitMinutes,
+        doctorName: finalAppt.doctorId?.name || "",
+        hospitalName: finalAppt.hospitalId?.name || finalAppt.hospitalName || "",
+        slotDate: finalAppt.slotDate,
+        slotTime: finalAppt.slotTime,
+      });
+
+      broadcastAppointmentSync({
+        hospitalId: finalAppt.hospitalId?._id || finalAppt.hospitalId,
+        doctorId: finalAppt.doctorId?._id || finalAppt.doctorId,
+        userId: finalAppt.userId?._id || finalAppt.userId,
+        appointmentId: finalAppt._id,
+        status: finalAppt.status,
+        paymentStatus: finalAppt.paymentStatus,
+        slotDate: finalAppt.slotDate,
+        slotTime: finalAppt.slotTime,
+      });
+    }
 
     res.status(200).json({
       success: true,
       message: "Check-in successful! Your digital token has been assigned.",
-      queueToken,
-      appointment: formatAppointmentForCheckIn(appointment),
+      queueToken: finalAppt.queueToken,
+      appointment: formatAppointmentForCheckIn(finalAppt),
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -178,7 +238,7 @@ export const getAppointmentLiveQueueStatus = async (req, res) => {
     conditions.push({ displayAppointmentId: appointmentId });
 
     const appt = await appointmentModel.findOne({ $or: conditions })
-      .populate("doctorId", "name speciality")
+      .populate("doctorId", "name speciality slotDurationMinutes")
       .populate("hospitalId", "name");
 
     if (!appt) {
@@ -188,8 +248,8 @@ export const getAppointmentLiveQueueStatus = async (req, res) => {
     let patientsAhead = 0;
     if (appt.checkedIn && appt.queueStatus === "waiting") {
       patientsAhead = await appointmentModel.countDocuments({
-        hospitalId: appt.hospitalId,
-        doctorId: appt.doctorId,
+        hospitalId: appt.hospitalId?._id || appt.hospitalId,
+        doctorId: appt.doctorId?._id || appt.doctorId,
         slotDate: appt.slotDate,
         checkedIn: true,
         queueStatus: "waiting",
@@ -198,11 +258,14 @@ export const getAppointmentLiveQueueStatus = async (req, res) => {
     }
 
     const currentlyServing = await appointmentModel.findOne({
-      hospitalId: appt.hospitalId,
-      doctorId: appt.doctorId,
+      hospitalId: appt.hospitalId?._id || appt.hospitalId,
+      doctorId: appt.doctorId?._id || appt.doctorId,
       slotDate: appt.slotDate,
       queueStatus: "in_consultation",
     });
+
+    const avgDuration = appt.doctorId?.slotDurationMinutes || 15;
+    const estimatedWaitMinutes = patientsAhead * avgDuration;
 
     res.status(200).json({
       success: true,
@@ -211,11 +274,14 @@ export const getAppointmentLiveQueueStatus = async (req, res) => {
       queueStatus: appt.queueStatus || "not_checked_in",
       currentServingToken: currentlyServing?.queueToken || null,
       patientsAhead,
+      estimatedWaitMinutes,
+      averageConsultationMinutes: avgDuration,
       checkInAt: appt.checkInAt || null,
       doctorName: appt.doctorId?.name || appt.doctorName || "",
       hospitalName: appt.hospitalId?.name || appt.hospitalName || "",
       slotDate: appt.slotDate,
       slotTime: appt.slotTime,
+      featureLiveQueueEnabled: isLiveQueueEnabled(),
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -323,6 +389,32 @@ export const processScanCheckIn = async (req, res) => {
       appt.status = "confirmed";
     }
     await appt.save();
+
+    if (isLiveQueueEnabled()) {
+      broadcastQueueSync({
+        hospitalId: appt.hospitalId?._id || appt.hospitalId,
+        doctorId: appt.doctorId?._id || appt.doctorId,
+        userId: appt.userId?._id || appt.userId,
+        action: "scan_check_in",
+        appointmentId: appt._id,
+        queueToken,
+        queueStatus: "waiting",
+        doctorName: appt.doctorId?.name || "",
+        hospitalName: appt.hospitalName || appt.hospitalId?.name || "",
+        slotDate: appt.slotDate,
+        slotTime: appt.slotTime,
+      });
+      broadcastAppointmentSync({
+        hospitalId: appt.hospitalId?._id || appt.hospitalId,
+        doctorId: appt.doctorId?._id || appt.doctorId,
+        userId: appt.userId?._id || appt.userId,
+        appointmentId: appt._id,
+        status: appt.status,
+        paymentStatus: appt.paymentStatus,
+        slotDate: appt.slotDate,
+        slotTime: appt.slotTime,
+      });
+    }
 
     // Audit Log Entry
     try {

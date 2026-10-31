@@ -458,6 +458,19 @@ export default function DigitalHospitalPassScreen() {
                       {queueData?.patientsAhead ?? 0}
                     </Text>
                   </View>
+                  {queueData?.estimatedWaitMinutes !== undefined ? (
+                    <>
+                      <View style={styles.metricDivider} />
+                      <View style={styles.metricCol}>
+                        <Text style={styles.metricLabel}>EST. WAIT</Text>
+                        <Text style={styles.metricValue}>
+                          {queueData.estimatedWaitMinutes > 0
+                            ? `~${queueData.estimatedWaitMinutes}m`
+                            : "Soon"}
+                        </Text>
+                      </View>
+                    </>
+                  ) : null}
                 </View>
 
                 {queueStatus === "called" ? (

@@ -57,6 +57,8 @@ export interface PatientQueueStatusResponse {
     | "cancelled";
   currentServingToken?: string | null;
   patientsAhead?: number;
+  estimatedWaitMinutes?: number;
+  averageConsultationMinutes?: number;
   checkInAt?: string;
   doctorName?: string;
   hospitalName?: string;

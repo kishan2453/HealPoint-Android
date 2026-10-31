@@ -78,6 +78,9 @@ const appointmentSchema = new mongoose.Schema(
       default: "not_checked_in",
     },
     calledAt: { type: Date },
+    consultationStartedAt: { type: Date },
+    consultationEndedAt: { type: Date },
+    estimatedWaitMinutes: { type: Number, default: 0 },
     vitals: {
       bloodPressure: { type: String, default: "" },
       heartRate: { type: Number },

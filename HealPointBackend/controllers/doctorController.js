@@ -8,6 +8,7 @@ import userModel from "../models/userModel.js";
 import reviewModel from "../models/reviewModel.js";
 import healthDocumentModel from "../models/healthDocumentModel.js";
 import notificationModel from "../models/notificationModel.js";
+import { broadcastQueueSync, broadcastAppointmentSync } from "../services/socketService.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "healpoint_dev_secret_jwt_key_2026";
 
@@ -550,21 +551,40 @@ export const handleDoctorQueueAction = async (req, res) => {
     const appointment = await appointmentModel.findById(appointmentId);
     if (!appointment) return res.status(404).json({ success: false, message: "Appointment not found" });
 
+    // Validate that an authenticated doctor can only modify their own queue
+    if (req.user && (req.user.role === "doctor" || req.user.role === "Doctor")) {
+      const authDoctorId = String(req.user.id || req.user._id);
+      if (String(appointment.doctorId) !== authDoctorId) {
+        return res.status(403).json({
+          success: false,
+          message: "Forbidden: You are not authorized to modify another doctor's queue",
+          code: "FORBIDDEN_DOCTOR_QUEUE",
+        });
+      }
+    }
+
     if (action === "call_patient") {
       appointment.calledAt = new Date();
       appointment.queueStatus = "called";
       appointment.checkedIn = true;
       if (!appointment.checkInAt) appointment.checkInAt = new Date();
+    } else if (action === "start_consultation") {
+      appointment.queueStatus = "in_consultation";
+      appointment.consultationStatus = "in_progress";
+      if (appointment.status === "pending") appointment.status = "confirmed";
+      appointment.consultationStartedAt = new Date();
     } else if (action === "complete_consultation") {
       appointment.status = "completed";
       appointment.queueStatus = "completed";
       appointment.consultationStatus = "completed";
+      appointment.consultationEndedAt = new Date();
       if (notes) {
         appointment.medicalNotes = (appointment.medicalNotes ? appointment.medicalNotes + "\n" : "") + notes;
       }
     } else if (action === "mark_noshow") {
       appointment.status = "missed";
       appointment.queueStatus = "cancelled";
+      appointment.consultationStatus = "unavailable";
       appointment.medicalNotes = (appointment.medicalNotes ? appointment.medicalNotes + "\n" : "") + (reason || "Marked No-Show by Doctor");
     } else if (action === "cancel") {
       appointment.status = "cancel";
@@ -573,6 +593,31 @@ export const handleDoctorQueueAction = async (req, res) => {
     }
 
     await appointment.save();
+
+    if (process.env.FEATURE_LIVE_QUEUE === "true") {
+      broadcastQueueSync({
+        hospitalId: appointment.hospitalId,
+        doctorId: appointment.doctorId,
+        userId: appointment.userId,
+        action,
+        appointmentId: appointment._id,
+        queueToken: appointment.queueToken,
+        queueStatus: appointment.queueStatus,
+        doctorName: req.user?.name || "",
+        slotDate: appointment.slotDate,
+        slotTime: appointment.slotTime,
+      });
+      broadcastAppointmentSync({
+        hospitalId: appointment.hospitalId,
+        doctorId: appointment.doctorId,
+        userId: appointment.userId,
+        appointmentId: appointment._id,
+        status: appointment.status,
+        paymentStatus: appointment.paymentStatus,
+        slotDate: appointment.slotDate,
+        slotTime: appointment.slotTime,
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -594,11 +639,48 @@ export const startDoctorConsultation = async (req, res) => {
     const appointment = await appointmentModel.findById(appointmentId);
     if (!appointment) return res.status(404).json({ success: false, message: "Appointment not found" });
 
+    // Validate doctor ownership
+    if (req.user && (req.user.role === "doctor" || req.user.role === "Doctor")) {
+      const authDoctorId = String(req.user.id || req.user._id);
+      if (String(appointment.doctorId) !== authDoctorId) {
+        return res.status(403).json({
+          success: false,
+          message: "Forbidden: You are not authorized to start another doctor's consultation",
+          code: "FORBIDDEN_DOCTOR_QUEUE",
+        });
+      }
+    }
+
     appointment.queueStatus = "in_consultation";
     appointment.consultationStatus = "in_progress";
     if (appointment.status === "pending") appointment.status = "confirmed";
     appointment.consultationStartedAt = new Date();
     await appointment.save();
+
+    if (process.env.FEATURE_LIVE_QUEUE === "true") {
+      broadcastQueueSync({
+        hospitalId: appointment.hospitalId,
+        doctorId: appointment.doctorId,
+        userId: appointment.userId,
+        action: "start_consultation",
+        appointmentId: appointment._id,
+        queueToken: appointment.queueToken,
+        queueStatus: "in_consultation",
+        doctorName: req.user?.name || "",
+        slotDate: appointment.slotDate,
+        slotTime: appointment.slotTime,
+      });
+      broadcastAppointmentSync({
+        hospitalId: appointment.hospitalId,
+        doctorId: appointment.doctorId,
+        userId: appointment.userId,
+        appointmentId: appointment._id,
+        status: appointment.status,
+        paymentStatus: appointment.paymentStatus,
+        slotDate: appointment.slotDate,
+        slotTime: appointment.slotTime,
+      });
+    }
 
     res.status(200).json({
       success: true,
