@@ -10,13 +10,59 @@
 
 | Test Suite / Target | Command | Total | Passed | Failed | Duration | Status |
 |---|---|---|---|---|---|---|
-| **Phase 2 Video Consultation** | `node --test` | 15 | 15 | 0 | 22.1ms | **PASS** |
-| **Hospital Admin Helpers** | `node --test` | 7 | 7 | 0 | 3.7ms | **PASS** |
-| **Live Queue & Tenant Isolation** | `node --test` | 10 | 10 | 0 | 22.7ms | **PASS** |
+| **Phase 3 AI Health Assistant** | `node --test` | 20 | 20 | 0 | 7.12ms | **PASS** |
+| **Phase 2 Video Consultation** | `node --test` | 15 | 15 | 0 | 34.3ms | **PASS** |
+| **Hospital Admin Helpers** | `node --test` | 7 | 7 | 0 | 6.19ms | **PASS** |
+| **Live Queue & Tenant Isolation** | `node --test` | 10 | 10 | 0 | 11.7ms | **PASS** |
 | **Mobile Client Typecheck** | `npm run typecheck` (`tsc --noEmit`) | 1 | 1 | 0 | ~25s | **PASS (0 errors)** |
-| **Doctor Web Build** | `npm run build --prefix HealPointDoctorWeb` | 1 | 1 | 0 | 6.08s | **PASS (0 errors)** |
-| **Hospital Admin Web Build** | `npm run build --prefix HealPointHospitalAdminWeb` | 1 | 1 | 0 | 8.90s | **PASS (0 errors)** |
-| **Super Admin Web Build** | `npm run build --prefix HealPointSuperAdminWeb` | 1 | 1 | 0 | 7.04s | **PASS (0 errors)** |
+| **Doctor Web Build** | `npm run build --prefix HealPointDoctorWeb` | 1 | 1 | 0 | 6.68s | **PASS (0 errors)** |
+| **Hospital Admin Web Build** | `npm run build --prefix HealPointHospitalAdminWeb` | 1 | 1 | 0 | 5.96s | **PASS (0 errors)** |
+| **Super Admin Web Build** | `npm run build --prefix HealPointSuperAdminWeb` | 1 | 1 | 0 | 7.30s | **PASS (0 errors)** |
+
+---
+
+## 2. Detailed Test Cases (Phase 3 AI Health Assistant Suite)
+
+1. **`Permits up to 10 requests per minute per identifier`**:
+   - Asserts in-memory sliding window rate limiter permits 10 calls and rejects 11th with positive `resetInSeconds`.
+2. **`Detects life-threatening emergencies in English`**:
+   - Detects acute chest pain, unconsciousness, severe breathing distress, and acute bleeding.
+3. **`Detects life-threatening emergencies in Hindi (हिन्दी)`**:
+   - Detects "सीने में दर्द", "मरीज बेहोश हो गया", and "सांस लेने में तकलीफ".
+4. **`Detects life-threatening emergencies in Gujarati (ગુજરાતી)`**:
+   - Detects "છાતીમાં દુખાવો", "દર્દી બેભાન થઈ ગયો", and "શ્વાસ લેવામાં તકલીફ".
+5. **`Accurately identifies non-emergency queries`**:
+   - Confirms general questions (diet, mild dandruff, checkups) are not flagged as emergencies.
+6. **`Explicit language preference takes precedence`**:
+   - Validates that caller's preferred language override is honored.
+7. **`Detects Hindi script automatically`**:
+   - Confirms Devanagari Unicode script range detection.
+8. **`Detects Gujarati script automatically`**:
+   - Confirms Gujarati Unicode script range detection.
+9. **`Defaults to English for standard Latin script`**:
+   - Validates default language fallback.
+10. **`Maps heart symptoms to Cardiologist`**:
+    - Validates specialty triage routing for cardiac symptoms.
+11. **`Maps skin and rash symptoms to Dermatologist`**:
+    - Validates specialty triage routing for dermatology.
+12. **`Maps dental pain to Dentist`**:
+    - Validates specialty triage routing for dentistry.
+13. **`Maps bone and joint issues to Orthopedic`**:
+    - Validates specialty triage routing for back/joint/knee pain and sprains in multiple languages.
+14. **`Maps child health inquiries to Pediatrician`**:
+    - Validates specialty triage routing for pediatric health.
+15. **`Maps neurological symptoms to Neurologist`**:
+    - Validates specialty triage routing for migraine and nerve symptoms.
+16. **`Defaults to General Physician when symptoms are non-specific`**:
+    - Ensures safe non-specialist triage for ambiguous complaints.
+17. **`Emergency response mandates national emergency helpline 112 / 108`**:
+    - Asserts 112 / 108 and emergency room advisories across English, Hindi, and Gujarati emergency replies.
+18. **`Never issues a definitive medical diagnosis or personalized drug dosage`**:
+    - Validates absence of diagnostic claims or prescription dosage instructions, and presence of medical disclaimers.
+19. **`FEATURE_AI_HEALTH_ASSISTANT defaults to false / disabled if not set in environment`**:
+    - Validates safe default-off deployment.
+20. **`FEATURE_AI_HEALTH_ASSISTANT activates only when explicitly set to 'true'`**:
+    - Validates strict boolean string evaluation.
 
 ---
 

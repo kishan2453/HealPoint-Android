@@ -4,6 +4,40 @@ All notable changes across HealPoint 2.0 development phases are documented in th
 
 ---
 
+## [Phase 3: AI Health Assistant] - 2026-10-31
+
+### Branch: `phase-3-ai-assistant`
+### Feature Flag: `FEATURE_AI_HEALTH_ASSISTANT` (Default: `false`)
+
+### Added
+- **Multilingual Clinical Triage & AI Service** (`HealPointBackend/controllers/aiController.js`):
+  - In-memory rate limiting (max 10 requests / minute per IP or authenticated user).
+  - Multilingual emergency triage (English, Hindi, Gujarati) with immediate 112 / 108 escalation and emergency room advisories.
+  - Specialty symptom triage mapping (Cardiology, Dermatology, Dentistry, Orthopedics, Pediatrics, Neurology, Gynecology, Ophthalmology, ENT, Psychiatry, General Medicine).
+  - Real doctor data querying from MongoDB (`doctorModel`) matching specialty and availability.
+  - Native Google Gemini API integration with timeout abort controller and structured medical safety prompts.
+  - Zero-dependency clinical fallback engine guaranteeing 100% uptime when Gemini API keys are unconfigured.
+- **Persistent Patient Conversation History Model** (`HealPointBackend/models/aiConversationModel.js`):
+  - Strictly patient-scoped conversation storage with compound index `{ userId: 1, createdAt: -1 }`.
+  - DPDP-compliant instant chat clearing endpoint (`DELETE /api/v1/ai/history`).
+- **Doctor Consultation AI Summary Endpoint** (`HealPointBackend/controllers/aiController.js`):
+  - `POST /api/v1/ai/consultation-summary/:appointmentId`: Authorized doctor endpoint producing structured draft summaries for physician review.
+  - Integration into Doctor Web [VideoConsultationRoom.jsx](file:///d:/HealPoint/HealpointMobile/HealPointDoctorWeb/src/components/VideoConsultationRoom.jsx) with a 1-click draft button.
+- **Multilingual Patient Mobile UI** (`app/ai-assistant.tsx`, `services/ai.ts`):
+  - Language selector strip (`English`, `हिन्दी`, `ગુજરાતી`) with real-time backend language parameter propagation.
+  - Persistent history loading on mount and privacy-compliant chat deletion.
+  - Official HealPoint design tokens (Royal Blue `#2563EB`, Light Gray `#F8FAFC`, Dark Navy `#0F172A`).
+  - Emergency 112 call CTA buttons, doctor recommendation cards, and suggested symptom chips.
+- **Automated Backend Test Suite** (`HealPointBackend/tests/aiAssistant.test.js`):
+  - 20 unit tests covering rate limiting, multilingual emergencies, language auto-detection, clinical triage, medical safety guardrails, and feature flag behavior.
+
+### Preserved
+- All Phase 1 Live Queue and Phase 2 Video Consultation functionality.
+- Existing patient, doctor, hospital admin, and super admin authentication.
+- Existing Razorpay payments, billing, and Health Wallet features.
+
+---
+
 ## [Phase 2: Advanced Video Consultation] - 2026-10-31
 
 ### Branch: `phase-2-video-consultation`

@@ -268,3 +268,145 @@
   - Participant emits: `consultation:leave` with `{ "appointmentId": "<id>" }`
   - Server notifies peer: `consultation:peer-left`.
 
+---
+
+## 4. Phase 3: AI Health Assistant API Specification
+
+### A. Patient Chat & Triage
+- **POST** `/api/v1/ai/chat`
+  - **Auth**: Optional / Bearer Token (Authenticated sessions persist history; guest sessions receive instant triage)
+  - **Body**:
+    ```json
+    {
+      "message": "I have been experiencing a sharp chest pain for 20 minutes",
+      "language": "en" | "hi" | "gu"
+    }
+    ```
+  - **Response (200 - Emergency)**:
+    ```json
+    {
+      "success": true,
+      "reply": "🚨 **CRITICAL MEDICAL EMERGENCY ALERT**\n\nImmediate Actions Required: Call 112 / 108 immediately...",
+      "disclaimer": "HealPoint AI provides healthcare navigation and triage guidance only...",
+      "language": "en",
+      "isEmergency": true,
+      "suggestedSpeciality": "Cardiologist",
+      "cards": [
+        {
+          "type": "emergency",
+          "data": {
+            "title": "Emergency Care",
+            "description": "National Emergency Helpline 112 / Ambulance 108",
+            "hotline": "112"
+          }
+        }
+      ],
+      "actions": [
+        { "label": "Call 112 Emergency", "route": "tel:112", "icon": "call", "variant": "danger" },
+        { "label": "Find Nearest Hospitals", "route": "/hospitals", "icon": "business", "variant": "secondary" }
+      ]
+    }
+    ```
+  - **Response (200 - General Triage with Real Doctors)**:
+    ```json
+    {
+      "success": true,
+      "reply": "Based on the symptoms you described, a consultation with a qualified **Dermatologist** is recommended...",
+      "disclaimer": "HealPoint AI provides healthcare navigation...",
+      "language": "en",
+      "isEmergency": false,
+      "suggestedSpeciality": "Dermatologist",
+      "cards": [
+        {
+          "type": "doctor",
+          "data": {
+            "_id": "60c72b2f9b1d8b2badbee5a1",
+            "name": "Dr. Kavita Verma",
+            "degree": "MD - Dermatology",
+            "speciality": "Dermatologist",
+            "fees": 600,
+            "rating": 4.9,
+            "experience": 8,
+            "image": "https://...",
+            "hospitalName": "HealPoint Apex Hospital"
+          }
+        }
+      ],
+      "actions": [
+        { "label": "View Dermatologists", "route": "/doctors?speciality=Dermatologist", "icon": "search", "variant": "primary" },
+        { "label": "Book Appointment", "route": "/doctors", "icon": "calendar", "variant": "secondary" }
+      ]
+    }
+    ```
+  - **Response (429 - Rate Limited)**:
+    ```json
+    {
+      "success": false,
+      "message": "Too many AI requests. Please wait 45 seconds before sending another message.",
+      "retryAfter": 45
+    }
+    ```
+
+### B. Patient Conversation History
+- **GET** `/api/v1/ai/history`
+  - **Auth**: Bearer Token (Patient)
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "count": 6,
+      "history": [
+        {
+          "id": "60c72b2f9b1d8b2badbee5b1",
+          "sender": "user",
+          "text": "What does a cardiologist treat?",
+          "language": "en",
+          "timestamp": "2026-10-31T15:20:00.000Z"
+        },
+        {
+          "id": "60c72b2f9b1d8b2badbee5b2",
+          "sender": "ai",
+          "text": "Cardiologists are medical doctors specializing in the diagnosis and treatment of conditions related to the heart and blood vessels...",
+          "language": "en",
+          "timestamp": "2026-10-31T15:20:02.000Z"
+        }
+      ]
+    }
+    ```
+
+- **DELETE** `/api/v1/ai/history`
+  - **Auth**: Bearer Token (Patient)
+  - **Description**: Permanently purges all AI conversation documents belonging to the authenticated patient (DPDP Act 2023 compliance).
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "message": "Chat history cleared successfully.",
+      "deletedCount": 6
+    }
+    ```
+
+### C. Doctor Consultation AI Summary
+- **POST** `/api/v1/ai/consultation-summary/:appointmentId`
+  - **Auth**: Bearer Token (Assigned Doctor, Hospital Admin, or Super Admin)
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "appointmentId": "60c72b2f9b1d8b2badbee5a1",
+      "summary": "### AI-Generated Consultation Summary (Review Required)\n- **Patient**: Rahul Mehta\n- **Chief Observations**: ...\n> [!NOTE]\n> Requires doctor verification.",
+      "generatedAt": "2026-10-31T15:30:00.000Z",
+      "label": "AI-Generated Draft — Requires Doctor Review & Sign-off"
+    }
+    ```
+
+### D. Multi-Tenant Aggregated Analytics
+- **GET** `/api/v1/ai/hospital-stats`
+  - **Auth**: Bearer Token (Hospital Admin with resolved `hospitalId`)
+  - **Response (200)**: Aggregated triage counts and emergency escalations for the hospital (zero private patient texts).
+
+- **GET** `/api/v1/ai/platform-stats`
+  - **Auth**: Bearer Token (Super Admin)
+  - **Response (200)**: Platform-wide language distribution and referral rates.
+
+

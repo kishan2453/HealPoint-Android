@@ -121,6 +121,7 @@ export interface AiChatMessage {
 export async function sendAiMessage(
   message: string,
   signal?: AbortSignal,
+  language?: 'en' | 'hi' | 'gu',
 ): Promise<AiChatResponse> {
   const trimmed = message.trim();
   if (!trimmed) {
@@ -130,11 +131,11 @@ export async function sendAiMessage(
   try {
     const data = await api.post<AiChatResponse>(
       "/ai/chat",
-      { message: trimmed },
+      { message: trimmed, language },
       {
         auth: true,
         signal,
-        timeout: 15000,
+        timeout: 20000,
         retry: 0,
       },
     );
@@ -152,6 +153,36 @@ export async function sendAiMessage(
       "Sorry, I'm having trouble connecting right now. Please try again.",
     );
     throw new Error(msg);
+  }
+}
+
+/**
+ * Fetches recent chat conversation history for the authenticated patient.
+ */
+export async function getAiChatHistory(): Promise<{ count: number; history: AiChatMessage[] }> {
+  try {
+    const data = await api.get<{ count: number; history: AiChatMessage[] }>("/ai/history", {
+      auth: true,
+      timeout: 10000,
+    });
+    return data;
+  } catch {
+    return { count: 0, history: [] };
+  }
+}
+
+/**
+ * Clears the patient's chat history permanently in compliance with privacy regulations.
+ */
+export async function clearAiChatHistory(): Promise<{ success: boolean; message: string }> {
+  try {
+    const data = await api.delete<{ success: boolean; message: string }>("/ai/history", {
+      auth: true,
+      timeout: 10000,
+    });
+    return data;
+  } catch (error) {
+    throw new Error(toErrorMessage(error, "Failed to clear chat history."));
   }
 }
 

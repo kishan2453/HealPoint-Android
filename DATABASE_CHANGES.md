@@ -82,3 +82,27 @@ This document records all additive, backward-compatible database modifications a
   );
   ```
 
+---
+
+## Phase 3: AI Health Assistant
+- **New Additive Collection**: `aiconversations` (`aiConversationModel.js`)
+  - `userId`: `{ type: ObjectId, ref: 'User', required: true, index: true }`
+  - `sender`: `{ type: String, enum: ['user', 'ai'], required: true }`
+  - `text`: `{ type: String, required: true }`
+  - `language`: `{ type: String, enum: ['en', 'hi', 'gu'], default: 'en' }`
+  - `isEmergency`: `{ type: Boolean, default: false }`
+  - `suggestedSpeciality`: `{ type: String, default: null }`
+  - `disclaimer`: `{ type: String, default: null }`
+  - `cards`: `[{ type: Object }]`
+  - `actions`: `[{ type: Object }]`
+  - `createdAt`, `updatedAt`: `{ type: Date }`
+- **Indexes**:
+  - Compound index: `{ userId: 1, createdAt: -1 }` (for fast chronological query and user data deletion).
+- **Zero Impact on Existing Data**:
+  - Completely additive collection. Existing collections (`users`, `doctors`, `appointments`, `hospitals`) are unmodified.
+- **Rollback Procedure**:
+  ```javascript
+  // Drop the newly introduced collection
+  db.aiconversations.drop();
+  ```
+

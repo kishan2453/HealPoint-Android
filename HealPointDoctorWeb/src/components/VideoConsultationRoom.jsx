@@ -38,6 +38,7 @@ export default function VideoConsultationRoom({
   // In-consultation clinical notes
   const [clinicalNotes, setClinicalNotes] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
+  const [generatingAiSummary, setGeneratingAiSummary] = useState(false);
 
   // Video element refs
   const localVideoRef = useRef(null);
@@ -289,6 +290,22 @@ export default function VideoConsultationRoom({
     }
   };
 
+  // Generate AI Summary Draft
+  const handleGenerateAiSummary = async () => {
+    setGeneratingAiSummary(true);
+    try {
+      const res = await api.post(`/api/v1/ai/consultation-summary/${appointmentId}`);
+      if (res.data && res.data.summary) {
+        setClinicalNotes((prev) => (prev ? `${prev}\n\n${res.data.summary}` : res.data.summary));
+        toast.info("AI draft summary generated. Please review and edit before saving.");
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Unable to generate AI consultation summary");
+    } finally {
+      setGeneratingAiSummary(false);
+    }
+  };
+
   // End Consultation
   const handleEndConsultation = async () => {
     const confirm = window.confirm("Are you sure you want to end this consultation and mark it completed?");
@@ -415,6 +432,28 @@ export default function VideoConsultationRoom({
               <FaNotesMedical color="#2563eb" style={{ marginRight: 8 }} />
               <h4 style={{ margin: 0 }}>Consultation Notes & EMR</h4>
             </div>
+
+            <button
+              type="button"
+              onClick={handleGenerateAiSummary}
+              disabled={generatingAiSummary}
+              style={{
+                backgroundColor: "#0f172a",
+                color: "#60a5fa",
+                border: "1px solid #3b82f6",
+                borderRadius: 8,
+                padding: "8px 12px",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+              }}
+            >
+              ✨ {generatingAiSummary ? "Drafting Summary..." : "AI Consultation Summary Draft"}
+            </button>
 
             <textarea
               style={styles.notesTextarea}
@@ -717,3 +756,4 @@ const styles = {
     fontSize: 15,
   },
 };
+

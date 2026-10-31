@@ -10,6 +10,7 @@ import { type Href, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -41,7 +42,9 @@ import {
   type AiDoctorCardData,
   type AiEmergencyCardData,
   type AiHospitalCardData,
+  clearAiChatHistory,
   executeAiAction,
+  getAiChatHistory,
   sendAiMessage,
 } from "@/services/ai";
 
@@ -163,6 +166,7 @@ export default function AiAssistantScreen() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<AiChatMessage[]>([]);
   const [input, setInput] = useState("");
+  const [language, setLanguage] = useState<"en" | "hi" | "gu">("en");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [executingActionId, setExecutingActionId] = useState<string | null>(
     null,
@@ -170,15 +174,15 @@ export default function AiAssistantScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Initialize welcome message once
+  // Initialize persistent conversation history or welcome message
   useEffect(() => {
     const patientFirstName = user?.name ? user.name.split(" ")[0] : "there";
     const welcomeMsg: AiChatMessage = {
       id: "welcome-message",
       sender: "ai",
-      text: `Hi ${patientFirstName}! 👋 I'm your HealPoint AI Healthcare Assistant.\n\nI can help you check upcoming appointments, find specialists, locate partner hospitals, access your digital prescriptions, or guide you across HealPoint. How can I assist you today?`,
+      text: `Hi ${patientFirstName}! 👋 I'm your HealPoint AI Healthcare Assistant.\n\nI can help you check symptoms, find specialists, explain medical conditions, and guide appointment bookings across HealPoint. How can I assist you today?`,
       disclaimer:
-        "HealPoint AI provides healthcare navigation and informational assistance only. It does not provide medical diagnosis or replace professional consultation with a certified doctor.",
+        "HealPoint AI provides healthcare navigation and triage guidance only. It does not provide definitive medical diagnoses or replace a certified doctor consultation. In an emergency, dial 112 / 108 immediately.",
       actions: [
         {
           label: "Find a Doctor",
@@ -199,7 +203,7 @@ export default function AiAssistantScreen() {
           variant: "secondary",
         },
         {
-          label: "Emergency Care",
+          label: "Emergency Care (112)",
           route: "/emergency",
           icon: "alert-circle",
           variant: "danger",
@@ -210,7 +214,18 @@ export default function AiAssistantScreen() {
         minute: "2-digit",
       }),
     };
-    setMessages([welcomeMsg]);
+
+    getAiChatHistory()
+      .then((data) => {
+        if (data && data.history && data.history.length > 0) {
+          setMessages(data.history);
+        } else {
+          setMessages([welcomeMsg]);
+        }
+      })
+      .catch(() => {
+        setMessages([welcomeMsg]);
+      });
 
     return () => {
       if (abortControllerRef.current) {
@@ -249,7 +264,7 @@ export default function AiAssistantScreen() {
     abortControllerRef.current = controller;
 
     try {
-      const response = await sendAiMessage(query, controller.signal);
+      const response = await sendAiMessage(query, controller.signal, language);
       const aiMessage: AiChatMessage = {
         id: `ai-${Date.now()}-${Math.random()}`,
         sender: "ai",
@@ -667,34 +682,52 @@ export default function AiAssistantScreen() {
   };
 
   const clearChat = () => {
-    const patientFirstName = user?.name ? user.name.split(" ")[0] : "there";
-    setMessages([
-      {
-        id: `welcome-${Date.now()}`,
-        sender: "ai",
-        text: `Chat cleared! How can I help you, ${patientFirstName}?`,
-        disclaimer:
-          "HealPoint AI provides healthcare navigation and informational assistance only. It is not a medical diagnosis engine.",
-        actions: [
-          {
-            label: "Find a Doctor",
-            route: "/doctors",
-            icon: "search",
-            variant: "primary",
+    Alert.alert(
+      "Clear Chat History",
+      "Are you sure you want to permanently delete your conversation history with HealPoint AI?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear Chat",
+          style: "destructive",
+          onPress: async () => {
+            const patientFirstName = user?.name ? user.name.split(" ")[0] : "there";
+            try {
+              await clearAiChatHistory();
+            } catch {
+              // Ignore failure
+            }
+            setMessages([
+              {
+                id: `welcome-${Date.now()}`,
+                sender: "ai",
+                text: `Chat cleared! How can I help you, ${patientFirstName}?`,
+                disclaimer:
+                  "HealPoint AI provides healthcare navigation and triage guidance only. It does not provide definitive medical diagnoses.",
+                actions: [
+                  {
+                    label: "Find a Doctor",
+                    route: "/doctors",
+                    icon: "search",
+                    variant: "primary",
+                  },
+                  {
+                    label: "My Appointments",
+                    route: "/appointments",
+                    icon: "calendar",
+                    variant: "secondary",
+                  },
+                ],
+                timestamp: new Date().toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+              },
+            ]);
           },
-          {
-            label: "My Appointments",
-            route: "/appointments",
-            icon: "calendar",
-            variant: "secondary",
-          },
-        ],
-        timestamp: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      },
-    ]);
+        },
+      ]
+    );
   };
 
   return (
@@ -729,6 +762,37 @@ export default function AiAssistantScreen() {
           style={({ pressed }) => [styles.headerBtn, pressed && styles.pressed]}
         >
           <Ionicons name="trash-outline" size={20} color={Palette.textMuted} />
+        </Pressable>
+      </View>
+
+      {/* Multilingual Selector Strip */}
+      <View style={styles.langSelectorRow}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setLanguage("en")}
+          style={[styles.langChip, language === "en" && styles.langChipActive]}
+        >
+          <Text style={[styles.langChipText, language === "en" && styles.langChipTextActive]}>
+            English
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setLanguage("hi")}
+          style={[styles.langChip, language === "hi" && styles.langChipActive]}
+        >
+          <Text style={[styles.langChipText, language === "hi" && styles.langChipTextActive]}>
+            हिन्दी (Hindi)
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setLanguage("gu")}
+          style={[styles.langChip, language === "gu" && styles.langChipActive]}
+        >
+          <Text style={[styles.langChipText, language === "gu" && styles.langChipTextActive]}>
+            ગુજરાતી (Gujarati)
+          </Text>
         </Pressable>
       </View>
 
@@ -1293,6 +1357,35 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#F1F5F9",
   },
+  langSelectorRow: {
+    flexDirection: "row",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    backgroundColor: "#F8FAFC",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+    gap: 8,
+  },
+  langChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radius.pill,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  langChipActive: {
+    backgroundColor: "#2563EB",
+    borderColor: "#2563EB",
+  },
+  langChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  langChipTextActive: {
+    color: "#FFFFFF",
+  },
   headerTitleWrap: {
     alignItems: "center",
   },
@@ -1383,7 +1476,7 @@ const styles = StyleSheet.create({
   },
   userBubble: {
     maxWidth: "82%",
-    backgroundColor: "#0284C7",
+    backgroundColor: "#2563EB",
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 18,
@@ -1411,7 +1504,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: Radius.pill,
-    backgroundColor: "#0284C7",
+    backgroundColor: "#2563EB",
     alignItems: "center",
     justifyContent: "center",
     marginTop: 2,
@@ -1640,8 +1733,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   actionBtnPrimary: {
-    backgroundColor: "#0284C7",
-    borderColor: "#0284C7",
+    backgroundColor: "#2563EB",
+    borderColor: "#2563EB",
   },
   actionBtnDanger: {
     backgroundColor: "#FEF2F2",
@@ -1650,7 +1743,7 @@ const styles = StyleSheet.create({
   actionBtnText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#0284C7",
+    color: "#2563EB",
   },
   actionBtnTextPrimary: {
     color: "#FFFFFF",
@@ -1727,7 +1820,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "#0284C7",
+    backgroundColor: "#2563EB",
     alignItems: "center",
     justifyContent: "center",
   },
