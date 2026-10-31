@@ -163,3 +163,68 @@ This document records all additive, backward-compatible database modifications a
   db.healthdocuments.dropIndex("userId_1_familyMemberId_1_createdAt_-1");
   db.healthdocuments.dropIndex("userId_1_isArchived_1");
   ```
+
+---
+
+## Phase 5: Digital Prescription & Medicine Reminders
+
+- **New Collection: `prescriptions` (`prescriptionModel`)**:
+  - `prescriptionNumber`: `{ type: String, unique: true, index: true }` (Format: `RX-YYYY-XXXXXX`)
+  - `appointmentId`: `{ type: ObjectId, ref: 'Appointment', required: true, index: true }`
+  - `doctorId`: `{ type: ObjectId, ref: 'Doctor', required: true, index: true }`
+  - `patientId`: `{ type: ObjectId, ref: 'User', required: true, index: true }`
+  - `hospitalId`: `{ type: ObjectId, ref: 'Hospital', index: true }`
+  - `familyMemberId`: `{ type: ObjectId, default: null, index: true }`
+  - `patientSnapshot`: Embedded snapshot `{ name, age, gender, phone, displayId }`
+  - `doctorSnapshot`: Embedded snapshot `{ name, qualification, speciality, registrationNumber, phone }`
+  - `hospitalSnapshot`: Embedded snapshot `{ name, address, city, phone }`
+  - `diagnosis`: `{ type: String, trim: true, default: "" }`
+  - `symptoms`: `[{ type: String }]`
+  - `vitals`: `{ bloodPressure, heartRate, temperature, weight, oxygenLevel }`
+  - `medicines`: Array of `{ name, strength, form, dosage, frequency, duration, durationDays, route, timing, instructions, scheduleTimes, startDate, endDate }`
+  - `generalInstructions`: `{ type: String, default: "" }`
+  - `dietInstructions`: `{ type: String, default: "" }`
+  - `followUpDate`: `{ type: Date, default: null }`
+  - `followUpInstructions`: `{ type: String, default: "" }`
+  - `status`: `{ type: String, enum: ['draft', 'issued', 'amended', 'cancelled'], default: 'draft', index: true }`
+  - `version`: `{ type: Number, default: 1 }`
+  - `history`: Array of previous versions `{ version, amendedAt, amendedBy, amendmentReason, snapshot }`
+  - `isDigitallySigned`: `{ type: Boolean, default: false }`
+  - `signedAt`: `{ type: Date, default: null }`
+  - `signedByDoctorId`: `{ type: ObjectId, ref: 'Doctor', default: null }`
+  - `doctorSignatureStamp`: `{ type: String, default: "" }`
+  - `pdfUrl`: `{ type: String, default: "" }`
+
+- **New Collection: `medicationreminders` (`medicationReminderModel`)**:
+  - `userId`: `{ type: ObjectId, ref: 'User', required: true, index: true }`
+  - `familyMemberId`: `{ type: ObjectId, default: null, index: true }`
+  - `prescriptionId`: `{ type: ObjectId, ref: 'Prescription', default: null, index: true }`
+  - `appointmentId`: `{ type: ObjectId, ref: 'Appointment', default: null, index: true }`
+  - `doctorId`: `{ type: ObjectId, ref: 'Doctor', default: null }`
+  - `hospitalId`: `{ type: ObjectId, ref: 'Hospital', default: null }`
+  - `medicineName`: `{ type: String, required: true, trim: true }`
+  - `strength`: `{ type: String, default: "" }`
+  - `dosage`: `{ type: String, default: "" }`
+  - `frequency`: `{ type: String, default: "1-0-1" }`
+  - `timing`: `{ type: String, default: "After food" }`
+  - `instructions`: `{ type: String, default: "" }`
+  - `startDate`: `{ type: Date, default: Date.now }`
+  - `endDate`: `{ type: Date, default: null }`
+  - `times`: `[{ type: String }]` (e.g. `["08:00 AM", "08:00 PM"]`)
+  - `timezone`: `{ type: String, default: "Asia/Kolkata" }`
+  - `isActive`: `{ type: Boolean, default: true, index: true }`
+  - `refillReminder`: `{ enabled, refillDate, remindBeforeDays, isNotified }`
+  - `followUpReminder`: `{ enabled, followUpDate, remindBeforeDays, isNotified }`
+  - `notificationPreferences`: `{ push, sms, whatsapp }`
+  - `logs`: Array of dose records `{ doseDate, scheduledTime, status: ['pending', 'taken', 'skipped', 'snoozed', 'missed'], actionTimestamp, notes }`
+
+- **Indexes Created**:
+  - `prescriptions`: `{ patientId: 1, createdAt: -1 }`, `{ doctorId: 1, createdAt: -1 }`, `{ hospitalId: 1, createdAt: -1 }`, `{ appointmentId: 1 }`
+  - `medicationreminders`: `{ userId: 1, isActive: 1 }`, `{ userId: 1, familyMemberId: 1, isActive: 1 }`, `{ appointmentId: 1, medicineName: 1 }`
+
+- **Rollback Procedure**:
+  ```javascript
+  // Drop Phase 5 collections if rollback is required
+  db.prescriptions.drop();
+  db.medicationreminders.drop();
+  ```

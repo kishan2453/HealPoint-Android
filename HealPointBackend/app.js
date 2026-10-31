@@ -23,6 +23,8 @@ import settingsRoutes from "./routes/settingsRoutes.js";
 import galleryRoutes from "./routes/galleryRoutes.js";
 import webmessageRoutes from "./routes/webmessageRoutes.js";
 import passportRoutes from "./routes/passportRoutes.js";
+import prescriptionRoutes from "./routes/prescriptionRoutes.js";
+import medicationReminderRoutes from "./routes/medicationReminderRoutes.js";
 import { startReminderScheduler } from "./services/reminderScheduler.js";
 import { getAvailableSlots, validateSlot } from "./controllers/appointmentController.js";
 
@@ -159,6 +161,10 @@ app.use("/api/v1/gallery", galleryRoutes);
 app.use("/api/v1/webmessage", webmessageRoutes);
 app.use("/api/v1/passport", passportRoutes);
 app.use("/passport", passportRoutes);
+app.use("/api/v1/prescription", prescriptionRoutes);
+app.use("/api/v1/prescriptions", prescriptionRoutes);
+app.use("/api/v1/medication-reminder", medicationReminderRoutes);
+app.use("/api/v1/medication-reminders", medicationReminderRoutes);
 
 // Start background appointment reminder scheduler
 startReminderScheduler(5);

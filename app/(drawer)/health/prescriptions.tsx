@@ -12,6 +12,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
+  Linking,
   Modal,
   Pressable,
   RefreshControl,
@@ -42,7 +43,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { useScreenFocus } from "@/hooks/use-screen-focus";
 import { formatDDMMYYYY, formatDoctorName } from "@/lib/format";
-import { toErrorMessage } from "@/services/api";
+import { getAuthToken, toErrorMessage } from "@/services/api";
 import * as appointmentService from "@/services/appointments";
 import type {
   Appointment,
@@ -98,6 +99,7 @@ export default function PrescriptionsScreen() {
 
   // Action busy states
   const [actionBusyDoseId, setActionBusyDoseId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   // Set Reminder Modal State
   const [reminderModalVisible, setReminderModalVisible] = useState(false);
@@ -432,6 +434,23 @@ export default function PrescriptionsScreen() {
     }
   };
 
+  const handleDownloadPdf = async (item: Appointment) => {
+    try {
+      setDownloadingId(item._id);
+      const token = getAuthToken() || (user as any)?.token;
+      const docId = (item as any).prescriptionId || item._id;
+      const downloadUrl = appointmentService.getPrescriptionPdfUrl(docId, token);
+      await Linking.openURL(downloadUrl);
+    } catch (err) {
+      Alert.alert(
+        "Download Error",
+        toErrorMessage(err, "Could not open prescription PDF."),
+      );
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   const renderPrescriptionItem = ({ item }: { item: Appointment }) => {
     const doctorObj =
       typeof item.doctorId === "object" && item.doctorId ? item.doctorId : null;
@@ -650,7 +669,7 @@ export default function PrescriptionsScreen() {
         {/* Actions Row */}
         <View style={styles.actionRow}>
           <Button
-            title="View Details"
+            title="Details"
             variant="outline"
             style={styles.detailBtn}
             onPress={() =>
@@ -661,7 +680,16 @@ export default function PrescriptionsScreen() {
             }
           />
           <Button
-            title="Share Rx"
+            title="PDF"
+            variant="outline"
+            icon="document-text-outline"
+            loading={downloadingId === item._id}
+            style={styles.pdfBtn}
+            onPress={() => handleDownloadPdf(item)}
+          />
+          <Button
+            title="Share"
+            icon="share-outline"
             onPress={() => handleSharePrescription(item)}
             style={styles.shareBtn}
           />
@@ -2146,10 +2174,13 @@ const styles = StyleSheet.create({
   },
   actionRow: {
     flexDirection: "row",
-    gap: Spacing.md,
+    gap: Spacing.sm,
     marginTop: Spacing.sm,
   },
   detailBtn: {
+    flex: 1,
+  },
+  pdfBtn: {
     flex: 1,
   },
   shareBtn: {

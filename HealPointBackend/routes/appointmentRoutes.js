@@ -17,6 +17,7 @@ import {
   getPatientMedicationReminders,
   updateMedicationDoseStatus,
   createMedicationReminder,
+  deleteMedicationReminder,
   triggerAppointmentReminders,
 } from "../controllers/appointmentController.js";
 import { authenticate } from "../middlewares/authMiddlewares.js";
@@ -33,6 +34,8 @@ router.get("/health-wallet", authenticate, getHealthWallet);
 router.get("/patient/medical-history", authenticate, getPatientMedicalHistory);
 router.get("/patient/medication-reminders", authenticate, getPatientMedicationReminders);
 router.post("/patient/medication-reminders/status", authenticate, updateMedicationDoseStatus);
+router.patch("/patient/medication-reminders/:reminderId/action", authenticate, updateMedicationDoseStatus);
+router.delete("/patient/medication-reminders/:reminderId", authenticate, deleteMedicationReminder);
 router.post("/patient/medication-reminders", authenticate, createMedicationReminder);
 router.post("/reminders/process", triggerAppointmentReminders);
 router.get("/reminders/process", triggerAppointmentReminders);

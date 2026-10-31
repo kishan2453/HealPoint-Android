@@ -520,3 +520,69 @@
   - **Auth**: Bearer Token (Owner Patient)
   - **Description**: Soft deletes (`isArchived: true`) from patient vault.
   - **Response (200)**: `{ "success": true, "message": "Document removed securely from Health Wallet" }`
+
+---
+
+## Phase 5: Digital Prescription & Medicine Reminders API Specification
+
+### Digital Prescriptions (`/api/v1/prescription` & `/api/v1/prescriptions`)
+
+- **POST** `/api/v1/prescription/draft`
+  - **Auth**: Bearer Token (Doctor only)
+  - **Body**: `{ "appointmentId": "<ObjectId>", "diagnosis": "...", "medicines": [...], "generalInstructions": "...", "dietInstructions": "...", "followUpDate": "..." }`
+  - **Response (200)**: `{ "success": true, "message": "Prescription draft saved successfully", "prescription": { ... } }`
+
+- **POST** `/api/v1/prescription/issue`
+  - **Auth**: Bearer Token (Treating Doctor only)
+  - **Description**: Issues official prescription with cryptographic digital signature, updates appointment and Health Wallet records, and auto-provisions medication reminders.
+  - **Body**: `{ "appointmentId": "<ObjectId>", "diagnosis": "...", "medicines": [...], ... }`
+  - **Response (200)**: `{ "success": true, "message": "Prescription officially issued and digitally signed", "prescription": { ... } }`
+
+- **PUT** `/api/v1/prescription/:id/amend`
+  - **Auth**: Bearer Token (Treating Doctor only)
+  - **Description**: Amends an issued prescription, preserving previous version snapshots in history array.
+  - **Body**: `{ "amendmentReason": "Adjusted antibiotic dosage based on tolerance", "diagnosis": "...", "medicines": [...] }`
+  - **Response (200)**: `{ "success": true, "message": "Prescription amended successfully. Version history recorded.", "prescription": { ... } }`
+
+- **GET** `/api/v1/prescription/:id`
+  - **Auth**: Bearer Token (Patient, Treating Doctor, or Authorized Hospital Admin)
+  - **Description**: Returns detailed prescription including version history, medicines, vitals, and doctor signature.
+
+- **GET** `/api/v1/prescription/:id/pdf` (or `?token=<jwt>`)
+  - **Auth**: Bearer Header or Query Token
+  - **Description**: Streams a generated binary PDF document with HealPoint branding, hospital header, Rx symbol, medicine table, and digital stamp.
+
+- **GET** `/api/v1/prescription/patient/history`
+  - **Auth**: Bearer Token (Patient)
+  - **Query**: `?familyMemberId=<id>&status=all`
+  - **Response (200)**: `{ "success": true, "prescriptions": [...] }`
+
+- **GET** `/api/v1/prescription/hospital/:hospitalId/stats`
+  - **Auth**: Bearer Token (Hospital Admin / Super Admin)
+  - **Description**: Hospital tenant-isolated aggregate metrics (total, issued, drafts, amended).
+
+- **GET** `/api/v1/prescription/superadmin/stats`
+  - **Auth**: Bearer Token (Super Admin only)
+  - **Description**: Platform aggregate prescription & reminder health metrics.
+
+---
+
+### Medication Reminders (`/api/v1/medication-reminder` & `/api/v1/medication-reminders`)
+
+- **GET** `/api/v1/medication-reminder`
+  - **Auth**: Bearer Token (Patient)
+  - **Query**: `?familyMemberId=<id>&date=DD-MM-YYYY`
+  - **Response (200)**: `{ "success": true, "todaySchedule": [...], "reminders": [...], "summary": { ... }, "adherenceRate": 92 }`
+
+- **POST** `/api/v1/medication-reminder`
+  - **Auth**: Bearer Token (Patient)
+  - **Body**: `{ "medicineName": "...", "dosage": "...", "frequency": "1-0-1", "times": ["08:00 AM", "08:00 PM"], ... }`
+
+- **PATCH** `/api/v1/medication-reminder/:id/action`
+  - **Auth**: Bearer Token (Patient)
+  - **Body**: `{ "action": "taken" | "skipped" | "snoozed" | "missed", "scheduledTime": "08:00 AM", "scheduledDate": "2026-11-01" }`
+  - **Response (200)**: `{ "success": true, "message": "Medication action logged", "reminder": { ... } }`
+
+- **DELETE** `/api/v1/medication-reminder/:id`
+  - **Auth**: Bearer Token (Patient)
+  - **Description**: Soft deactivates reminders (`isActive: false`).

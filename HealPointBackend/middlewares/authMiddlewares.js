@@ -5,11 +5,17 @@ import doctorModel from "../models/doctorModel.js";
 export const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader) {
+    const token =
+      (authHeader
+        ? authHeader.startsWith("Bearer ")
+          ? authHeader.slice(7).trim()
+          : authHeader.trim()
+        : null) || req.query?.token;
+
+    if (!token) {
       return res.status(401).json({ success: false, message: "Authorization token required", code: "UNAUTHORIZED" });
     }
 
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : authHeader.trim();
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "healpoint_dev_secret_jwt_key_2026");
 
     req.user = decoded;

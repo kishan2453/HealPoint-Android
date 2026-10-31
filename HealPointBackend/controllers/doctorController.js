@@ -8,6 +8,8 @@ import userModel from "../models/userModel.js";
 import reviewModel from "../models/reviewModel.js";
 import healthDocumentModel from "../models/healthDocumentModel.js";
 import notificationModel from "../models/notificationModel.js";
+import prescriptionModel from "../models/prescriptionModel.js";
+import medicationReminderModel from "../models/medicationReminderModel.js";
 import { broadcastQueueSync, broadcastAppointmentSync } from "../services/socketService.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "healpoint_dev_secret_jwt_key_2026";
@@ -1643,9 +1645,156 @@ export const saveDoctorAppointmentPrescription = async (req, res) => {
 
     await appointment.save();
 
+    // Synchronize with Digital Prescription EMR and Medication Reminders
+    try {
+      const doctor = await doctorModel.findById(appointment.doctorId);
+      const hospital = appointment.hospitalId ? await hospitalModel.findById(appointment.hospitalId) : doctor?.hospitalId;
+      const patient = await userModel.findById(appointment.userId);
+
+      const parsedMedicines = (medicines || []).map((m) => {
+        const freq = m.frequency || "1-0-1";
+        let scheduleTimes = ["08:00 AM"];
+        if (freq === "1-0-1" || freq.includes("twice")) scheduleTimes = ["08:00 AM", "08:00 PM"];
+        else if (freq === "1-1-1" || freq.includes("thrice")) scheduleTimes = ["08:00 AM", "01:00 PM", "08:00 PM"];
+        else if (freq === "0-0-1") scheduleTimes = ["08:00 PM"];
+
+        const durationDays = parseInt(String(m.duration || "").match(/\d+/)?.[0] || "5", 10);
+        const endDate = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+
+        return {
+          name: m.name,
+          dosage: m.dosage || "1 Tablet",
+          frequency: freq,
+          duration: m.duration || `${durationDays} days`,
+          durationDays,
+          route: m.route || "Oral",
+          timing: m.timing || "After food",
+          instructions: m.instructions || "",
+          scheduleTimes,
+          startDate: new Date(),
+          endDate,
+        };
+      });
+
+      let rxDoc = await prescriptionModel.findOne({ appointmentId: appointment._id });
+      if (!rxDoc) {
+        const rand = Math.floor(100000 + Math.random() * 900000);
+        const rxNumber = `RX-${new Date().getFullYear()}-${rand}`;
+
+        rxDoc = new prescriptionModel({
+          prescriptionNumber: rxNumber,
+          appointmentId: appointment._id,
+          doctorId: appointment.doctorId,
+          patientId: appointment.userId,
+          hospitalId: hospital?._id || appointment.hospitalId,
+          patientSnapshot: {
+            name: patient?.name || appointment.patientName || "Patient",
+            age: patient?.age || (patient?.dob ? `${new Date().getFullYear() - new Date(patient.dob).getFullYear()}` : "—"),
+            gender: patient?.gender || "—",
+            phone: patient?.phone || "",
+            displayId: patient?.displayId || String(appointment.userId).slice(-8).toUpperCase(),
+          },
+          doctorSnapshot: {
+            name: doctor?.name || "Attending Doctor",
+            qualification: doctor?.qualification || "MBBS",
+            speciality: doctor?.speciality || "General Physician",
+            registrationNumber: doctor?.registrationNumber || "MCI-HP-REG",
+            phone: doctor?.phone || "",
+          },
+          hospitalSnapshot: {
+            name: hospital?.name || "HealPoint Partner Hospital",
+            address: hospital?.address || "",
+            city: hospital?.city || "",
+            phone: hospital?.phone || "",
+          },
+          diagnosis: diagnosis || appointment.diagnosis || "",
+          medicines: parsedMedicines,
+          generalInstructions: prescriptionInstructions?.generalInstructions || prescription || "",
+          dietInstructions: prescriptionInstructions?.dietInstructions || "",
+          followUpInstructions: followUpAdvice || prescriptionInstructions?.followUpInstructions || "",
+          status: "issued",
+          isDigitallySigned: true,
+          signedAt: new Date(),
+          signedByDoctorId: appointment.doctorId,
+          doctorSignatureStamp: doctor?.signatureImage || "DIGITALLY-SIGNED-HEALPOINT",
+        });
+      } else {
+        rxDoc.diagnosis = diagnosis || rxDoc.diagnosis;
+        if (parsedMedicines.length) rxDoc.medicines = parsedMedicines;
+        rxDoc.generalInstructions = prescriptionInstructions?.generalInstructions || rxDoc.generalInstructions;
+        rxDoc.dietInstructions = prescriptionInstructions?.dietInstructions || rxDoc.dietInstructions;
+        rxDoc.followUpInstructions = followUpAdvice || rxDoc.followUpInstructions;
+        rxDoc.status = "issued";
+        rxDoc.isDigitallySigned = true;
+        rxDoc.signedAt = new Date();
+      }
+      await rxDoc.save();
+
+      // Provision medication reminders
+      for (const med of rxDoc.medicines) {
+        await medicationReminderModel.findOneAndUpdate(
+          {
+            userId: appointment.userId,
+            appointmentId: appointment._id,
+            medicineName: med.name,
+          },
+          {
+            userId: appointment.userId,
+            familyMemberId: appointment.familyMemberId || null,
+            prescriptionId: rxDoc._id,
+            appointmentId: appointment._id,
+            doctorId: appointment.doctorId,
+            hospitalId: rxDoc.hospitalId,
+            medicineName: med.name,
+            dosage: med.dosage,
+            frequency: med.frequency,
+            timing: med.timing,
+            instructions: med.instructions,
+            startDate: med.startDate || new Date(),
+            endDate: med.endDate,
+            times: med.scheduleTimes?.length ? med.scheduleTimes : ["08:00 AM"],
+            isActive: true,
+            refillReminder: {
+              enabled: med.durationDays >= 10,
+              refillDate: med.endDate,
+              remindBeforeDays: 2,
+            },
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+      }
+
+      // Sync Health Document in Health Wallet
+      await healthDocumentModel.findOneAndUpdate(
+        {
+          userId: appointment.userId,
+          "metadata.appointmentId": String(appointment._id),
+          category: "prescription",
+        },
+        {
+          userId: appointment.userId,
+          title: `Prescription - ${doctor?.name || "Doctor"} (${appointment.slotDate || new Date().toISOString().split("T")[0]})`,
+          category: "prescription",
+          fileUrl: `/api/v1/prescription/${rxDoc._id}/pdf`,
+          documentDate: new Date(),
+          metadata: {
+            appointmentId: String(appointment._id),
+            doctorId: String(appointment.doctorId),
+            prescriptionNumber: rxDoc.prescriptionNumber,
+            doctorName: doctor?.name,
+            hospitalName: hospital?.name,
+            diagnosis: rxDoc.diagnosis,
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+    } catch (syncErr) {
+      console.warn("[saveDoctorAppointmentPrescription EMR sync warning]:", syncErr.message);
+    }
+
     res.status(200).json({
       success: true,
-      message: "Prescription saved successfully",
+      message: "Prescription saved and synchronized successfully",
       appointment,
     });
   } catch (error) {

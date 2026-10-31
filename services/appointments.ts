@@ -5,7 +5,8 @@
  * Date format for slots is `DD-MM-YYYY` and time format is `"09:00 AM"` (both
  * enforced by the server).
  */
-import { api } from "./api";
+import { api, getAuthToken } from "./api";
+import { API_URL } from "@/lib/env";
 import { deriveFollowUpsFromAppointments } from "@/lib/followup-intelligence";
 import * as slotService from "./slots";
 import type {
@@ -772,4 +773,16 @@ export async function deleteMedicationReminder(
     `/appointment/patient/medication-reminders/${reminderId}`,
     { auth: true },
   );
+}
+
+/**
+ * Returns direct authenticated PDF download URL for a prescription or appointment.
+ */
+export function getPrescriptionPdfUrl(
+  prescriptionOrAppointmentId: string,
+  token?: string | null,
+): string {
+  const authToken = token || getAuthToken() || "";
+  const queryParam = authToken ? `?token=${encodeURIComponent(authToken)}` : "";
+  return `${API_URL}/prescription/${prescriptionOrAppointmentId}/pdf${queryParam}`;
 }

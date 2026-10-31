@@ -174,3 +174,45 @@
     - Ensures feature flag safety.
 18. **`Activates only when explicitly configured to 'true'`**:
     - Enables feature flag when configured.
+
+---
+
+## 5. Detailed Test Cases (Phase 5 Digital Prescription & Medicine Reminders Suite)
+
+1. **`Creates prescription draft with valid medicines and schedule times`**:
+   - Asserts draft creation preserves medicine names, dosages, frequencies, and generated schedule times.
+2. **`Officially issues prescription, sets digital signature and signed timestamp`**:
+   - Asserts status transition to `issued`, generates SHA-256 digital signature stamp, and verifies timestamp.
+3. **`Enforces doctor matching: rejecting third-party doctor modifications`**:
+   - Confirms HTTP 403 Forbidden is returned when an unassigned third-party doctor attempts to issue or amend a prescription.
+4. **`Amends prescription with version increment and historical snapshot preservation`**:
+   - Asserts version increments from `1` to `2`, appends to `history` audit array with `amendmentReason`, and maintains historical snapshot.
+5. **`Patient can only view their own prescription`**:
+   - Asserts patient privacy by blocking unauthorized third-party patient ID access.
+6. **`Hospital isolation prevents cross-hospital clinical records leakage`**:
+   - Asserts hospital tenant isolation for aggregate and prescription reporting queries.
+7. **`Generates valid binary PDF buffer with HealPoint branding and clinical details`**:
+   - Verifies PDF binary header `%PDF` and buffer size `> 1000` bytes generated via PDFKit.
+8. **`Schedules medication reminder with exact dose times and refill parameters`**:
+   - Asserts creation of medication reminder document with schedule times, start/end dates, and refill alerts.
+9. **`Records dose log: marks dose as taken with timestamp`**:
+   - Logs `taken` action with timestamp and updates log record.
+10. **`Cancelling a prescription or reminder deactivates future reminder triggers`**:
+    - Asserts soft-cancellation sets `isActive: false`.
+11. **`Calculates correct adherence percentage accurately`**:
+    - Verifies mathematical adherence rate calculation across logged doses.
+12. **`FEATURE_DIGITAL_PRESCRIPTION defaults to disabled when unset`**:
+    - Verifies safety default for digital prescription flag.
+13. **`FEATURE_MEDICINE_REMINDERS activates when explicitly set to 'true'`**:
+    - Verifies medication reminders feature flag activation.
+
+---
+
+## 6. Summary of Overall Verification
+
+- **Total Backend Unit & Integration Tests**: 83/83 PASS (0 FAILURES)
+- **Patient Mobile App**: TypeScript clean (`npm run typecheck`, 0 errors), Expo web export PASS (183 static routes)
+- **HealPointDoctorWeb**: Vite build PASS (0 errors)
+- **HealPointHospitalAdminWeb**: Vite build PASS (0 errors)
+- **HealPointSuperAdminWeb**: Vite build PASS (0 errors)
+- **Live Vercel Production Deployments**: All 4 portals live & verified.

@@ -8145,6 +8145,24 @@ function PrescriptionsView({
                             <button
                               type="button"
                               className="dp-action-icon-btn"
+                              title="Download Official Signed PDF"
+                              onClick={() => {
+                                let token = "";
+                                try {
+                                  const raw =
+                                    sessionStorage.getItem("doctorApp") ||
+                                    localStorage.getItem("doctorApp");
+                                  token = JSON.parse(raw || "{}")?.token || "";
+                                } catch (_) {}
+                                const pdfUrl = `/api/v1/prescription/${item.prescriptionId || item._id}/pdf?token=${encodeURIComponent(token)}`;
+                                window.open(pdfUrl, "_blank");
+                              }}
+                            >
+                              <FaFilePdf color="#ef4444" />
+                            </button>
+                            <button
+                              type="button"
+                              className="dp-action-icon-btn"
                               title="Print / View Prescription Slip"
                               onClick={() => {
                                 printPrescriptionSlip({
@@ -8696,6 +8714,26 @@ function PrescriptionsView({
               </button>
               <button
                 type="button"
+                className="dp-btn dp-btn-outline"
+                onClick={() => {
+                  let token = "";
+                  try {
+                    const raw =
+                      sessionStorage.getItem("doctorApp") ||
+                      localStorage.getItem("doctorApp");
+                    token = JSON.parse(raw || "{}")?.token || "";
+                  } catch (_) {}
+                  const docId =
+                    previewModalRx.appointment?._id ||
+                    previewModalRx.prescriptionNumber;
+                  const pdfUrl = `/api/v1/prescription/${docId}/pdf?token=${encodeURIComponent(token)}`;
+                  window.open(pdfUrl, "_blank");
+                }}
+              >
+                <FaFilePdf color="#ef4444" /> Download Official PDF
+              </button>
+              <button
+                type="button"
                 className="dp-btn dp-btn-primary"
                 onClick={() => {
                   printPrescriptionSlip(previewModalRx);
@@ -8703,7 +8741,7 @@ function PrescriptionsView({
                   setViewMode("list");
                 }}
               >
-                <FaPrint /> Print / Download Prescription Slip
+                <FaPrint /> Print Slip
               </button>
             </div>
           </div>

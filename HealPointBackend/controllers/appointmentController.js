@@ -950,85 +950,31 @@ export const getPatientMedicalHistory = async (req, res) => {
   }
 };
 
+import {
+  getPatientMedicationReminders as getPatientMedicationRemindersReal,
+  createMedicationReminder as createMedicationReminderReal,
+  recordMedicationAction as recordMedicationActionReal,
+  deleteMedicationReminder as deleteMedicationReminderReal,
+} from "./medicationReminderController.js";
+
 export const getPatientMedicationReminders = async (req, res) => {
-  try {
-    const userId = req.user.id || req.user._id;
-    const { familyMemberId } = req.query;
-
-    const query = { userId };
-    if (familyMemberId && familyMemberId !== "all") {
-      query.familyMemberId = familyMemberId;
-    }
-
-    const appointments = await appointmentModel
-      .find(query)
-      .populate("doctorId", "name speciality qualification image")
-      .populate("hospitalId", "name address city phone")
-      .sort({ createdAt: -1 });
-
-    const todaySchedule = [];
-    const activePrescriptions = [];
-
-    for (const appt of appointments) {
-      if (appt.medicines && appt.medicines.length > 0) {
-        activePrescriptions.push(appt);
-
-        appt.medicines.forEach((med, idx) => {
-          todaySchedule.push({
-            reminderId: `${appt._id}_med_${idx}`,
-            appointmentId: appt._id.toString(),
-            medicineName: med.name,
-            dosage: med.dosage || "1 Tablet",
-            scheduledTime: idx % 2 === 0 ? "08:00 AM" : "08:00 PM",
-            status: "pending",
-            timing: med.frequency || "Daily",
-            instructions: med.instructions || "After meals",
-            doctorName: appt.doctorId?.name || appt.doctorName || "Doctor",
-            hospitalName: appt.hospitalId?.name || appt.hospitalName || "HealPoint Hospital",
-          });
-        });
-      }
-    }
-
-    return res.status(200).json({
-      success: true,
-      todaySchedule,
-      activePrescriptions,
-      adherencePercent: 100,
-      takenCount: 0,
-      pendingCount: todaySchedule.length,
-      missedCount: 0,
-    });
-  } catch (error) {
-    console.error("[getPatientMedicationReminders Error]:", error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
+  return getPatientMedicationRemindersReal(req, res);
 };
 
 export const updateMedicationDoseStatus = async (req, res) => {
-  try {
-    const { reminderId, status } = req.body;
-    return res.status(200).json({
-      success: true,
-      message: `Dose marked as ${status}`,
-      reminderId,
-      status,
-    });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+  req.params = req.params || {};
+  if (req.body?.reminderId && !req.params.reminderId) {
+    req.params.reminderId = req.body.reminderId;
   }
+  return recordMedicationActionReal(req, res);
 };
 
 export const createMedicationReminder = async (req, res) => {
-  try {
-    return res.status(200).json({
-      success: true,
-      message: "Medication reminder scheduled successfully",
-      reminder: req.body,
-    });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
+  return createMedicationReminderReal(req, res);
+};
+
+export const deleteMedicationReminder = async (req, res) => {
+  return deleteMedicationReminderReal(req, res);
 };
 
 export const triggerAppointmentReminders = async (req, res) => {
