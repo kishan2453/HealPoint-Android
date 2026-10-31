@@ -80,6 +80,10 @@ const appointmentSchema = new mongoose.Schema(
     calledAt: { type: Date },
     consultationStartedAt: { type: Date },
     consultationEndedAt: { type: Date },
+    consultationDurationSeconds: { type: Number, default: 0 },
+    consultationSessionId: { type: String, default: "" },
+    consultationNotes: { type: String, default: "" },
+    consultationReconnectionCount: { type: Number, default: 0 },
     estimatedWaitMinutes: { type: Number, default: 0 },
     vitals: {
       bloodPressure: { type: String, default: "" },

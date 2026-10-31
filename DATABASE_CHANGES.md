@@ -29,8 +29,8 @@ This document records all additive, backward-compatible database modifications a
 
 ---
 
-## Phase 1: Live Queue Management (Upcoming)
-- **Proposed Additive Fields on `Appointment`**:
+## Phase 1: Live Queue Management
+- **Additive Fields on `Appointment`**:
   - `queuePosition`: `{ type: Number, default: 0 }` (cached queue rank)
   - `estimatedWaitMinutes`: `{ type: Number, default: 0 }` (dynamic wait time)
   - `consultationStartTime`: `{ type: Date }` (recorded when status changes to in_consultation)
@@ -53,5 +53,32 @@ This document records all additive, backward-compatible database modifications a
   );
   // Drop added compound index
   db.appointments.dropIndex("hospitalId_1_doctorId_1_slotDate_1_queueStatus_1");
+  ```
+
+---
+
+## Phase 2: Advanced Video Consultation
+- **Additive Fields on `Appointment` (`appointmentModel.js`)**:
+  - `consultationSessionId`: `{ type: String, default: null }` (UUID / token identifier for WebRTC session)
+  - `consultationDurationSeconds`: `{ type: Number, default: 0 }` (Actual call duration logged upon completion)
+  - `consultationNotes`: `{ type: String, default: "" }` (Clinical notes taken during or after session)
+  - `consultationReconnectionCount`: `{ type: Number, default: 0 }` (Telemetry for call quality & reconnection tracking)
+- **Compatibility**:
+  - All new fields have defaults (`null`, `0`, `""`). Existing appointments without these fields continue to work without modification.
+  - Stored `meetingUrl` and Google Meet workflows remain intact as fallbacks.
+- **Rollback Procedure**:
+  ```javascript
+  // Remove Phase 2 additive fields
+  db.appointments.updateMany(
+    {},
+    {
+      $unset: {
+        consultationSessionId: "",
+        consultationDurationSeconds: "",
+        consultationNotes: "",
+        consultationReconnectionCount: "",
+      },
+    }
+  );
   ```
 

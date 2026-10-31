@@ -9,6 +9,7 @@ import {
   FaVideo,
 } from "react-icons/fa";
 import api from "../services/api";
+import VideoConsultationRoom from "./VideoConsultationRoom";
 
 /**
  * HealPoint — Doctor Online Consultations (real Google Meet).
@@ -67,6 +68,7 @@ export default function OnlineConsultations({ doctorId, doctor }) {
   const [editing, setEditing] = useState(null); // consultation id being given a Meet link
   const [meetInput, setMeetInput] = useState("");
   const [busyId, setBusyId] = useState("");
+  const [activeCallAppointmentId, setActiveCallAppointmentId] = useState(null);
 
   const online = doctor?.onlineConsultationEnabled === true;
 
@@ -274,6 +276,24 @@ const myConsultations = items.filter(
                 ) : null}
 
                 <div className="online-consult-actions">
+                  {!completed ? (
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{
+                        backgroundColor: "#2563eb",
+                        borderColor: "#2563eb",
+                        color: "#ffffff",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                      onClick={() => setActiveCallAppointmentId(item._id)}
+                    >
+                      <FaVideo /> In-App Video Call
+                    </button>
+                  ) : null}
+
                   <button type="button" className="btn btn-light" onClick={() => openEditor(item)}>
                     <FaLink /> {item.meetingUrl ? "Edit Meet link" : "Add Google Meet link"}
                   </button>
@@ -312,6 +332,21 @@ const myConsultations = items.filter(
             );
           })}
         </div>
+      )}
+
+      {activeCallAppointmentId && (
+        <VideoConsultationRoom
+          appointmentId={activeCallAppointmentId}
+          doctorId={doctorId}
+          onClose={() => {
+            setActiveCallAppointmentId(null);
+            load();
+          }}
+          onCompleted={() => {
+            setActiveCallAppointmentId(null);
+            load();
+          }}
+        />
       )}
     </section>
   );

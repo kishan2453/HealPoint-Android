@@ -25,6 +25,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ReviewModal } from "@/components/ReviewModal";
+import { InAppVideoConsultationModal } from "@/components/InAppVideoConsultationModal";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -171,6 +172,7 @@ export default function ConsultationDetailScreen() {
     useState(false);
   const [joining, setJoining] = useState(false);
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [inAppVideoOpen, setInAppVideoOpen] = useState(false);
 
   const load = useCallback(
     async (isRefresh = false) => {
@@ -516,6 +518,21 @@ export default function ConsultationDetailScreen() {
             <Badge label={pay.label} variant={pay.variant} />
           </View>
 
+          {!isCompleted && !isCancelled ? (
+            <View style={{ marginBottom: Spacing.md }}>
+              <Button
+                title="Join In-App Video Call"
+                variant="primary"
+                icon="videocam"
+                onPress={() => setInAppVideoOpen(true)}
+                style={{ marginBottom: Spacing.xs }}
+              />
+              <Text style={styles.meetingHint}>
+                ✓ Encrypted peer-to-peer in-app consultation. No external accounts required.
+              </Text>
+            </View>
+          ) : null}
+
           {isCompleted ? (
             <View style={styles.completedNotice}>
               <Ionicons
@@ -546,10 +563,10 @@ export default function ConsultationDetailScreen() {
                 title={
                   joining
                     ? "Connecting to Google Meet..."
-                    : "Join Google Meet Consultation"
+                    : "Join via Google Meet (Fallback)"
                 }
-                variant="primary"
-                icon="videocam"
+                variant="outline"
+                icon="open-outline"
                 loading={joining}
                 disabled={joining}
                 onPress={handleJoinMeeting}
@@ -563,9 +580,9 @@ export default function ConsultationDetailScreen() {
           ) : (
             <View style={styles.meetingActions}>
               <Button
-                title="Join Google Meet"
+                title="Google Meet (Not Configured)"
                 variant="secondary"
-                icon="videocam"
+                icon="open-outline"
                 disabled
                 onPress={() => undefined}
               />
@@ -781,6 +798,19 @@ export default function ConsultationDetailScreen() {
           }}
         />
       ) : null}
+
+      <InAppVideoConsultationModal
+        visible={inAppVideoOpen}
+        appointmentId={String(id)}
+        doctorName={doctorNameOf(consultation)}
+        doctorSpecialty={doctorSpecialtyOf(consultation)}
+        meetingUrl={consultation.meetingUrl}
+        onClose={() => setInAppVideoOpen(false)}
+        onCompleted={() => {
+          setInAppVideoOpen(false);
+          load(true);
+        }}
+      />
     </SafeAreaView>
   );
 }

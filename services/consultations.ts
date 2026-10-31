@@ -45,6 +45,70 @@ export async function getPatientMeetingLink(id: string): Promise<PatientMeetingL
   return api.post<PatientMeetingLinkResponse>(`/consultation/patient/meeting-link/${id}`, undefined, { auth: true });
 }
 
+export interface ConsultationSessionData {
+  success: boolean;
+  appointmentId: string;
+  sessionToken: string;
+  role: 'patient' | 'doctor';
+  roomName: string;
+  iceServers: Array<{ urls: string | string[]; username?: string; credential?: string }>;
+  doctor?: {
+    id: string;
+    name: string;
+    speciality?: string;
+    avatar?: string;
+  };
+  patient?: {
+    id: string;
+    name: string;
+  };
+  consultationStatus: string;
+  meetingUrl?: string;
+  message?: string;
+}
+
+export interface ConsultationSessionStatusData {
+  success: boolean;
+  appointmentId: string;
+  consultationStatus: string;
+  meetingStatus: string;
+  meetingUrl?: string;
+  doctorReady: boolean;
+  notes?: string;
+  durationSeconds?: number;
+}
+
+export async function createConsultationSession(appointmentId: string): Promise<ConsultationSessionData> {
+  return api.post<ConsultationSessionData>(`/consultation/session/${appointmentId}/create`, undefined, { auth: true });
+}
+
+export async function getConsultationSessionStatus(appointmentId: string): Promise<ConsultationSessionStatusData> {
+  return api.get<ConsultationSessionStatusData>(`/consultation/session/${appointmentId}/status`, { auth: true });
+}
+
+export async function updateConsultationStatus(
+  appointmentId: string,
+  consultationStatus: 'waiting' | 'doctor_ready' | 'in_progress' | 'completed',
+  durationSeconds?: number,
+): Promise<{ success: boolean; message: string; consultationStatus: string }> {
+  return api.patch<{ success: boolean; message: string; consultationStatus: string }>(
+    `/consultation/session/${appointmentId}/status`,
+    { consultationStatus, durationSeconds },
+    { auth: true },
+  );
+}
+
+export async function saveConsultationNotes(
+  appointmentId: string,
+  notes: string,
+): Promise<{ success: boolean; message: string }> {
+  return api.post<{ success: boolean; message: string }>(
+    `/consultation/session/${appointmentId}/notes`,
+    { notes },
+    { auth: true },
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Doctor
 // ---------------------------------------------------------------------------

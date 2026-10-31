@@ -195,6 +195,131 @@ export const initSocketServer = (httpServer, allowedOrigins = ["*"]) => {
       if (typeof callback === "function") callback({ success: true, room: `user:${patientId}` });
     });
 
+    // -------------------------------------------------------------------------
+    // Phase 2: WebRTC Video Consultation Signaling Handlers
+    // -------------------------------------------------------------------------
+    socket.on("consultation:join-room", ({ appointmentId, sessionToken }, callback) => {
+      if (!appointmentId) {
+        if (typeof callback === "function") callback({ success: false, message: "Appointment ID required" });
+        return;
+      }
+
+      // Verify either sessionToken or socket authentication
+      let isAuthorized = false;
+      let sessionData = null;
+
+      if (sessionToken) {
+        try {
+          sessionData = jwt.verify(sessionToken, JWT_SECRET);
+          if (String(sessionData.appointmentId) === String(appointmentId)) {
+            isAuthorized = true;
+          }
+        } catch (err) {
+          // Token invalid or expired
+        }
+      }
+
+      if (!isAuthorized && socket.authenticated && user) {
+        isAuthorized = true;
+      }
+
+      if (!isAuthorized) {
+        if (typeof callback === "function") {
+          callback({
+            success: false,
+            message: "Forbidden: Invalid or expired consultation session token",
+            code: "INVALID_SESSION",
+          });
+        }
+        return;
+      }
+
+      const roomName = `consultation:${String(appointmentId)}`;
+      socket.join(roomName);
+
+      // Notify other peer in the consultation room
+      socket.to(roomName).emit("consultation:peer-joined", {
+        peerId: socket.id,
+        userId: String(userId || sessionData?.userId || ""),
+        role: sessionData?.role || userRole || "participant",
+        timestamp: new Date().toISOString(),
+      });
+
+      if (typeof callback === "function") {
+        callback({
+          success: true,
+          room: roomName,
+          peerId: socket.id,
+          role: sessionData?.role || userRole,
+        });
+      }
+    });
+
+    // P2P WebRTC Signal Relay (SDP Offer, SDP Answer, ICE Candidate)
+    socket.on("consultation:signal", ({ appointmentId, targetPeerId, signalData }) => {
+      if (!appointmentId || !signalData) return;
+      const roomName = `consultation:${String(appointmentId)}`;
+
+      if (targetPeerId) {
+        io.to(targetPeerId).emit("consultation:signal", {
+          fromPeerId: socket.id,
+          appointmentId,
+          signalData,
+        });
+      } else {
+        socket.to(roomName).emit("consultation:signal", {
+          fromPeerId: socket.id,
+          appointmentId,
+          signalData,
+        });
+      }
+    });
+
+    // Waiting Room notifications
+    socket.on("consultation:waiting", ({ appointmentId, doctorId, patientName }) => {
+      if (doctorId) {
+        io.to(`doctor:${String(doctorId)}`).emit("consultation:patient-waiting", {
+          appointmentId,
+          patientName: patientName || "Patient",
+          timestamp: new Date().toISOString(),
+        });
+      }
+    });
+
+    // Doctor Ready notification
+    socket.on("consultation:doctor_ready", ({ appointmentId, userId }) => {
+      if (userId) {
+        io.to(`user:${String(userId)}`).emit("consultation:doctor-ready", {
+          appointmentId,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    });
+
+    // Leave Consultation Room
+    socket.on("consultation:leave", ({ appointmentId }) => {
+      if (!appointmentId) return;
+      const roomName = `consultation:${String(appointmentId)}`;
+      socket.leave(roomName);
+      socket.to(roomName).emit("consultation:peer-left", {
+        peerId: socket.id,
+        userId: String(userId || ""),
+        timestamp: new Date().toISOString(),
+      });
+    });
+
+    socket.on("disconnecting", () => {
+      for (const room of socket.rooms) {
+        if (room.startsWith("consultation:")) {
+          socket.to(room).emit("consultation:peer-left", {
+            peerId: socket.id,
+            userId: String(userId || ""),
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+    });
+
     socket.on("disconnect", () => {
       // Disconnection handled automatically by Socket.IO room cleanup
     });

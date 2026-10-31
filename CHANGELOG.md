@@ -4,6 +4,51 @@ All notable changes across HealPoint 2.0 development phases are documented in th
 
 ---
 
+## [Phase 2: Advanced Video Consultation] - 2026-10-31
+
+### Branch: `phase-2-video-consultation`
+### Feature Flag: `FEATURE_ADVANCED_VIDEO` (Default: `false`)
+
+### Added
+- **WebRTC In-App Video Consultation Room for Doctor Web** (`HealPointDoctorWeb/src/components/VideoConsultationRoom.jsx`):
+  - In-app WebRTC client with local video preview and fullscreen remote stream.
+  - Microphone mute/unmute, camera enable/disable.
+  - Live consultation elapsed timer.
+  - Embedded clinical notes editor with persistent saving to MongoDB during/after consultation.
+  - Security indicator ("End-to-End P2P Encrypted").
+  - Clean modal integration into `OnlineConsultations.jsx` with direct fallback to Google Meet.
+- **WebRTC In-App Video Consultation Room for Mobile App** (`components/InAppVideoConsultationModal.tsx`):
+  - Fullscreen native modal housing an HTML5 WebRTC client via `react-native-webview`.
+  - Token-authorized Socket.IO signaling with backend ICE/STUN/TURN.
+  - Dynamic local PiP camera preview with front/back camera flipping.
+  - Micro-controls: mic mute, camera toggle, duration timer, automatic reconnection banner.
+  - Native bridging via `postMessage`: logs duration upon completion and routes to review/prescription view.
+  - Direct Google Meet fallback available anytime.
+- **Backend Consultation Controller & Session Routes** (`HealPointBackend/controllers/consultationController.js`, `routes/consultationRoutes.js`):
+  - `getIceServersConfig`: Configurable STUN (`stun:stun.l.google.com:19302`) + RFC 5766 HMAC-SHA1 time-limited TURN credentials.
+  - `createConsultationSession`: Enforces participant identity (doctor or patient only), appointment status validation, and generates a 30-minute short-lived session token.
+  - `getConsultationSessionStatus`: Waiting room state and doctor readiness polling.
+  - `updateConsultationStatus`: State machine (`waiting` → `doctor_ready` → `in_progress` → `completed`).
+  - `saveConsultationNotes`: Saves doctor's clinical notes to the appointment.
+  - `getHospitalConsultationStats`: Multi-tenant hospital analytics with strict hospital isolation.
+- **Backend Socket Signaling Handlers** (`HealPointBackend/services/socketService.js`):
+  - Handlers for `consultation:join-room`, `consultation:signal` (SDP Offer/Answer & ICE candidate relay), `consultation:waiting`, `consultation:doctor_ready`, `consultation:leave`, and `disconnecting` cleanup.
+- **Automated Backend Test Suite** (`HealPointBackend/tests/consultation.test.js`):
+  - 15 automated unit tests verifying ICE configuration, session token signing and expiration, state machine progression, participant authorization, hospital isolation, and feature flag defaults.
+- **Additive Database Fields** (`HealPointBackend/models/appointmentModel.js`):
+  - `consultationSessionId`, `consultationDurationSeconds`, `consultationNotes`, `consultationReconnectionCount`.
+- **Permissions** (`app.json`):
+  - Added Android `CAMERA`, `RECORD_AUDIO`, `MODIFY_AUDIO_SETTINGS` and iOS `NSCameraUsageDescription`, `NSMicrophoneUsageDescription`.
+
+### Preserved
+- Existing Google Meet links and external meeting launcher workflow preserved as a 1-click fallback.
+- Existing appointment booking, cancellation, and rescheduling logic untouched.
+- Existing Razorpay payment and billing systems untouched.
+- Existing Health Wallet and documents untouched.
+- Existing hospital admin consultation statistics view verified and functional.
+
+---
+
 ## [Phase 1: Live Queue Management] - 2026-10-31
 
 ### Branch: `phase-1-live-queue`

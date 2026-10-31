@@ -154,3 +154,117 @@
     }
     ```
 
+---
+
+## 3. Phase 2: Advanced Video Consultation API & Signaling Specification
+
+### REST Endpoints
+
+#### A. Session Token & ICE Configuration
+- **POST** `/api/v1/consultation/session/:appointmentId/create`
+  - **Auth**: Bearer Token (Assigned Patient or Assigned Doctor)
+  - **Description**: Verifies caller participant identity, appointment eligibility, and issues a 30-minute short-lived session token along with STUN/TURN ICE configurations.
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "appointmentId": "60c72b2f9b1d8b2badbee5a1",
+      "sessionToken": "<JWT_SESSION_TOKEN>",
+      "role": "patient",
+      "roomName": "consultation:60c72b2f9b1d8b2badbee5a1",
+      "iceServers": [
+        { "urls": "stun:stun.l.google.com:19302" }
+      ],
+      "doctor": {
+        "id": "60c72b2f9b1d8b2badbee501",
+        "name": "Dr. Sharma",
+        "speciality": "Cardiology"
+      },
+      "patient": {
+        "id": "60c72b2f9b1d8b2badbee502",
+        "name": "Ananya Patel"
+      },
+      "consultationStatus": "waiting",
+      "meetingUrl": "https://meet.google.com/abc-defg-hij"
+    }
+    ```
+
+#### B. Consultation Status Check
+- **GET** `/api/v1/consultation/session/:appointmentId/status`
+  - **Auth**: Bearer Token
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "appointmentId": "60c72b2f9b1d8b2badbee5a1",
+      "consultationStatus": "doctor_ready",
+      "meetingStatus": "ready",
+      "meetingUrl": "https://meet.google.com/abc-defg-hij",
+      "doctorReady": true,
+      "notes": "Patient reports mild chest tightness.",
+      "durationSeconds": 0
+    }
+    ```
+
+#### C. Status Transition
+- **PATCH** `/api/v1/consultation/session/:appointmentId/status`
+  - **Auth**: Bearer Token
+  - **Body**: `{ "consultationStatus": "doctor_ready" | "in_progress" | "completed", "durationSeconds": 720 }`
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "message": "Consultation status updated to completed",
+      "consultationStatus": "completed"
+    }
+    ```
+
+#### D. Clinical Notes
+- **POST** `/api/v1/consultation/session/:appointmentId/notes`
+  - **Auth**: Bearer Token (Doctor)
+  - **Body**: `{ "notes": "Prescribed Atorvastatin 10mg once daily at bedtime." }`
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "message": "Consultation notes saved successfully"
+    }
+    ```
+
+#### E. Hospital Consultation Analytics
+- **GET** `/api/v1/consultation/hospital/stats`
+  - **Auth**: Bearer Token (Hospital Admin with resolved `hospitalId`)
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "stats": {
+        "total": 45,
+        "upcoming": 12,
+        "completed": 28,
+        "activeOnlineDoctors": 4,
+        "revenue": 33600
+      },
+      "doctors": [ ... ],
+      "recent": [ ... ]
+    }
+    ```
+
+### Socket.IO WebRTC Signaling Protocol
+
+- **Join Consultation Room:**
+  - Client emits: `consultation:join-room` with `{ "appointmentId": "<id>", "sessionToken": "<token>" }`
+  - Server joins client to room `consultation:${appointmentId}` and emits `consultation:peer-joined`.
+
+- **WebRTC SDP Offer / Answer & ICE Candidate Relay:**
+  - Client emits: `consultation:signal` with `{ "appointmentId": "<id>", "signalData": <SDP_OR_ICE_OBJECT> }`
+  - Server broadcasts `consultation:signal` to all other participants in `consultation:${appointmentId}`.
+
+- **Doctor Readiness & Waiting Announcements:**
+  - Doctor emits: `consultation:doctor_ready` with `{ "appointmentId": "<id>" }`
+  - Patient emits: `consultation:waiting` with `{ "appointmentId": "<id>" }`
+
+- **Leave / Teardown:**
+  - Participant emits: `consultation:leave` with `{ "appointmentId": "<id>" }`
+  - Server notifies peer: `consultation:peer-left`.
+
