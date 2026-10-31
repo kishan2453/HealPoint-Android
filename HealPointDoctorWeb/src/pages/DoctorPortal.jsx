@@ -1332,6 +1332,87 @@ export default function DoctorPortal() {
             logout={logout}
           />
         )}
+        {![
+          "dashboard",
+          "today",
+          "upcoming",
+          "completed",
+          "cancelled",
+          "appointments",
+          "queue",
+          "patients",
+          "online-consultations",
+          "consultations",
+          "consultation",
+          "medical-history",
+          "prescriptions",
+          "upload-reports",
+          "availability",
+          "calendar",
+          "earnings",
+          "analytics",
+          "notifications",
+          "reviews",
+          "verification",
+          "profile",
+          "settings",
+          "security",
+        ].includes(activeView) && (
+          <div
+            className="dp-card"
+            style={{
+              padding: "48px 24px",
+              textAlign: "center",
+              margin: "32px auto",
+              maxWidth: 560,
+              background: "#ffffff",
+              borderRadius: "16px",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
+            }}
+          >
+            <div style={{ fontSize: 44, color: "#f59e0b", marginBottom: 16 }}>
+              ⚠️
+            </div>
+            <h2
+              style={{
+                fontSize: 22,
+                fontWeight: 700,
+                color: "#0f172a",
+                marginBottom: 8,
+              }}
+            >
+              Page Not Found
+            </h2>
+            <p
+              style={{
+                color: "#64748b",
+                marginBottom: 24,
+                fontSize: 15,
+                lineHeight: 1.5,
+              }}
+            >
+              The section "<strong>{activeView}</strong>" was not found in the
+              Doctor Portal.
+            </p>
+            <button
+              type="button"
+              className="dp-primary-btn"
+              onClick={() => navigate("/dashboard")}
+              style={{
+                background: "#0d9488",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: 8,
+                padding: "12px 28px",
+                fontWeight: 600,
+                fontSize: 15,
+                cursor: "pointer",
+              }}
+            >
+              Back to Dashboard
+            </button>
+          </div>
+        )}
 
         {/* Interactive Reschedule Modal */}
         {rescheduleModal.isOpen && (

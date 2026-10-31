@@ -1,6 +1,5 @@
 {
   "outputDirectory": "dist",
-  "cleanUrls": true,
   "headers": [
     {
       "source": "/fonts/(.*)",
@@ -51,10 +50,13 @@
       ]
     }
   ],
-  "rewrites": [
+  "routes": [
     {
-      "source": "/((?!manifest\\.json|sw\\.js|fonts/|icons/|_expo/|assets/|favicon\\.ico|.*\\.[a-zA-Z0-9]+$).*)",
-      "destination": "/index.html"
+      "handle": "filesystem"
+    },
+    {
+      "src": "/.*",
+      "dest": "/index.html"
     }
   ]
 }

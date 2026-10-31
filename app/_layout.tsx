@@ -164,6 +164,7 @@ export default function RootLayout() {
                     <Stack.Screen name="super-admin/earnings" />
                     <Stack.Screen name="super-admin/plans" />
                     <Stack.Screen name="super-admin/messages" />
+                    <Stack.Screen name="+not-found" options={{ title: "Not Found" }} />
                   </Stack>
                   <StatusBar style="auto" />
                   <InstallAppModal />

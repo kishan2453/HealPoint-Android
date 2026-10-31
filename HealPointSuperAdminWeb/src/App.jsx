@@ -30,6 +30,7 @@ import SubscriptionPlans from "./pages/subscriptions/SubscriptionPlans";
 import PlatformAnalytics from "./pages/PlatformAnalytics";
 import SystemHealth from "./pages/SystemHealth";
 import AuditLogs from "./pages/AuditLogs";
+import NotFound from "./pages/NotFound";
 import { hasPermission } from "./utils/permissions";
 import { initAdminSocket, subscribeAdminSync } from "./services/socket";
 import toast from "react-hot-toast";
@@ -380,6 +381,7 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </>
   );

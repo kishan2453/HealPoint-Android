@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "./PremiumWorkspace.css";
-import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { Navigate, Route, Routes, useNavigate, useLocation } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
 import {
   FaBell,
@@ -332,8 +332,29 @@ function DataTable({
 
 function Portal() {
   const navigate = useNavigate();
+  const location = useLocation();
   const app = session();
-  const [view, setView] = useState("dashboard");
+
+  const getPathView = (pathname) => {
+    const raw = String(pathname || "").replace(/^\/+/, "").split("/")[0]?.trim();
+    return raw || "dashboard";
+  };
+
+  const [view, setViewState] = useState(() => getPathView(location.pathname));
+
+  useEffect(() => {
+    const current = getPathView(location.pathname);
+    setViewState(current);
+  }, [location.pathname]);
+
+  const setView = (nextView) => {
+    setViewState(nextView);
+    const targetPath = nextView === "dashboard" ? "/" : `/${nextView}`;
+    if (location.pathname !== targetPath) {
+      navigate(targetPath);
+    }
+  };
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [workspaceError, setWorkspaceError] = useState(null);
@@ -718,6 +739,86 @@ function Portal() {
           />
         )}
         {view === "check-in" && <CheckInScannerView session={session()} />}
+        {![
+          "dashboard",
+          "reports",
+          "analytics",
+          "compliance",
+          "online-consultations",
+          "appointments",
+          "doctors",
+          "patients",
+          "verification",
+          "availability",
+          "scheduling",
+          "schedules",
+          "departments",
+          "reviews",
+          "gallery",
+          "notifications",
+          "earnings",
+          "subscription",
+          "profile",
+          "settings",
+          "security",
+          "support",
+          "check-in",
+        ].includes(view) && (
+          <div
+            className="hp-not-found-card"
+            style={{
+              padding: "48px 24px",
+              textAlign: "center",
+              background: "#ffffff",
+              borderRadius: "16px",
+              margin: "24px 0",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
+            }}
+          >
+            <FaExclamationCircle
+              style={{ fontSize: 48, color: "#f59e0b", marginBottom: 16 }}
+            />
+            <h2
+              style={{
+                fontSize: 22,
+                fontWeight: 700,
+                color: "#0f172a",
+                marginBottom: 8,
+              }}
+            >
+              Page Not Found
+            </h2>
+            <p
+              style={{
+                color: "#64748b",
+                marginBottom: 24,
+                fontSize: 15,
+                maxWidth: 480,
+                margin: "0 auto 24px auto",
+              }}
+            >
+              The section "<strong>{view}</strong>" does not exist in the
+              Hospital Admin Portal.
+            </p>
+            <button
+              type="button"
+              className="primary-btn"
+              onClick={() => setView("dashboard")}
+              style={{
+                background: "#0d9488",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: 8,
+                padding: "12px 28px",
+                fontWeight: 600,
+                fontSize: 15,
+                cursor: "pointer",
+              }}
+            >
+              Back to Dashboard
+            </button>
+          </div>
+        )}
       </main>
       {selected && (
         <AppointmentModal
