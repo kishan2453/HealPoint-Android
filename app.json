@@ -19,7 +19,6 @@
     "android": {
       "package": "com.healpoint.app",
       "versionCode": 1,
-      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#0E9F8E",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

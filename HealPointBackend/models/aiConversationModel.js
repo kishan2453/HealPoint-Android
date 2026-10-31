@@ -63,3 +63,4 @@ const aiConversationModel =
   mongoose.model("AiConversation", aiConversationSchema);
 
 export default aiConversationModel;
+

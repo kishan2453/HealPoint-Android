@@ -61,3 +61,31 @@ location /socket.io/ {
 }
 ```
 
+---
+
+## 4. Production Hosting & Live Deployments Matrix
+
+All HealPoint 2.0 services and portals are linked to Vercel and EAS:
+
+| Service / Portal | Hosting Platform | Vercel Project ID / Slug | Production Live URL | Status |
+|---|---|---|---|---|
+| **Backend API Server** | Vercel Serverless + MongoDB Atlas | `prj_sMDbW8j2ckLwxsVm8EiyOOiPE4sW` (`heal-point-backend`) | `https://heal-point-backend.vercel.app` | **LIVE (200 OK, DB Connected)** |
+| **Patient Web Portal** | Vercel Static + PWA | `prj_5DKUjrv0rAF1h4eVFAUdvAUJp9ue` (`heal-point`) | `https://heal-point.vercel.app` | **LIVE (200 OK)** |
+| **Doctor Portal** | Vercel + Vite React | `prj_j3ersIK40oLua2chbdaQ3VcQ5dwM` (`heal-point-doctor-web`) | `https://heal-point-doctor-web.vercel.app` | **LIVE (200 OK)** |
+| **Hospital Admin Portal**| Vercel + Vite React | `prj_4eVpnXdjolM25NemsAb3m7y0H2If` (`heal-point-hospital-admin`) | `https://heal-point-hospital-admin.vercel.app` | **LIVE (200 OK)** |
+| **Super Admin Portal** | Vercel + Vite React | `prj_Q2P0ZqFbjMAskLDB5m3M76X5nl5V` (`heal-point-super-admin`) | `https://heal-point-super-admin.vercel.app` | **LIVE (200 OK)** |
+| **Android Patient App** | Expo Application Services (EAS) | `@kishan_2453/healpoint` | [Latest APK Artifact](https://expo.dev/artifacts/eas/0YWxIl8sr_PXrCZWfTWjqCphqg-0x7p0qI2zAQ6puAA.apk) | **BUILT (v1.0.0, code 5)** |
+
+---
+
+## 5. Android Build & Release Specifications
+
+- **Expo SDK Version:** 54.0.0
+- **Expo Doctor Validation:** 18/18 checks passed (`npx expo-doctor`)
+- **Package Name:** `com.healpoint.app`
+- **Latest Finished APK Build ID:** `d59486c6-3b19-4753-8a4e-dc1996a9b301`
+- **Profile:** `apk-production` / `preview`
+- **Application Archive URL:** `https://expo.dev/artifacts/eas/0YWxIl8sr_PXrCZWfTWjqCphqg-0x7p0qI2zAQ6puAA.apk`
+- **Build Logs:** `https://expo.dev/accounts/kishan_2453/projects/healpoint/builds/d59486c6-3b19-4753-8a4e-dc1996a9b301`
+
+
