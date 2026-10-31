@@ -18,6 +18,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Linking,
   Modal,
   Pressable,
@@ -96,6 +97,9 @@ export default function DigitalHealthWalletScreen() {
   );
   const [search, setSearch] = useState("");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
+  const [viewMode, setViewMode] = useState<"list" | "timeline">("list");
+  const [dateFilter, setDateFilter] = useState<"all" | "30days" | "6months" | "1year">("all");
+  const [viewingDocument, setViewingDocument] = useState<WalletItem | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -148,6 +152,52 @@ export default function DigitalHealthWalletScreen() {
   const [editDocumentDate, setEditDocumentDate] = useState("");
   const [savingEditMetadata, setSavingEditMetadata] = useState(false);
 
+  const computedStartDate = useMemo(() => {
+    if (dateFilter === "30days") {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      return d.toISOString();
+    }
+    if (dateFilter === "6months") {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 6);
+      return d.toISOString();
+    }
+    if (dateFilter === "1year") {
+      const d = new Date();
+      d.setFullYear(d.getFullYear() - 1);
+      return d.toISOString();
+    }
+    return undefined;
+  }, [dateFilter]);
+
+  const timelineGroups = useMemo(() => {
+    const monthNames = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December",
+    ];
+    const map = new Map<string, { label: string; year: number; month: number; items: WalletItem[] }>();
+
+    for (const it of items) {
+      const d = new Date(it.date || it.timestamp || Date.now());
+      const year = isNaN(d.getTime()) ? new Date().getFullYear() : d.getFullYear();
+      const month = isNaN(d.getTime()) ? new Date().getMonth() : d.getMonth();
+      const key = `${year}-${String(month + 1).padStart(2, "0")}`;
+      const label = `${monthNames[month]} ${year}`;
+
+      if (!map.has(key)) {
+        map.set(key, { label, year, month, items: [] });
+      }
+      map.get(key)!.items.push(it);
+    }
+
+    return Array.from(map.entries()).map(([period, val]) => ({
+      period,
+      label: val.label,
+      items: val.items,
+    }));
+  }, [items]);
+
   const fetchWallet = useCallback(async () => {
     if (!userId) return;
     try {
@@ -156,6 +206,7 @@ export default function DigitalHealthWalletScreen() {
         familyMemberId: familyMemberFilter,
         category: selectedCategory,
         search: search.trim() || undefined,
+        startDate: computedStartDate,
         sort: sortOrder,
       });
 
@@ -180,7 +231,7 @@ export default function DigitalHealthWalletScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [userId, familyMemberFilter, selectedCategory, search, sortOrder]);
+  }, [userId, familyMemberFilter, selectedCategory, search, computedStartDate, sortOrder]);
 
   useScreenFocus(fetchWallet);
 
@@ -522,6 +573,101 @@ export default function DigitalHealthWalletScreen() {
       default:
         return "neutral";
     }
+  };
+
+  // Render Chronological Timeline Item Node
+  const renderTimelineItem = ({ item, index }: { item: WalletItem; index: number }) => {
+    const isFirst = index === 0;
+    const isLast = index === items.length - 1;
+
+    return (
+      <View style={styles.timelineRow}>
+        {/* Left vertical connector line & node marker */}
+        <View style={styles.timelineConnectorCol}>
+          {!isFirst ? <View style={styles.timelineLineTop} /> : <View style={{ flex: 1 }} />}
+          <View
+            style={[
+              styles.timelineDot,
+              item.type === "prescription" && { backgroundColor: "#059669" },
+              item.type === "report" && { backgroundColor: "#2563EB" },
+              item.type === "bill" && { backgroundColor: "#D97706" },
+              item.type === "consultation" && { backgroundColor: "#7C3AED" },
+              item.type === "pass" && { backgroundColor: "#16A34A" },
+              item.type === "record" && { backgroundColor: "#EA580C" },
+            ]}
+          >
+            <Ionicons
+              name={
+                item.type === "prescription"
+                  ? "document-text"
+                  : item.type === "report"
+                    ? "bar-chart"
+                    : item.type === "bill"
+                      ? "receipt"
+                      : item.type === "consultation"
+                        ? "calendar"
+                        : item.type === "pass"
+                          ? "qr-code"
+                          : "folder"
+              }
+              size={12}
+              color="#ffffff"
+            />
+          </View>
+          {!isLast ? <View style={styles.timelineLineBottom} /> : <View style={{ flex: 1 }} />}
+        </View>
+
+        {/* Right timeline event card */}
+        <Pressable
+          onPress={() => {
+            if (item.type === "report" || item.type === "record") {
+              setViewingDocument(item);
+            } else if (item.type === "pass") {
+              setSelectedPass(item);
+            } else if (item.type === "bill") {
+              setSelectedBill(item);
+            } else {
+              router.push(`/appointment/${item.appointmentId}` as never);
+            }
+          }}
+          style={styles.timelineCard}
+        >
+          <View style={styles.timelineCardHeader}>
+            <Text style={styles.timelineDateText}>
+              {formatDDMMYYYY(item.date)} {item.time ? `• ${item.time}` : ""}
+            </Text>
+            <Badge
+              label={item.category.toUpperCase()}
+              variant={getItemBadgeVariant(item.type, item.status)}
+            />
+          </View>
+
+          <Text style={styles.timelineItemTitle} numberOfLines={2}>
+            {item.title}
+          </Text>
+
+          <View style={styles.timelineMetaRow}>
+            <Ionicons name="medkit-outline" size={13} color={Palette.textMuted} />
+            <Text style={styles.timelineMetaText} numberOfLines={1}>
+              {formatDoctorName(item.doctor?.name || "Doctor")} • {item.hospital?.name || "HealPoint"}
+            </Text>
+          </View>
+
+          {item.diagnosis ? (
+            <Text style={styles.timelineDiagnosisText} numberOfLines={1}>
+              Diagnosis: {item.diagnosis}
+            </Text>
+          ) : null}
+
+          {item.url ? (
+            <View style={styles.timelinePreviewBtn}>
+              <Ionicons name="eye-outline" size={13} color="#2563EB" />
+              <Text style={styles.timelinePreviewText}>Tap to Preview Document</Text>
+            </View>
+          ) : null}
+        </Pressable>
+      </View>
+    );
   };
 
   // Render Item Card
@@ -962,9 +1108,9 @@ export default function DigitalHealthWalletScreen() {
                 style={styles.actionBtn}
               />
               <Button
-                title="Open File"
+                title="Preview"
                 variant="outline"
-                onPress={() => handleOpenDocument(item.url)}
+                onPress={() => setViewingDocument(item)}
                 style={styles.actionBtnSmall}
               />
               {item.processingStatus === "failed" ||
@@ -1101,14 +1247,24 @@ export default function DigitalHealthWalletScreen() {
           )}
 
           {isRecord && (
-            <Button
-              title="View Complete EMR"
-              variant="outline"
-              onPress={() =>
-                router.push(`/appointment/${item.appointmentId}` as never)
-              }
-              style={styles.actionBtn}
-            />
+            <View style={{ flexDirection: "row", gap: Spacing.xs, flex: 1 }}>
+              <Button
+                title="View EMR"
+                variant="outline"
+                onPress={() =>
+                  router.push(`/appointment/${item.appointmentId}` as never)
+                }
+                style={styles.actionBtn}
+              />
+              {item.url ? (
+                <Button
+                  title="Preview"
+                  variant="outline"
+                  onPress={() => setViewingDocument(item)}
+                  style={styles.actionBtnSmall}
+                />
+              ) : null}
+            </View>
           )}
         </View>
       </Card>
@@ -1193,7 +1349,7 @@ export default function DigitalHealthWalletScreen() {
       <FlatList
         data={items}
         keyExtractor={(item) => item.id}
-        renderItem={renderItem}
+        renderItem={viewMode === "timeline" ? renderTimelineItem : renderItem}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl
@@ -1285,6 +1441,86 @@ export default function DigitalHealthWalletScreen() {
                   <Text style={styles.metricCount}>{counts.passes}</Text>
                   <Text style={styles.metricLabel}>Hospital Passes</Text>
                 </Pressable>
+              </ScrollView>
+            </View>
+
+            {/* View Mode & Date Range Bar */}
+            <View style={styles.viewModeBar}>
+              <View style={styles.viewToggleGroup}>
+                <Pressable
+                  onPress={() => setViewMode("list")}
+                  style={[
+                    styles.viewToggleBtn,
+                    viewMode === "list" && styles.viewToggleBtnActive,
+                  ]}
+                >
+                  <Ionicons
+                    name="list"
+                    size={14}
+                    color={viewMode === "list" ? Palette.white : Palette.textMuted}
+                  />
+                  <Text
+                    style={[
+                      styles.viewToggleText,
+                      viewMode === "list" && styles.viewToggleTextActive,
+                    ]}
+                  >
+                    Cards
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setViewMode("timeline")}
+                  style={[
+                    styles.viewToggleBtn,
+                    viewMode === "timeline" && styles.viewToggleBtnActive,
+                  ]}
+                >
+                  <Ionicons
+                    name="git-commit-outline"
+                    size={14}
+                    color={viewMode === "timeline" ? Palette.white : Palette.textMuted}
+                  />
+                  <Text
+                    style={[
+                      styles.viewToggleText,
+                      viewMode === "timeline" && styles.viewToggleTextActive,
+                    ]}
+                  >
+                    Timeline
+                  </Text>
+                </Pressable>
+              </View>
+
+              {/* Date Filter Chips */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.dateFilterScroll}
+              >
+                {[
+                  { key: "all", label: "All Time" },
+                  { key: "30days", label: "30 Days" },
+                  { key: "6months", label: "6 Months" },
+                  { key: "1year", label: "1 Year" },
+                ].map((df) => (
+                  <Pressable
+                    key={df.key}
+                    onPress={() => setDateFilter(df.key as typeof dateFilter)}
+                    style={[
+                      styles.dateFilterChip,
+                      dateFilter === df.key && styles.dateFilterChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.dateFilterText,
+                        dateFilter === df.key && styles.dateFilterTextActive,
+                      ]}
+                    >
+                      {df.label}
+                    </Text>
+                  </Pressable>
+                ))}
               </ScrollView>
             </View>
 
@@ -1399,6 +1635,122 @@ export default function DigitalHealthWalletScreen() {
           ) : null
         }
       />
+
+      {/* ── Secure In-App Medical Document Viewer Modal ── */}
+      <Modal
+        visible={Boolean(viewingDocument)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setViewingDocument(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.billModalCard, { maxHeight: "90%", width: "95%", maxWidth: 460 }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle} numberOfLines={1}>
+                  {viewingDocument?.title || "Medical Document"}
+                </Text>
+                <Text style={styles.modalSub}>
+                  {viewingDocument?.reportType || viewingDocument?.category || "Record"} •{" "}
+                  {formatDDMMYYYY(viewingDocument?.date || "")}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setViewingDocument(null)}
+                style={styles.modalCloseBtn}
+                hitSlop={8}
+              >
+                <Ionicons name="close" size={22} color={Palette.text} />
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380 }}>
+              {/* Document Image Preview if image */}
+              {viewingDocument?.url &&
+              (viewingDocument.mimeType?.includes("image") ||
+                viewingDocument.url.match(/\.(jpg|jpeg|png|webp)/i) ||
+                viewingDocument.url.startsWith("data:image")) ? (
+                <View style={styles.imagePreviewWrap}>
+                  <Image
+                    source={{ uri: viewingDocument.url }}
+                    style={styles.documentPreviewImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              ) : (
+                /* PDF / Binary Document Security Card */
+                <View style={styles.pdfDocCard}>
+                  <View style={styles.pdfIconBadge}>
+                    <Ionicons name="document-text" size={42} color="#DC2626" />
+                  </View>
+                  <Text style={styles.pdfDocTitle}>
+                    {viewingDocument?.title || "Encrypted Medical Report"}
+                  </Text>
+                  <Text style={styles.pdfDocMeta}>
+                    {viewingDocument?.mimeType || "application/pdf"} •{" "}
+                    {viewingDocument?.size ? `${(viewingDocument.size / 1024).toFixed(1)} KB` : "Standard Document"}
+                  </Text>
+                  <View style={styles.securitySeal}>
+                    <Ionicons name="lock-closed" size={14} color="#16A34A" />
+                    <Text style={styles.securitySealText}>
+                      End-to-End Encrypted Patient Medical Record
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Provider & Facility Details */}
+              <View style={styles.viewerDetailsBox}>
+                <View style={styles.viewerDetailRow}>
+                  <Text style={styles.viewerDetailLabel}>Provider / Specialist:</Text>
+                  <Text style={styles.viewerDetailValue}>
+                    {formatDoctorName(viewingDocument?.doctor?.name || "Treating Doctor")}
+                  </Text>
+                </View>
+                <View style={styles.viewerDetailRow}>
+                  <Text style={styles.viewerDetailLabel}>Facility / Hospital:</Text>
+                  <Text style={styles.viewerDetailValue}>
+                    {viewingDocument?.hospital?.name || "HealPoint Partner Hospital"}
+                  </Text>
+                </View>
+                {viewingDocument?.notes ? (
+                  <View style={styles.viewerDetailRow}>
+                    <Text style={styles.viewerDetailLabel}>Notes:</Text>
+                    <Text style={styles.viewerDetailValue}>{viewingDocument.notes}</Text>
+                  </View>
+                ) : null}
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalActionsRow}>
+              {viewingDocument?.url ? (
+                <Button
+                  title="Open File"
+                  variant="primary"
+                  onPress={() => {
+                    if (viewingDocument?.url) handleOpenDocument(viewingDocument.url);
+                  }}
+                  style={{ flex: 1 }}
+                />
+              ) : null}
+              <Button
+                title="Share"
+                variant="outline"
+                onPress={() => {
+                  if (viewingDocument) handleShareReport(viewingDocument);
+                }}
+                style={{ flex: 1 }}
+              />
+              <Button
+                title="Close"
+                variant="outline"
+                onPress={() => setViewingDocument(null)}
+                style={{ minWidth: 70 }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Digital Hospital Pass QR Modal */}
       <Modal
@@ -2050,12 +2402,13 @@ export default function DigitalHealthWalletScreen() {
                   style={{ marginVertical: 4 }}
                 >
                   {[
-                    "Medical Report",
                     "Prescription",
-                    "Lab Test",
-                    "Discharge Summary",
-                    "Scan / Imaging",
-                    "Vaccination",
+                    "Lab Report",
+                    "Diagnostic Report",
+                    "Consultation History",
+                    "Medical Document",
+                    "Billing Receipt",
+                    "Appointment Record",
                     "Other",
                   ].map((cat) => (
                     <Pressable
@@ -2192,12 +2545,13 @@ export default function DigitalHealthWalletScreen() {
                   style={{ marginVertical: 4 }}
                 >
                   {[
-                    "Medical Report",
                     "Prescription",
-                    "Lab Test",
-                    "Discharge Summary",
-                    "Scan / Imaging",
-                    "Vaccination",
+                    "Lab Report",
+                    "Diagnostic Report",
+                    "Consultation History",
+                    "Medical Document",
+                    "Billing Receipt",
+                    "Appointment Record",
                     "Other",
                   ].map((cat) => (
                     <Pressable
@@ -3006,5 +3360,243 @@ const styles = StyleSheet.create({
     color: "#0F766E",
     flex: 1,
     fontSize: 11,
+  },
+  // View mode & Date filters
+  viewModeBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  viewToggleGroup: {
+    flexDirection: "row",
+    backgroundColor: Palette.surfaceAlt,
+    borderRadius: Radius.pill,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: Palette.border,
+  },
+  viewToggleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 5,
+    borderRadius: Radius.pill,
+  },
+  viewToggleBtnActive: {
+    backgroundColor: Palette.primary,
+  },
+  viewToggleText: {
+    ...Typography.caption,
+    fontSize: 11,
+    fontWeight: "600",
+    color: Palette.textMuted,
+  },
+  viewToggleTextActive: {
+    color: Palette.white,
+  },
+  dateFilterScroll: {
+    gap: Spacing.xs,
+  },
+  dateFilterChip: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 5,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.surface,
+    borderWidth: 1,
+    borderColor: Palette.border,
+  },
+  dateFilterChipActive: {
+    backgroundColor: "rgba(37, 99, 235, 0.1)",
+    borderColor: Palette.primary,
+  },
+  dateFilterText: {
+    ...Typography.caption,
+    fontSize: 11,
+    fontWeight: "600",
+    color: Palette.textMuted,
+  },
+  dateFilterTextActive: {
+    color: Palette.primary,
+  },
+  // Timeline Styles
+  timelineRow: {
+    flexDirection: "row",
+    marginBottom: Spacing.sm,
+  },
+  timelineConnectorCol: {
+    width: 32,
+    alignItems: "center",
+  },
+  timelineLineTop: {
+    width: 2,
+    flex: 1,
+    backgroundColor: "#93C5FD",
+  },
+  timelineLineBottom: {
+    width: 2,
+    flex: 1,
+    backgroundColor: "#93C5FD",
+  },
+  timelineDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Palette.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: Palette.white,
+    ...Shadows.sm,
+  },
+  timelineCard: {
+    flex: 1,
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.md,
+    padding: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    marginLeft: Spacing.xs,
+    ...Shadows.sm,
+  },
+  timelineCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  timelineDateText: {
+    ...Typography.caption,
+    fontSize: 11,
+    color: Palette.textMuted,
+    fontWeight: "600",
+  },
+  timelineItemTitle: {
+    ...Typography.body,
+    fontWeight: "700",
+    color: Palette.text,
+    marginBottom: 4,
+  },
+  timelineMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  timelineMetaText: {
+    ...Typography.caption,
+    fontSize: 11,
+    color: Palette.textMuted,
+  },
+  timelineDiagnosisText: {
+    ...Typography.caption,
+    fontSize: 11,
+    color: Palette.primary,
+    fontStyle: "italic",
+    marginTop: 2,
+  },
+  timelinePreviewBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: Palette.border,
+  },
+  timelinePreviewText: {
+    ...Typography.caption,
+    fontSize: 11,
+    color: Palette.primary,
+    fontWeight: "600",
+  },
+  // In-App Document Viewer Styles
+  imagePreviewWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Palette.surfaceAlt,
+    borderRadius: Radius.md,
+    padding: Spacing.sm,
+    marginBottom: Spacing.sm,
+    overflow: "hidden",
+  },
+  documentPreviewImage: {
+    width: "100%",
+    height: 220,
+    borderRadius: Radius.sm,
+  },
+  pdfDocCard: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Palette.surfaceAlt,
+    borderRadius: Radius.md,
+    padding: Spacing.lg,
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Palette.border,
+  },
+  pdfIconBadge: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#FEE2E2",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.sm,
+  },
+  pdfDocTitle: {
+    ...Typography.body,
+    fontWeight: "700",
+    color: Palette.text,
+    textAlign: "center",
+    marginBottom: 2,
+  },
+  pdfDocMeta: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    textAlign: "center",
+    marginBottom: Spacing.sm,
+  },
+  securitySeal: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#F0FDF4",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+    borderColor: "#DCFCE7",
+  },
+  securitySealText: {
+    ...Typography.caption,
+    fontSize: 11,
+    color: "#166534",
+    fontWeight: "600",
+  },
+  viewerDetailsBox: {
+    backgroundColor: Palette.surfaceAlt,
+    borderRadius: Radius.md,
+    padding: Spacing.sm,
+    gap: 6,
+  },
+  viewerDetailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  viewerDetailLabel: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    fontWeight: "600",
+  },
+  viewerDetailValue: {
+    ...Typography.caption,
+    color: Palette.text,
+    fontWeight: "700",
+    flex: 1,
+    textAlign: "right",
   },
 });

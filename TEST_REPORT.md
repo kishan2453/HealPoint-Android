@@ -124,3 +124,53 @@
 10. **`Feature flag FEATURE_LIVE_QUEUE defaults to off if unset or false`**:
     - Asserts that the feature flag is safely inactive unless explicitly set to `"true"`.
 
+
+---
+
+## Phase 4: Advanced Health Wallet Enhancements Test Suite
+
+| Test Suite / Target | Command | Total | Passed | Failed | Duration | Status |
+|---|---|---|---|---|---|---|
+| **Phase 4 Health Wallet Suite** | `node --test` | 18 | 18 | 0 | 15.2ms | **PASS** |
+| **Complete Backend Test Suite** | `npm test --prefix HealPointBackend` | 70 | 70 | 0 | 1.15s | **PASS (100%)** |
+| **Mobile Client Typecheck** | `npm run typecheck` (`tsc --noEmit`) | 1 | 1 | 0 | ~25s | **PASS (0 errors)** |
+| **Expo Doctor Quality Check** | `npx expo-doctor` | 18 | 18 | 0 | ~15s | **PASS (18/18 checks)** |
+
+### Detailed Test Cases (Phase 4 Health Wallet Suite)
+
+1. **`Accepts valid healthcare document MIME types (PDF, JPG, PNG, WEBP)`**:
+   - Confirms permitted list of formats for upload.
+2. **`Strictly rejects dangerous, executable, or script MIME types`**:
+   - Verifies rejection of `.exe`, `.sh`, `.php`, `.js`, and arbitrary binaries.
+3. **`Enforces maximum document file size of 10MB`**:
+   - Asserts files <= 10MB are permitted and > 10MB are blocked.
+4. **`Normalizes prescription queries to 'prescription'`**:
+   - Normalizes "Prescription", "prescriptions", "Rx Document" to standard key.
+5. **`Normalizes lab test queries to 'lab_report'`**:
+   - Normalizes "Lab Report", "blood test", "pathology report" to standard key.
+6. **`Normalizes diagnostic imaging to 'diagnostic_report'`**:
+   - Normalizes "Diagnostic Report", "radiology", "X-Ray scan", "MRI Brain" to standard key.
+7. **`Normalizes consultations and visits to 'consultation_history'`**:
+   - Normalizes "Consultation History", "Doctor Visit" to standard key.
+8. **`Normalizes billing and invoices to 'billing_receipt'`**:
+   - Normalizes "Billing Receipt", "Hospital Bill", "Payment Receipt", "Invoice" to standard key.
+9. **`Normalizes appointment passes to 'appointment_record'`**:
+   - Normalizes "Appointment Record", "queue token pass" to standard key.
+10. **`Normalizes general medical documents`**:
+    - Normalizes "Medical Document", "Discharge Summary", "Vaccination Card" to standard key.
+11. **`Defaults unrecognized categories to 'other'`**:
+    - Graceful fallback for non-standard categories.
+12. **`Allows queries with 'all' or 'self' without family member restrictions`**:
+    - Unrestricted queries for own primary profile.
+13. **`Validates that familyMemberId must be a valid ObjectId format`**:
+    - Blocks malformed and unauthorized cross-account family identifiers.
+14. **`Sorts items descending when sort='newest'`**:
+    - Orders newest timestamps first.
+15. **`Sorts items ascending when sort='oldest'`**:
+    - Orders oldest timestamps first.
+16. **`Filters records accurately by startDate and endDate`**:
+    - Verifies accurate range matching.
+17. **`Defaults to false / disabled if not set in production`**:
+    - Ensures feature flag safety.
+18. **`Activates only when explicitly configured to 'true'`**:
+    - Enables feature flag when configured.

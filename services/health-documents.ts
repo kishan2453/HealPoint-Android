@@ -244,6 +244,72 @@ export async function revokeDocumentShare(
   }>(`/document/${documentId}/share/${doctorId}`, { auth: true });
 }
 
+export interface DocumentTimelineItem {
+  period: string;
+  label: string;
+  year: number;
+  month: number;
+  count: number;
+  categories: Record<string, number>;
+  items: HealthDocumentRecord[];
+}
+
+export interface DocumentTimelineResponse {
+  success: boolean;
+  timeline: DocumentTimelineItem[];
+  totalDocuments: number;
+  periodsCount: number;
+}
+
+export interface DocumentStatsResponse {
+  success: boolean;
+  stats: {
+    prescriptions: number;
+    labReports: number;
+    diagnosticReports: number;
+    consultations: number;
+    medicalDocuments: number;
+    billingReceipts: number;
+    appointmentRecords: number;
+    other: number;
+    total: number;
+  };
+}
+
+/**
+ * Fetch patient health document chronological timeline
+ */
+export async function getHealthDocumentTimeline(
+  familyMemberId?: string,
+): Promise<DocumentTimelineResponse> {
+  const query = new URLSearchParams();
+  if (familyMemberId && familyMemberId !== "all") {
+    query.set("familyMemberId", familyMemberId);
+  }
+  const qs = query.toString();
+  return api.get<DocumentTimelineResponse>(
+    `/document/timeline${qs ? `?${qs}` : ""}`,
+    { auth: true },
+  );
+}
+
+/**
+ * Fetch category-wise health records statistics
+ */
+export async function getHealthDocumentStats(
+  familyMemberId?: string,
+): Promise<DocumentStatsResponse> {
+  const query = new URLSearchParams();
+  if (familyMemberId && familyMemberId !== "all") {
+    query.set("familyMemberId", familyMemberId);
+  }
+  const qs = query.toString();
+  return api.get<DocumentStatsResponse>(
+    `/document/stats${qs ? `?${qs}` : ""}`,
+    { auth: true },
+  );
+}
+
 /**
  * Soft delete own document
  */

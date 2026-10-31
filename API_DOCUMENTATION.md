@@ -410,3 +410,113 @@
   - **Response (200)**: Platform-wide language distribution and referral rates.
 
 
+
+---
+
+## Phase 4: Advanced Health Wallet & Digital Vault API Specification
+
+### A. Digital Health Wallet Endpoints
+- **GET** `/api/v1/appointment/health-wallet`
+  - **Auth**: Bearer Token (Patient)
+  - **Query Parameters**:
+    - `familyMemberId`: Filter by authorized dependent ObjectId, `"self"`, or `"all"`
+    - `category`: Filter by category key (`prescriptions`, `reports`, `bills`, `consultations`, `records`, `passes`, or `"all"`)
+    - `search`: Keyword string matching titles, doctors, diagnoses, facilities
+    - `startDate`, `endDate`: ISO date strings for date range filtering
+    - `sort`: `"newest"` (default) | `"oldest"`
+    - `page`, `limit`: Integer pagination
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "counts": {
+        "prescriptions": 4,
+        "reports": 3,
+        "bills": 5,
+        "consultations": 6,
+        "records": 2,
+        "passes": 1,
+        "appointments": 6,
+        "documents": 5,
+        "total": 21
+      },
+      "patient": {
+        "_id": "60c72b2f9b1d8b2badbee5a1",
+        "name": "Rahul Mehta",
+        "phone": "+919876543210",
+        "email": "rahul@healpoint.test"
+      },
+      "items": [ ... ],
+      "pagination": { "page": 1, "limit": 50, "totalItems": 21, "totalPages": 1, "hasMore": false }
+    }
+    ```
+
+### B. Health Document Management Endpoints
+- **POST** `/api/v1/document/upload`
+  - **Auth**: Bearer Token (Patient)
+  - **Body (JSON / Base64 or FormData)**:
+    - `title`: String (Required)
+    - `fileData`: Base64 encoded document string (or `req.file`)
+    - `mimeType`: Permitted whitelist (`application/pdf`, `image/jpeg`, `image/png`, `image/webp`)
+    - `category`: One of 8 standard categories (`prescription`, `lab_report`, `diagnostic_report`, `consultation_history`, `medical_document`, `billing_receipt`, `appointment_record`, `other`)
+    - `familyMemberId`: Optional dependent ObjectId (verified against profile)
+    - `documentDate`: `YYYY-MM-DD`
+    - `notes`: Optional String
+  - **Response (201)**:
+    ```json
+    {
+      "success": true,
+      "message": "Health document uploaded and encrypted securely",
+      "document": {
+        "_id": "672401f89c...",
+        "title": "Thyroid Panel Report",
+        "category": "lab_report",
+        "documentDate": "2026-10-31",
+        "mimeType": "application/pdf",
+        "size": 420800,
+        "processingStatus": "processed",
+        "confidence": 100
+      }
+    }
+    ```
+
+- **GET** `/api/v1/document/my`
+  - **Auth**: Bearer Token (Patient)
+  - **Query Parameters**: `category`, `familyMemberId`, `search`, `startDate`, `endDate`, `sort`, `page`, `limit`
+  - **Response (200)**: `{ "success": true, "documents": [ ... ], "pagination": { ... } }`
+
+- **GET** `/api/v1/document/timeline`
+  - **Auth**: Bearer Token (Patient)
+  - **Query Parameters**: `familyMemberId`
+  - **Response (200)**: Chronologically grouped monthly buckets (`{ period: "2026-10", label: "October 2026", count: 4, items: [ ... ] }`).
+
+- **GET** `/api/v1/document/stats`
+  - **Auth**: Bearer Token (Patient)
+  - **Response (200)**: Category count breakdown for dashboard cards.
+
+- **GET** `/api/v1/document/:id`
+  - **Auth**: Bearer Token (Owner Patient or Explicitly Shared Doctor)
+  - **Response (200)**: Full document metadata & verification status.
+
+- **GET** `/api/v1/document/:id/view` or `/download`
+  - **Auth**: Bearer Token (Owner Patient or Explicitly Shared Doctor)
+  - **Response (Stream)**: Streams file with appropriate `Content-Type` and `Content-Disposition`.
+
+- **PATCH** `/api/v1/document/:id/metadata`
+  - **Auth**: Bearer Token (Owner Patient)
+  - **Body**: `{ "title": "...", "doctorName": "...", "hospitalName": "..." }`
+  - **Response (200)**: Updated document with human-verified audit stamp.
+
+- **POST** `/api/v1/document/:id/share`
+  - **Auth**: Bearer Token (Owner Patient)
+  - **Body**: `{ "doctorId": "<string>" }`
+  - **Response (200)**: `{ "success": true, "message": "Document access successfully shared with doctor" }`
+
+- **DELETE** `/api/v1/document/:id/share/:doctorId`
+  - **Auth**: Bearer Token (Owner Patient)
+  - **Response (200)**: `{ "success": true, "message": "Doctor access revoked successfully" }`
+
+- **DELETE** `/api/v1/document/:id`
+  - **Auth**: Bearer Token (Owner Patient)
+  - **Description**: Soft deletes (`isArchived: true`) from patient vault.
+  - **Response (200)**: `{ "success": true, "message": "Document removed securely from Health Wallet" }`

@@ -207,6 +207,8 @@ export interface HealthWalletParams {
   search?: string;
   doctorId?: string;
   hospitalId?: string;
+  startDate?: string;
+  endDate?: string;
   sort?: "newest" | "oldest";
   page?: number;
   limit?: number;
@@ -231,6 +233,8 @@ export async function getDigitalHealthWallet(
   }
   if (params.doctorId) query.set("doctorId", params.doctorId);
   if (params.hospitalId) query.set("hospitalId", params.hospitalId);
+  if (params.startDate) query.set("startDate", params.startDate);
+  if (params.endDate) query.set("endDate", params.endDate);
   if (params.sort) query.set("sort", params.sort);
   if (params.page && params.page > 1) query.set("page", String(params.page));
   if (params.limit) query.set("limit", String(params.limit));

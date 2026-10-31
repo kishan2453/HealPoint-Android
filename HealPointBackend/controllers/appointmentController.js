@@ -3,6 +3,7 @@ import appointmentModel from "../models/appointmentModel.js";
 import doctorModel from "../models/doctorModel.js";
 import hospitalModel from "../models/hospitalModel.js";
 import userModel from "../models/userModel.js";
+import healthDocumentModel from "../models/healthDocumentModel.js";
 import subscriptionModel from "../models/subscriptionModel.js";
 import { createRazorpayOrder, verifyPaymentSignature } from "../services/razorpayService.js";
 import { processAppointmentReminders } from "../services/reminderScheduler.js";
@@ -567,7 +568,18 @@ export const validateSlot = async (req, res) => {
 export const getHealthWallet = async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
-    const { familyMemberId, category, search, sort = "newest", page = 1, limit = 50 } = req.query;
+    const {
+      familyMemberId,
+      category,
+      search,
+      sort = "newest",
+      page = 1,
+      limit = 50,
+      startDate,
+      endDate,
+      fromDate,
+      toDate,
+    } = req.query;
 
     const query = { userId };
     if (familyMemberId && familyMemberId !== "all") {
@@ -576,6 +588,17 @@ export const getHealthWallet = async (req, res) => {
 
     const appointments = await appointmentModel
       .find(query)
+      .populate("doctorId", "name speciality qualification image")
+      .populate("hospitalId", "name address city phone")
+      .sort({ createdAt: sort === "oldest" ? 1 : -1 });
+
+    // Also fetch patient-uploaded digital health documents
+    const docQuery = { userId, isArchived: { $ne: true } };
+    if (familyMemberId && familyMemberId !== "all") {
+      docQuery.familyMemberId = familyMemberId;
+    }
+    const healthDocs = await healthDocumentModel
+      .find(docQuery)
       .populate("doctorId", "name speciality qualification image")
       .populate("hospitalId", "name address city phone")
       .sort({ createdAt: sort === "oldest" ? 1 : -1 });
@@ -728,10 +751,92 @@ export const getHealthWallet = async (req, res) => {
       }
     }
 
+    // Process uploaded health documents
+    for (const doc of healthDocs) {
+      const docDoctor = doc.doctorId || {};
+      const docHospital = doc.hospitalId || {};
+
+      const baseDocItem = {
+        id: `doc_${doc._id}`,
+        _id: doc._id.toString(),
+        appointmentId: doc.appointmentId || "",
+        displayAppointmentId: doc.appointmentId ? `DOC-${doc.appointmentId.slice(-6).toUpperCase()}` : "",
+        date: doc.documentDate || (doc.createdAt ? new Date(doc.createdAt).toISOString().split("T")[0] : ""),
+        time: "",
+        timestamp: new Date(doc.createdAt || Date.now()).getTime(),
+        status: doc.processingStatus || "processed",
+        statusLabel: doc.category.replace(/_/g, " ").toUpperCase(),
+        patientName: user?.name || "Patient",
+        patientRelationship: "Self",
+        familyMemberId: doc.familyMemberId?.toString() || null,
+        doctor: {
+          _id: docDoctor._id?.toString() || (doc.doctorId ? String(doc.doctorId) : ""),
+          name: docDoctor.name || doc.doctorName || doc.extractedMetadata?.doctorName || "Treating Doctor",
+          speciality: docDoctor.speciality || "General",
+          qualification: docDoctor.qualification || "",
+          image: docDoctor.image || "",
+        },
+        hospital: {
+          _id: docHospital._id?.toString() || (doc.hospitalId ? String(doc.hospitalId) : ""),
+          name: docHospital.name || doc.hospitalName || doc.extractedMetadata?.hospitalName || "HealPoint Health",
+          address: docHospital.address || "",
+          city: docHospital.city || "",
+          phone: docHospital.phone || "",
+        },
+        title: doc.title,
+        url: doc.fileUrl || (doc.fileData?.length < 2000 ? doc.fileData : `/api/v1/document/${doc._id}/view`),
+        reportType: doc.category,
+        mimeType: doc.mimeType || "application/pdf",
+        size: doc.size || doc.fileSize || 0,
+        notes: doc.notes || "",
+        extractedMetadata: doc.extractedMetadata,
+        userCorrections: doc.userCorrections,
+        processingStatus: doc.processingStatus,
+        confidence: doc.confidence,
+      };
+
+      if (doc.category === "prescription") {
+        const item = { ...baseDocItem, type: "prescription", category: "prescriptions" };
+        prescriptions.push(item);
+        allItems.push(item);
+      } else if (doc.category === "lab_report" || doc.category === "diagnostic_report" || doc.category === "radiology") {
+        const item = { ...baseDocItem, type: "report", category: "reports" };
+        reports.push(item);
+        allItems.push(item);
+      } else if (doc.category === "billing_receipt") {
+        const item = { ...baseDocItem, type: "bill", category: "bills" };
+        bills.push(item);
+        allItems.push(item);
+      } else if (doc.category === "consultation_history") {
+        const item = { ...baseDocItem, type: "consultation", category: "consultations" };
+        consultations.push(item);
+        allItems.push(item);
+      } else {
+        const item = { ...baseDocItem, type: "record", category: "records" };
+        records.push(item);
+        allItems.push(item);
+      }
+    }
+
+    // Sort allItems chronologically
+    allItems.sort((a, b) => (sort === "oldest" ? a.timestamp - b.timestamp : b.timestamp - a.timestamp));
+
     // Filter by category if requested
     let filteredItems = allItems;
     if (category && category !== "all") {
       filteredItems = allItems.filter((it) => it.category === category);
+    }
+
+    // Date range filter
+    const rangeStart = startDate || fromDate;
+    const rangeEnd = endDate || toDate;
+    if (rangeStart || rangeEnd) {
+      filteredItems = filteredItems.filter((it) => {
+        const itTime = it.timestamp;
+        if (rangeStart && itTime < new Date(rangeStart).getTime()) return false;
+        if (rangeEnd && itTime > new Date(rangeEnd).getTime()) return false;
+        return true;
+      });
     }
 
     if (search && search.trim()) {
@@ -741,7 +846,8 @@ export const getHealthWallet = async (req, res) => {
           it.title.toLowerCase().includes(q) ||
           it.doctor.name.toLowerCase().includes(q) ||
           it.hospital.name.toLowerCase().includes(q) ||
-          (it.diagnosis && it.diagnosis.toLowerCase().includes(q))
+          (it.diagnosis && it.diagnosis.toLowerCase().includes(q)) ||
+          (it.notes && it.notes.toLowerCase().includes(q))
       );
     }
 
@@ -753,8 +859,15 @@ export const getHealthWallet = async (req, res) => {
       records: records.length,
       passes: passes.length,
       appointments: appointments.length,
+      documents: healthDocs.length,
       total: allItems.length,
     };
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
+    const skip = (pageNum - 1) * limitNum;
+    const paginatedItems = filteredItems.slice(skip, skip + limitNum);
+    const totalPages = Math.ceil(filteredItems.length / limitNum) || 1;
 
     return res.status(200).json({
       success: true,
@@ -773,13 +886,13 @@ export const getHealthWallet = async (req, res) => {
         records,
         passes,
       },
-      items: filteredItems,
+      items: paginatedItems,
       pagination: {
-        page: Number(page),
-        limit: Number(limit),
+        page: pageNum,
+        limit: limitNum,
         totalItems: filteredItems.length,
-        totalPages: 1,
-        hasMore: false,
+        totalPages,
+        hasMore: pageNum < totalPages,
       },
     });
   } catch (error) {

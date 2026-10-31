@@ -106,3 +106,60 @@ This document records all additive, backward-compatible database modifications a
   db.aiconversations.drop();
   ```
 
+
+---
+
+## Phase 4: Advanced Health Wallet Enhancements
+- **Additive Fields on `HealthDocument` (`healthDocumentModel.js`)**:
+  - `category`: Extended enum with 8 standard categories (`prescription`, `lab_report`, `diagnostic_report`, `consultation_history`, `medical_document`, `billing_receipt`, `appointment_record`, `other`) + legacy compatibility (`radiology`, `discharge_summary`, `vaccination`).
+  - `hospitalId`: `{ type: ObjectId, ref: 'Hospital', default: null }`
+  - `hospitalName`: `{ type: String, default: "" }`
+  - `doctorId`: `{ type: ObjectId, ref: 'Doctor', default: null }`
+  - `doctorName`: `{ type: String, default: "" }`
+  - `appointmentId`: `{ type: String, default: "" }`
+  - `fileUrl`: `{ type: String, default: "" }`
+  - `fileName`: `{ type: String, default: "" }`
+  - `fileSize`: `{ type: Number, default: 0 }`
+  - `tags`: `[{ type: String }]`
+  - `isArchived`: `{ type: Boolean, default: false, index: true }`
+  - `processingStatus`: `{ type: String, enum: ['pending', 'processing', 'processed', 'partially_processed', 'failed'], default: 'processed' }`
+  - `confidence`: `{ type: Number, default: 100 }`
+  - `extractedMetadata`: Schema with `documentType`, `doctorName`, `hospitalName`, `referenceNumber`, `patientName`, `testResults`.
+  - `userCorrections`: Schema with `isCorrected`, `correctedAt`, `correctedBy`.
+  - `doctorSummary`: `{ type: String, default: "" }`
+  - `contentHash`: `{ type: String, default: "" }`
+- **Indexes Added**:
+  - Compound index: `{ userId: 1, category: 1, createdAt: -1 }` (for filtered lists)
+  - Compound index: `{ userId: 1, familyMemberId: 1, createdAt: -1 }` (for family profile isolation)
+  - Compound index: `{ userId: 1, isArchived: 1 }` (for active vault queries)
+- **Rollback Procedure**:
+  ```javascript
+  // Remove Phase 4 additive fields
+  db.healthdocuments.updateMany(
+    {},
+    {
+      $unset: {
+        hospitalId: "",
+        hospitalName: "",
+        doctorId: "",
+        doctorName: "",
+        appointmentId: "",
+        fileUrl: "",
+        fileName: "",
+        fileSize: "",
+        tags: "",
+        isArchived: "",
+        processingStatus: "",
+        confidence: "",
+        extractedMetadata: "",
+        userCorrections: "",
+        doctorSummary: "",
+        contentHash: "",
+      },
+    }
+  );
+  // Drop compound indexes
+  db.healthdocuments.dropIndex("userId_1_category_1_createdAt_-1");
+  db.healthdocuments.dropIndex("userId_1_familyMemberId_1_createdAt_-1");
+  db.healthdocuments.dropIndex("userId_1_isArchived_1");
+  ```

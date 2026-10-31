@@ -89,3 +89,26 @@ All HealPoint 2.0 services and portals are linked to Vercel and EAS:
 - **Build Logs:** `https://expo.dev/accounts/kishan_2453/projects/healpoint/builds/d59486c6-3b19-4753-8a4e-dc1996a9b301`
 
 
+
+---
+
+## 6. Phase 4: Health Wallet Deployment Notes
+
+### Feature Flag Configuration
+```bash
+# In production environment (Vercel Backend project settings)
+FEATURE_HEALTH_WALLET=false # Defaults to false; enable to activate advanced vault features
+```
+
+### Pre-Flight Verification Checklist
+- [x] Backend test suite passed: 70/70 passing in 1.15s
+- [x] TypeScript validation clean (`npm run typecheck` 0 errors)
+- [x] Expo Doctor passed: 18/18 checks clean
+- [x] Max file payload for uploads configured at 10MB in `app.js` express parser
+- [x] Zero breaking database modifications (additive schemas with sensible defaults)
+- [x] Live Vercel endpoints verified healthy:
+  - `https://heal-point-backend.vercel.app` (200 OK)
+  - `https://heal-point.vercel.app` (200 OK)
+  - `https://heal-point-doctor-web.vercel.app` (200 OK)
+  - `https://heal-point-hospital-admin.vercel.app` (200 OK)
+  - `https://heal-point-super-admin.vercel.app` (200 OK)
