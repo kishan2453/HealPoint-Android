@@ -586,3 +586,74 @@
 - **DELETE** `/api/v1/medication-reminder/:id`
   - **Auth**: Bearer Token (Patient)
   - **Description**: Soft deactivates reminders (`isActive: false`).
+
+---
+
+## Phase 6 Part 1: Advanced Analytics & Reporting API Specification
+
+### Base Route: `/api/v1/analytics`
+
+#### 1. Super Admin Platform Analytics
+- **GET** `/api/v1/analytics/superadmin/overview`
+  - **Auth**: Bearer Token (Super Admin only)
+  - **Query Parameters**:
+    - `range`: `today` | `7d` | `30d` | `this_month` | `last_month` | `this_year` | `custom`
+    - `startDate`: ISO date string (when `range=custom`)
+    - `endDate`: ISO date string (when `range=custom`)
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "filter": { "range": "30d", "rangeLabel": "Last 30 Days", "startDate": "...", "endDate": "..." },
+      "hospitals": { "total": 12, "active": 11, "suspended": 1 },
+      "users": { "totalPatients": 340, "totalDoctors": 48 },
+      "appointments": { "total": 1240, "completed": 950, "cancelled": 80, "pending": 110, "completionRate": 77 },
+      "revenue": { "totalRevenue": 950000, "netPlatformRevenue": 942000, "todayRevenue": 32000, "totalRefunds": 8000, "currency": "INR" },
+      "charts": { "dailyTrends": [...], "monthlyTrends": [...], "statusDistribution": [...] }
+    }
+    ```
+
+- **GET** `/api/v1/analytics/superadmin/hospitals-performance`
+  - **Auth**: Bearer Token (Super Admin only)
+  - **Response (200)**: Array of hospital benchmarking metrics (appointment volume, completion rate, cancellation rate, verified revenue).
+
+- **GET** `/api/v1/analytics/superadmin/doctors-performance`
+  - **Auth**: Bearer Token (Super Admin only)
+  - **Response (200)**: Array of doctor rankings across all hospitals (consultations, completion rate, rating, revenue).
+
+#### 2. Hospital Admin Analytics (Tenant Isolated)
+- **GET** `/api/v1/analytics/hospital/overview`
+  - **Auth**: Bearer Token (Hospital Admin / Super Admin)
+  - **Description**: Scoped strictly to the caller's registered hospital via `resolveHospitalId`.
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "hospital": { "id": "...", "name": "Apollo Care", "city": "Mumbai" },
+      "overview": { "totalAppointments": 280, "todayAppointments": 14, "completedAppointments": 210, "totalPatients": 185, "activeDoctors": 12 },
+      "revenue": { "totalCollectedRevenue": 240000, "netRevenue": 238000, "todayRevenue": 14000, "totalRefunds": 2000 },
+      "doctorPerformance": [...],
+      "charts": { "dailyTrends": [...], "statusDistribution": [...] }
+    }
+    ```
+
+#### 3. Doctor Portal Analytics
+- **GET** `/api/v1/analytics/doctor/:id` or `/api/v1/analytics/doctor`
+  - **Auth**: Bearer Token (Doctor matching ID or Super Admin)
+  - **Response (200)**: Scoped doctor overview (today appointments, upcoming, completed, patient count, earnings, trends).
+
+#### 4. Patient Portal Activity Stats
+- **GET** `/api/v1/analytics/patient/stats`
+  - **Auth**: Bearer Token (Authenticated Patient)
+  - **Response (200)**: Patient's real appointment counts (total, upcoming, completed, cancelled), Health Wallet document count, and active prescription count.
+
+#### 5. Multi-Format Report Export
+- **GET** `/api/v1/analytics/export`
+  - **Auth**: Bearer Token or Query `?token=<jwt>`
+  - **Query Parameters**:
+    - `type`: `appointments` | `revenue` | `doctors` | `cancellations`
+    - `format`: `pdf` | `csv` | `excel`
+    - `range`: `today` | `7d` | `30d` | `this_month` | `last_month` | `this_year` | `custom`
+    - `startDate`, `endDate`: ISO date strings (for `custom` range)
+  - **Security**: Hospital Admins can only export their own hospital; Doctors can only export their own consultations; Patients only export their own data.
+  - **Response**: Streams binary file with `Content-Disposition: attachment; filename="<type>-report-<timestamp>.<ext>"` and exact MIME headers (`application/pdf`, `text/csv; charset=utf-8`, or `application/vnd.ms-excel`).

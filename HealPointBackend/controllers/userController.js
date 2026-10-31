@@ -6,6 +6,7 @@ import hospitalModel from "../models/hospitalModel.js";
 import appointmentModel from "../models/appointmentModel.js";
 import subscriptionModel from "../models/subscriptionModel.js";
 import auditLogModel from "../models/auditLogModel.js";
+import { getSuperAdminPlatformAnalytics } from "../services/analyticsService.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "healpoint_dev_secret_jwt_key_2026";
 
@@ -548,10 +549,12 @@ export const getStats = async (req, res) => {
 
 export const getAnalytics = async (req, res) => {
   try {
-    const [statusBreakdown, typeBreakdown, recentAppointments] = await Promise.all([
+    const range = req.query.range || "30d";
+    const [statusBreakdown, typeBreakdown, recentAppointments, platformData] = await Promise.all([
       appointmentModel.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
       appointmentModel.aggregate([{ $group: { _id: "$consultationType", count: { $sum: 1 } } }]),
       appointmentModel.find().sort({ createdAt: -1 }).limit(10).populate("doctorId", "name speciality").populate("hospitalId", "name"),
+      getSuperAdminPlatformAnalytics({ range }),
     ]);
 
     res.status(200).json({
@@ -560,6 +563,38 @@ export const getAnalytics = async (req, res) => {
         statusBreakdown,
         typeBreakdown,
         recentAppointments,
+        totalRevenue: platformData.revenue.totalRevenue,
+        todayRevenue: platformData.revenue.todayRevenue,
+        weeklyRevenue: platformData.revenue.weeklyRevenue,
+        monthlyRevenue: platformData.revenue.monthlyRevenue,
+        yearlyRevenue: platformData.revenue.yearlyRevenue,
+        netRevenue: platformData.revenue.netPlatformRevenue,
+        totalAppointments: platformData.appointments.total,
+        totalHospitals: platformData.hospitals.total,
+        activeHospitals: platformData.hospitals.active,
+        totalDoctors: platformData.users.totalDoctors,
+        totalPatients: platformData.users.totalPatients,
+        appointmentStatusCounts: [
+          { _id: "completed", count: platformData.appointments.completed },
+          { _id: "confirmed", count: platformData.appointments.confirmed },
+          { _id: "pending", count: platformData.appointments.pending },
+          { _id: "cancelled", count: platformData.appointments.cancelled },
+          { _id: "missed", count: platformData.appointments.missed },
+        ],
+        completedAppointments: platformData.appointments.completed,
+        pendingAppointments: platformData.appointments.pending,
+        cancelledAppointments: platformData.appointments.cancelled,
+        missedAppointments: platformData.appointments.missed,
+        revenueChart: platformData.charts.dailyTrends.map((d) => ({
+          label: d.label,
+          revenue: d.revenue,
+          appointments: d.appointments,
+        })),
+        appointmentGrowth: platformData.charts.dailyTrends.map((d) => ({
+          label: d.label,
+          appointments: d.appointments,
+        })),
+        platformOverview: platformData,
       },
     });
   } catch (error) {

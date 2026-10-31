@@ -15,6 +15,7 @@ Flags can be configured via environment variables or database hospital settings.
 | `FEATURE_HEALTH_WALLET` | `false` | Phase 4 | Extended digital health wallet with time-limited doctor sharing and signed URLs. |
 | `FEATURE_DIGITAL_PRESCRIPTION`| `false` | Phase 5 | Digital prescription generation and medicine schedule reminders. |
 | `FEATURE_ADVANCED_ANALYTICS` | `false` | Phase 6 | Aggregated revenue and doctor performance analytics pipelines. |
+| `FEATURE_ADVANCED_REPORTS`   | `false` | Phase 6 | Multi-format PDF, CSV, and Excel reporting export engine. |
 | `FEATURE_EMERGENCY_SOS` | `false` | Phase 7 | 112 emergency calling and permitted GPS coordinate sharing. |
 | `FEATURE_VERIFIED_REVIEWS` | `false` | Phase 8 | Verified post-consultation doctor reviews and anti-duplicate check. |
 | `FEATURE_MULTILINGUAL` | `false` | Phase 9 | Hindi and Gujarati language support across portals. |

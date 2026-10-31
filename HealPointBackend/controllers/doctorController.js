@@ -1832,11 +1832,24 @@ export const getDoctorEarnings = async (req, res) => {
 
     const transactions = [];
 
+    let totalRefunds = 0;
+
     appointments.forEach((apt) => {
-      const isPaid = apt.payment === true || apt.paymentStatus === "SUCCESS" || apt.paymentStatus === "paid" || apt.status === "completed";
+      const isPaid =
+        (apt.payment === true ||
+          apt.paymentStatus === "SUCCESS" ||
+          apt.paymentStatus === "paid") &&
+        apt.paymentStatus !== "REFUNDED" &&
+        apt.paymentStatus !== "refunded" &&
+        apt.paymentStatus !== "FAILED" &&
+        apt.paymentStatus !== "CANCELLED";
+      const isRefunded =
+        apt.paymentStatus === "REFUNDED" || apt.paymentStatus === "refunded";
       const amt = Number(apt.amount || apt.billing?.totalAmount || 0);
 
-      if (isPaid) {
+      if (isRefunded) {
+        totalRefunds += amt;
+      } else if (isPaid) {
         totalEarnings += amt;
         paidCount++;
 
@@ -1862,7 +1875,7 @@ export const getDoctorEarnings = async (req, res) => {
         type: apt.consultationType || "clinic",
         consultationType: apt.consultationType || "clinic",
         amount: amt,
-        paymentStatus: isPaid ? "paid" : "pending",
+        paymentStatus: isRefunded ? "refunded" : isPaid ? "paid" : "pending",
         status: apt.status,
       });
     });

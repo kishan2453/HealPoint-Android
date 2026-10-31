@@ -271,16 +271,25 @@ export const getDashboard = async (req, res) => {
     let cancelledCount = 0;
     let realizedRevenue = 0;
     let pendingRevenue = 0;
+    let refundedRevenue = 0;
 
     for (const a of appointments) {
       const parsedDate = parseSlotDate(a.slotDate);
       const isPaid =
-        a.payment === true ||
-        a.paymentStatus === "paid" ||
-        a.paymentStatus === "SUCCESS";
+        (a.payment === true ||
+          a.paymentStatus === "paid" ||
+          a.paymentStatus === "SUCCESS") &&
+        a.paymentStatus !== "REFUNDED" &&
+        a.paymentStatus !== "refunded" &&
+        a.paymentStatus !== "FAILED" &&
+        a.paymentStatus !== "CANCELLED";
+      const isRefunded =
+        a.paymentStatus === "REFUNDED" || a.paymentStatus === "refunded";
       const amt = Number(a.amount) || Number(a.billing?.totalAmount) || 0;
 
-      if (isPaid) {
+      if (isRefunded) {
+        refundedRevenue += amt;
+      } else if (isPaid) {
         realizedRevenue += amt;
       } else if (a.status !== "cancel" && a.status !== "cancelled") {
         pendingRevenue += amt;

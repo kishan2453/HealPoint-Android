@@ -228,3 +228,17 @@ This document records all additive, backward-compatible database modifications a
   db.prescriptions.drop();
   db.medicationreminders.drop();
   ```
+
+---
+
+## Phase 6 Part 1: Advanced Analytics & Reporting System
+
+- **Database Approach: Non-Destructive Aggregations on Existing Collections**:
+  - Phase 6 Part 1 relies on non-destructive MongoDB aggregation queries over existing collections (`appointments`, `doctors`, `hospitals`, `users`, `subscriptions`).
+  - No existing database fields, collections, or indexes were deleted or altered.
+- **Optimized Compound Indexes Recommended/Verified**:
+  - `appointments`: Compound index on `{ hospitalId: 1, createdAt: -1 }` (for fast hospital-isolated time-range filtering)
+  - `appointments`: Compound index on `{ doctorId: 1, createdAt: -1 }` (for doctor-specific earnings & performance lookups)
+  - `appointments`: Compound index on `{ paymentStatus: 1, createdAt: -1 }` (for verified financial aggregation)
+- **Rollback Procedure**:
+  - No database migration rollback required. The analytics engine is read-only and uses stateless aggregation pipelines.

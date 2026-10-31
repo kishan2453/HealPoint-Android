@@ -208,11 +208,52 @@
 
 ---
 
-## 6. Summary of Overall Verification
+## 6. Detailed Test Cases (Phase 6 Part 1 Advanced Analytics & Reporting Suite)
 
-- **Total Backend Unit & Integration Tests**: 83/83 PASS (0 FAILURES)
+1. **`Resolves 'today' from midnight to end of day`**:
+   - Asserts start date hours are 0:0:0.0 and end date is 23:59:59.999.
+2. **`Resolves '7d' spanning 7 full days`**:
+   - Confirms day difference calculation spanning 7 full 24-hour intervals.
+3. **`Resolves 'this_month' starting on the 1st day of current month`**:
+   - Asserts monthly boundary start is day 1.
+4. **`Resolves custom start and end date ranges correctly`**:
+   - Validates ISO string parsing and full date range containment.
+5. **`Defaults to 30 days when unspecified or invalid`**:
+   - Asserts graceful fallback to 30-day window.
+6. **`Counts ONLY verified successful payments as collected revenue`**:
+   - Verifies that only `payment === true || paymentStatus === "SUCCESS"` increments revenue.
+7. **`Rejects pending payments from collected revenue`**:
+   - Asserts pending payments are counted as pending volume and zero collected revenue.
+8. **`Rejects failed payments from collected revenue`**:
+   - Asserts failed payments contribute zero to revenue.
+9. **`Excludes refunded payments and accounts for refund deductions`**:
+   - Validates refund detection and subtraction from gross collections.
+10. **`Does NOT treat appointment completion alone as paid revenue without payment confirmation`**:
+    - Critical test eliminating previous bug where `status === "completed"` inflated revenue.
+11. **`Validates that Hospital Admin queries require valid ObjectId`**:
+    - Rejects malformed and missing hospital identifiers.
+12. **`Prevents Doctor from querying other doctors' private analytics`**:
+    - Validates strict doctor authorization barrier.
+13. **`Hospital performance metrics isolate appointments to specific hospitalId`**:
+    - Validates strict multi-tenant boundary for hospital performance.
+14. **`Generates valid UTF-8 CSV with quoted cells and metadata`**:
+    - Asserts RFC 4180 compliance, header metadata, and UTF-8 BOM `\uFEFF`.
+15. **`Generates valid Excel XML spreadsheet format`**:
+    - Validates standard XML workbook schema and numeric data types.
+16. **`Generates valid binary PDF buffer via PDFKit with brand styling`**:
+    - Asserts `%PDF` binary header, layout margins, and buffer size `> 1000` bytes.
+17. **`FEATURE_ADVANCED_ANALYTICS defaults to false when unset`**:
+    - Asserts disabled feature flag by default.
+18. **`FEATURE_ADVANCED_REPORTS activates only when explicitly 'true'`**:
+    - Asserts controlled feature activation.
+
+---
+
+## 7. Summary of Overall Verification
+
+- **Total Backend Unit & Integration Tests**: 107/107 PASS (0 FAILURES)
 - **Patient Mobile App**: TypeScript clean (`npm run typecheck`, 0 errors), Expo web export PASS (183 static routes)
 - **HealPointDoctorWeb**: Vite build PASS (0 errors)
-- **HealPointHospitalAdminWeb**: Vite build PASS (0 errors)
+- **HealPointHospitalAdminWeb**: Vite build PASS (0 errors), deployed to production
 - **HealPointSuperAdminWeb**: Vite build PASS (0 errors)
 - **Live Vercel Production Deployments**: All 4 portals live & verified.

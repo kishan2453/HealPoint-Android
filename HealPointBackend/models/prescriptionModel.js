@@ -144,3 +144,4 @@ const prescriptionModel =
   mongoose.model("Prescription", prescriptionSchema);
 
 export default prescriptionModel;
+

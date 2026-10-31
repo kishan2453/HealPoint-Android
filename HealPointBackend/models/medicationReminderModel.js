@@ -94,3 +94,4 @@ const medicationReminderModel =
   mongoose.model("MedicationReminder", medicationReminderSchema);
 
 export default medicationReminderModel;
+

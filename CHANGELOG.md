@@ -4,6 +4,45 @@ All notable changes across HealPoint 2.0 development phases are documented in th
 
 ---
 
+## [Phase 6 Part 1: Advanced Analytics Dashboard & Reporting System] - 2026-11-01
+
+### Branch: `phase-6-analytics-part-1`
+### Feature Flags: `FEATURE_ADVANCED_ANALYTICS` (Default: `false`), `FEATURE_ADVANCED_REPORTS` (Default: `false`)
+
+### Added
+- **Financial & Clinical Analytics Engine** (`HealPointBackend/services/analyticsService.js`):
+  - Verified collected revenue arithmetic: counts strictly confirmed successful payments (`paymentStatus === "SUCCESS" || isPaid`) and rejects pending, failed, or completed-without-payment bookings.
+  - Refund accounting: accurately aggregates and deducts refunds (`paymentStatus === "REFUNDED"`) from net collected revenue.
+  - Multi-tenant hospital isolation: Hospital Admins strictly restricted to their own hospital's patients, doctors, and financial receipts via `resolveHospitalId`.
+  - Doctor isolation: Doctors can only view their own appointments, patients, and earned fees.
+  - Patient dashboard statistics: Authenticated patients view exact counts of appointments, Health Wallet documents, and active prescriptions.
+  - Date-range filtering: Precision IST date boundaries for `Today`, `Last 7 Days`, `Last 30 Days`, `This Month`, `Last Month`, `This Year`, and `Custom Range`.
+- **Multi-Format Report Export Engine** (`HealPointBackend/services/reportExportService.js`):
+  - PDF Reports: Generated dynamically with `pdfkit` featuring HealPoint header branding, report metadata, date range, tabular data rows, and compliance footers.
+  - CSV Reports: UTF-8 BOM encoded RFC 4180 CSV generation with header metadata.
+  - Excel Reports: XML Spreadsheet format compatible with all versions of Microsoft Excel.
+- **REST Endpoints & Mounts** (`HealPointBackend/controllers/analyticsController.js`, `routes/analyticsRoutes.js`):
+  - `GET /api/v1/analytics/superadmin/overview`: Platform KPIs, appointment status distributions, and time-series trends.
+  - `GET /api/v1/analytics/superadmin/hospitals-performance`: Hospital-wise comparisons (appointments, verified revenue, completion rate).
+  - `GET /api/v1/analytics/superadmin/doctors-performance`: Doctor-wise performance rankings across all hospitals.
+  - `GET /api/v1/analytics/hospital/overview`: Hospital-isolated analytics with doctor performance breakdown.
+  - `GET /api/v1/analytics/doctor/:id`: Doctor-isolated consultations, earnings, and trends.
+  - `GET /api/v1/analytics/patient/stats`: Patient dashboard summary.
+  - `GET /api/v1/analytics/export`: Role-based report downloads in PDF, CSV, or Excel formats.
+- **Legacy Controller Financial Hardening** (`HealPointBackend/controllers/userController.js`, `doctorController.js`, `hospitalAdminController.js`):
+  - Upgraded `/user/analytics` to return verified platform revenue, status counts, and charts for Super Admin dashboards.
+  - Fixed `getDoctorEarnings` to eliminate the bug where `status === "completed"` was erroneously counted as revenue even when unpaid or refunded.
+  - Hardened hospital admin dashboard revenue accounting to deduct refunds and exclude failed payments.
+- **Automated Backend Test Suite** (`HealPointBackend/tests/analyticsAndReporting.test.js`):
+  - 24 comprehensive unit and integration tests covering date resolution, verified revenue arithmetic, refund deductions, hospital isolation, doctor isolation, CSV export, Excel export, PDF binary buffer, and feature flags. All 107 backend tests passing.
+
+### Preserved
+- All Phase 1 Live Queue, Phase 2 Video Consultation, Phase 3 AI Assistant, Phase 4 Health Wallet, and Phase 5 Digital Prescriptions & Reminders.
+- Razorpay payment webhooks and payment verification logic.
+- Existing patient, doctor, hospital admin, and super admin portals.
+
+---
+
 ## [Phase 5: Digital Prescription & Medicine Reminders] - 2026-11-01
 
 ### Branch: `phase-5-digital-prescriptions`
