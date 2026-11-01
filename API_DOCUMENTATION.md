@@ -902,3 +902,149 @@
   - Broadcast to: `hospital:<hospitalId>`, `room:super_admin`, `doctor:<doctorId>`.
 - **`emergency:status`**: Broadcast when emergency status or ambulance coordinates update.
   - Broadcast to: `user:<patientId>`, `hospital:<hospitalId>`, `room:super_admin`.
+
+---
+
+## 8. Phase 8: Favorites System & Patient Experience API
+
+Both `/api/v1/user/favorites*` and `/api/v1/favorites*` are fully supported endpoints.
+
+### A. Favorite Doctors
+
+#### 1. Get Favorite Doctors
+- **GET** `/api/v1/user/favorites` (Alias: `GET /api/v1/favorites/doctors`, `GET /api/v1/favorites`)
+  - **Auth**: Bearer Token (Patient)
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "favorites": [
+        {
+          "_id": "60c72b2f9b1d8b2badbee5a1",
+          "doctorId": "60c72b2f9b1d8b2badbee5a1",
+          "name": "Dr. Aarav Sharma",
+          "speciality": "Cardiologist",
+          "hospitalName": "Apex Multi-Specialty Hospital",
+          "fees": 800,
+          "rating": 4.9,
+          "reviewCount": 42,
+          "image": "https://...",
+          "addedAt": "2026-11-01T12:00:00.000Z"
+        }
+      ],
+      "totalCount": 1
+    }
+    ```
+
+#### 2. Add Favorite Doctor
+- **POST** `/api/v1/user/favorites/:doctorId` (Alias: `POST /api/v1/favorites/doctors/:doctorId`)
+  - **Auth**: Bearer Token (Patient)
+  - **Params**: `doctorId` (MongoDB ObjectId)
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "message": "Doctor saved to favorites successfully",
+      "isFavorite": true,
+      "doctorId": "60c72b2f9b1d8b2badbee5a1",
+      "count": 1
+    }
+    ```
+
+#### 3. Remove Favorite Doctor
+- **DELETE** `/api/v1/user/favorites/:doctorId` (Alias: `DELETE /api/v1/favorites/doctors/:doctorId`)
+  - **Auth**: Bearer Token (Patient)
+  - **Params**: `doctorId` (MongoDB ObjectId)
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "message": "Doctor removed from favorites successfully",
+      "isFavorite": false,
+      "doctorId": "60c72b2f9b1d8b2badbee5a1",
+      "count": 0
+    }
+    ```
+
+### B. Favorite Hospitals
+
+#### 1. Get Favorite Hospitals
+- **GET** `/api/v1/user/favorites/hospitals` (Alias: `GET /api/v1/favorites/hospitals`)
+  - **Auth**: Bearer Token (Patient)
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "favorites": [
+        {
+          "_id": "60c72b2f9b1d8b2badbee5b1",
+          "hospitalId": "60c72b2f9b1d8b2badbee5b1",
+          "name": "Apex Multi-Specialty Hospital",
+          "location": { "city": "Ahmedabad", "state": "Gujarat" },
+          "rating": 4.8,
+          "reviewCount": 85,
+          "beds": 250,
+          "addedAt": "2026-11-01T12:00:00.000Z"
+        }
+      ],
+      "totalCount": 1
+    }
+    ```
+
+#### 2. Add Favorite Hospital
+- **POST** `/api/v1/user/favorites/hospitals/:hospitalId` (Alias: `POST /api/v1/favorites/hospitals/:hospitalId`)
+  - **Auth**: Bearer Token (Patient)
+  - **Params**: `hospitalId` (MongoDB ObjectId)
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "message": "Hospital saved to favorites successfully",
+      "isFavorite": true,
+      "hospitalId": "60c72b2f9b1d8b2badbee5b1",
+      "count": 1
+    }
+    ```
+
+#### 3. Remove Favorite Hospital
+- **DELETE** `/api/v1/user/favorites/hospitals/:hospitalId` (Alias: `DELETE /api/v1/favorites/hospitals/:hospitalId`)
+  - **Auth**: Bearer Token (Patient)
+  - **Params**: `hospitalId` (MongoDB ObjectId)
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "message": "Hospital removed from favorites successfully",
+      "isFavorite": false,
+      "hospitalId": "60c72b2f9b1d8b2badbee5b1",
+      "count": 0
+    }
+    ```
+
+### C. Aggregate Counts & Check Status
+
+#### 1. Get Favorite Counts
+- **GET** `/api/v1/user/favorites/counts` (Alias: `GET /api/v1/favorites/counts`)
+  - **Auth**: Bearer Token
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "doctorCount": 3,
+      "hospitalCount": 2,
+      "total": 5
+    }
+    ```
+
+#### 2. Check Favorite Status
+- **GET** `/api/v1/user/favorites/check?doctorId=...&hospitalId=...`
+  - **Auth**: Bearer Token
+  - **Query**: `doctorId` and/or `hospitalId`
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "isDoctorFavorite": true,
+      "isHospitalFavorite": false
+    }
+    ```

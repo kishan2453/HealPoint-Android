@@ -355,3 +355,19 @@ export async function removeFavoriteHospital(
     auth: true,
   });
 }
+
+export async function getFavoriteCounts(): Promise<{
+  success: boolean;
+  doctorCount: number;
+  hospitalCount: number;
+  total: number;
+}> {
+  return api.get<{
+    success: boolean;
+    doctorCount: number;
+    hospitalCount: number;
+    total: number;
+  }>(`${RESOURCE}/favorites/counts`, {
+    auth: true,
+  });
+}

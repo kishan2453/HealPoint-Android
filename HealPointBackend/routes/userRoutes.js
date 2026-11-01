@@ -18,6 +18,16 @@ import {
   updatePatientStatus,
   updateHospitalAdminStatus,
 } from "../controllers/userController.js";
+import {
+  getFavoriteDoctors,
+  addFavoriteDoctor,
+  removeFavoriteDoctor,
+  getFavoriteHospitals,
+  addFavoriteHospital,
+  removeFavoriteHospital,
+  getFavoriteCounts,
+  checkFavoriteStatus,
+} from "../controllers/favoriteController.js";
 import { authenticate } from "../middlewares/authMiddlewares.js";
 import multer from "multer";
 
@@ -63,5 +73,20 @@ router.patch("/update-password", authenticate, changeUserPassword);
 router.patch("/update-password/:id", authenticate, changeUserPassword);
 router.post("/family", authenticate, addFamilyMember);
 router.get("/family", authenticate, getFamilyMembers);
+
+// Favorites Endpoints
+router.get("/favorites", authenticate, getFavoriteDoctors);
+router.get("/favorites/doctors", authenticate, getFavoriteDoctors);
+router.post("/favorites/:doctorId", authenticate, addFavoriteDoctor);
+router.post("/favorites/doctors/:doctorId", authenticate, addFavoriteDoctor);
+router.delete("/favorites/:doctorId", authenticate, removeFavoriteDoctor);
+router.delete("/favorites/doctors/:doctorId", authenticate, removeFavoriteDoctor);
+
+router.get("/favorites/hospitals", authenticate, getFavoriteHospitals);
+router.post("/favorites/hospitals/:hospitalId", authenticate, addFavoriteHospital);
+router.delete("/favorites/hospitals/:hospitalId", authenticate, removeFavoriteHospital);
+
+router.get("/favorites/counts", authenticate, getFavoriteCounts);
+router.get("/favorites/check", authenticate, checkFavoriteStatus);
 
 export default router;

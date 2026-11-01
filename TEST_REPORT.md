@@ -300,9 +300,28 @@
 
 ---
 
-## 9. Summary of Overall Verification
+## 9. Detailed Test Cases (Phase 8 Favorites System Suite)
 
-- **Total Backend Unit & Integration Tests**: 134/134 PASS (0 FAILURES)
+1. **`Prevents duplicate doctor favorites in memory list`**:
+   - Asserts that attempting to save an already favorited doctor ID is prevented and does not duplicate entries.
+2. **`Removes doctor favorite accurately by doctorId string comparison`**:
+   - Validates that removing by ObjectId string comparison correctly filters out target and preserves other saved doctors.
+3. **`Rejects malformed or non-ObjectId strings`**:
+   - Confirms `mongoose.Types.ObjectId.isValid()` rejects arbitrary non-hex strings.
+4. **`Prevents duplicate hospital favorites in memory list`**:
+   - Confirms hospital duplicate prevention logic.
+5. **`Removes hospital favorite accurately by hospitalId string comparison`**:
+   - Confirms hospital removal logic.
+6. **`Calculates total favorites sum accurately across doctors and hospitals`**:
+   - Verifies arithmetic sum of doctor favorites + hospital favorites.
+7. **`Correctly handles empty or null arrays without throwing error`**:
+   - Validates null-safety when `favorites` or `favoriteHospitals` are undefined.
+
+---
+
+## 10. Summary of Overall Verification
+
+- **Total Backend Unit & Integration Tests**: 141/141 PASS (0 FAILURES)
 - **Patient Mobile App**: TypeScript clean (`npm run typecheck`, 0 errors), Expo web export PASS (183 static routes exported)
 - **HealPointDoctorWeb**: Vite build PASS (0 errors), deployed to `https://heal-point-doctor-web.vercel.app`
 - **HealPointHospitalAdminWeb**: Vite build PASS (0 errors), deployed to `https://heal-point-hospital-admin.vercel.app`

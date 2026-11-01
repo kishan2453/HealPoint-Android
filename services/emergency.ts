@@ -105,3 +105,4 @@ export async function deleteEmergencyContact(contactId: string): Promise<{
     auth: true,
   });
 }
+

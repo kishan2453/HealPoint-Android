@@ -791,3 +791,4 @@ export function HospitalEmergencyManager({ hospital }) {
     </div>
   );
 }
+

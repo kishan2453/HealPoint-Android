@@ -4,6 +4,46 @@ All notable changes across HealPoint 2.0 development phases are documented in th
 
 ---
 
+## [Phase 8: Favorites System Fix & Patient Experience Enhancements] - 2026-11-01
+
+### Branch: `phase-8-favorites-system`
+### Status: Fully Implemented, Tested & Verified Across Mobile & All Portals
+
+### Root Cause Analysis
+- **Missing Backend Endpoints**: The mobile app was attempting to call `/user/favorites`, `/user/favorites/:doctorId`, `/user/favorites/hospitals`, etc., but `userRoutes.js` and `userController.js` never implemented any favorite routes. Express was returning HTTP 404 for all favorite requests.
+- **Immediate Optimistic Rollback**: Because the API call failed with 404, `hooks/use-favorites.tsx` caught the error and rolled back the optimistic update immediately, turning off the heart icon.
+- **Refresh/Restart Wipe**: On app reload or refresh, `refresh()` called `getFavorites()` and `getFavoriteHospitals()`, which also received HTTP 404, wiping all local state and leaving the Favorites page completely blank.
+
+### Added & Enhanced
+- **Backend Favorite Controller & Persistence Engine** (`HealPointBackend/controllers/favoriteController.js`):
+  - `getFavoriteDoctors`: Retrieves patient's saved doctors with full Mongoose `.populate()` of doctor and hospital details, filtering out deleted records.
+  - `addFavoriteDoctor`: Validates doctor existence & ObjectId, prevents duplicates using memory deduplication, and atomically persists to MongoDB.
+  - `removeFavoriteDoctor`: Removes doctor by ID from `favorites` array and saves to database.
+  - `getFavoriteHospitals`: Retrieves patient's saved hospitals with `.populate()` of facilities, bed counts, rating, and location.
+  - `addFavoriteHospital`: Validates hospital ID, prevents duplicates, and saves to MongoDB.
+  - `removeFavoriteHospital`: Removes hospital from `favoriteHospitals` array.
+  - `getFavoriteCounts`: Fast aggregate count query (`doctorCount`, `hospitalCount`, `total`).
+  - `checkFavoriteStatus`: Checks if a specific doctor or hospital is favorited by query parameters.
+- **Backend Routing Dual Mounting** (`HealPointBackend/routes/userRoutes.js`, `routes/favoriteRoutes.js`, `app.js`):
+  - Mounted routes both under `/api/v1/user/favorites*` and `/api/v1/favorites*` for absolute API resilience across all clients.
+- **Universal Storage Synchronous Caching & Zero-Flicker Hydration** (`hooks/use-favorites.tsx`):
+  - Implemented synchronous local caching (`healpoint.favorites.doctors`, `healpoint.favorites.hospitals`).
+  - Restores saved state on tick 0 without render delay or icon flickering.
+  - Guarded against premature state wiping during `authLoading` startup.
+  - Clean state wiping on genuine logout.
+- **Favorites Screen Complete Upgrade** (`app/(drawer)/favorites.tsx`):
+  - Interactive dual tabs with live badge counters (`doctorList.length`, `hospitalList.length`).
+  - Live search bar for saved doctors and hospitals with instant clear button.
+  - Horizontal scrolling specialty filter chips (`All`, `Cardiologist`, `Dermatologist`, etc.).
+  - Sort switcher (`Recently Saved` vs `Top Rated`).
+  - Direct appointment booking: "Book Visit" CTA on doctor cards navigates directly to `/booking/[doctorId]`.
+  - Distinct empty states: Genuine empty state ("No favorite doctors yet") vs search empty state ("No doctors matching search").
+- **Automated Test Suite** (`HealPointBackend/tests/favorites.test.js`):
+  - 7 new automated test assertions covering duplicate prevention, string ID comparisons, ObjectId validation, count arithmetic, and null-safety.
+  - Total backend tests increased from 134 to 141 (141/141 PASS, 0 failures).
+
+---
+
 ## [Phase 7: Emergency SOS, Emergency Services & Authentication Session Fix] - 2026-11-01
 
 ### Branch: `phase-7-emergency-sos-auth-fix`

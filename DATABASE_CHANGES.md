@@ -328,3 +328,30 @@ This document records all additive, backward-compatible database modifications a
     $unset: { emergencyContacts: "" }
   });
   ```
+
+---
+
+## Phase 8: Favorites System Fix & Patient Experience Enhancements
+
+- **Collections Utilized**:
+  - `users`: Utilizes existing `favorites` (`[{ doctorId, doctorName, speciality, image, addedAt }]`) and `favoriteHospitals` (`[{ hospitalId, addedAt }]`) subdocument arrays.
+  - `doctors`: Reference target for doctor favorites.
+  - `hospitals`: Reference target for hospital favorites.
+
+- **Indexes Created & Verified on `users`**:
+  - `{ "favorites.doctorId": 1 }` (for fast lookup and duplicate checks)
+  - `{ "favoriteHospitals.hospitalId": 1 }` (for hospital favorite lookups)
+
+- **Data Integrity & Consistency Rules**:
+  - Authenticated identity: Patient ID is strictly resolved from JWT server-side (`req.user._id`), never accepted from client body.
+  - Validates ObjectId: Rejects invalid doctor or hospital IDs before database operations.
+  - Duplicate prevention: Uses array checks prior to insertion (`f.doctorId.toString() === doctorId.toString()`).
+  - Graceful handling of deleted records: Mongoose `.populate()` skips hard-deleted entities without breaking arrays.
+
+- **Rollback Procedure**:
+  ```javascript
+  // Remove favorites subdocuments if complete reset is required
+  db.users.updateMany({}, {
+    $set: { favorites: [], favoriteHospitals: [] }
+  });
+  ```
