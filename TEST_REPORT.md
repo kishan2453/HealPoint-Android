@@ -249,11 +249,38 @@
 
 ---
 
-## 7. Summary of Overall Verification
+## 7. Detailed Test Cases (Phase 6 Part 2 Notifications, Routing & Role Isolation Suite)
 
-- **Total Backend Unit & Integration Tests**: 107/107 PASS (0 FAILURES)
-- **Patient Mobile App**: TypeScript clean (`npm run typecheck`, 0 errors), Expo web export PASS (183 static routes)
-- **HealPointDoctorWeb**: Vite build PASS (0 errors)
-- **HealPointHospitalAdminWeb**: Vite build PASS (0 errors), deployed to production
-- **HealPointSuperAdminWeb**: Vite build PASS (0 errors)
-- **Live Vercel Production Deployments**: All 4 portals live & verified.
+1. **`Accepts standard ExponentPushToken format`**:
+   - Asserts `isExpoPushToken("ExponentPushToken[...]") === true`.
+2. **`Accepts modern ExpoPushToken format`**:
+   - Asserts `isExpoPushToken("ExpoPushToken[...]") === true`.
+3. **`Rejects malformed or non-Expo tokens`**:
+   - Rejects unclosed brackets, FCM tokens, null, undefined, and non-strings.
+4. **`Returns false when quiet hours are disabled`**:
+   - Validates that quiet hours logic allows notifications when `enabled === false`.
+5. **`Correctly parses hour numbers and string timestamps`**:
+   - Tests both numeric hour ranges (`startHour: 22, endHour: 7`) and string representations (`"22:00"`, `"07:00"`).
+6. **`Synchronizes read and isRead fields`**:
+   - Validates that modifying `read` automatically sets `isRead` and vice-versa.
+7. **`Auto-assigns category from type when category is absent`**:
+   - Validates automatic category derivation.
+8. **`Hospital Admin is isolated to their own hospitalId`**:
+   - Validates that queries for hospital notifications strictly match the caller's registered hospitalId (preventing cross-hospital data leakage).
+9. **`Patient is strictly isolated to their own userId`**:
+   - Validates that patient queries strictly match `userId`.
+10. **`Rejects empty or non-Expo push token with HTTP 400`**:
+    - Asserts that `/register-push-token` rejects invalid token formats with 400 bad request.
+
+---
+
+## 8. Summary of Overall Verification
+
+- **Total Backend Unit & Integration Tests**: 123/123 PASS (0 FAILURES)
+- **Patient Mobile App**: TypeScript clean (`npm run typecheck`, 0 errors), Expo web export PASS (183 static routes exported)
+- **HealPointDoctorWeb**: Vite build PASS (0 errors), deployed to `https://heal-point-doctor-web.vercel.app`
+- **HealPointHospitalAdminWeb**: Vite build PASS (0 errors), deployed to `https://heal-point-hospital-admin.vercel.app`
+- **HealPointSuperAdminWeb**: Vite build PASS (0 errors), deployed to `https://heal-point-super-admin.vercel.app`
+- **HealPointBackend**: Deployed to `https://heal-point-backend.vercel.app`
+- **Patient Mobile Web**: Deployed to `https://heal-point-mauve.vercel.app`
+- **Live Vercel Production Deployments**: All 4 portals live & verified (100% HTTP 200 OK across all tested routes on browser refresh & deep linking).

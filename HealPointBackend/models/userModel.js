@@ -85,6 +85,50 @@ const userSchema = new mongoose.Schema(
       completedBookings: { type: Number, default: 0 },
       missedAppointments: { type: Number, default: 0 },
     },
+    pushTokens: [
+      {
+        token: { type: String, required: true },
+        platform: { type: String, default: "expo" },
+        updatedAt: { type: Date, default: Date.now },
+      },
+    ],
+    deviceTokens: [
+      {
+        token: { type: String },
+        platform: { type: String, default: "expo" },
+        lastUsedAt: { type: Date, default: Date.now },
+      },
+    ],
+    pushToken: { type: String, default: "" },
+    notificationPreferences: {
+      channels: {
+        push: { type: Boolean, default: true },
+        email: { type: Boolean, default: true },
+        sms: { type: Boolean, default: false },
+        inApp: { type: Boolean, default: true },
+      },
+      categories: {
+        appointments: { type: Boolean, default: true },
+        payments: { type: Boolean, default: true },
+        consultations: { type: Boolean, default: true },
+        prescriptions: { type: Boolean, default: true },
+        reports: { type: Boolean, default: true },
+        referrals: { type: Boolean, default: true },
+        consent: { type: Boolean, default: true },
+        documents: { type: Boolean, default: true },
+        subscriptions: { type: Boolean, default: true },
+        security: { type: Boolean, default: true },
+        queue: { type: Boolean, default: true },
+        system: { type: Boolean, default: true },
+      },
+      quietHours: {
+        enabled: { type: Boolean, default: false },
+        startHour: { type: Number, default: 22 },
+        endHour: { type: Number, default: 7 },
+        start: { type: String, default: "22:00" },
+        end: { type: String, default: "07:00" },
+      },
+    },
   },
   { timestamps: true }
 );

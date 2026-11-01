@@ -53,6 +53,7 @@ import {
   FaExternalLinkAlt,
   FaCheckDouble,
   FaQrcode,
+  FaTrash,
 } from "react-icons/fa";
 import api from "./services/api";
 import { jsPDF } from "jspdf";
@@ -707,7 +708,7 @@ function Portal() {
           <GalleryView hospital={hospital} reload={load} />
         )}
         {view === "notifications" && (
-          <NotificationsView notifications={data?.notifications || []} />
+          <NotificationsView notifications={data?.notifications || []} reload={load} />
         )}
         {view === "earnings" && <EarningsView data={data} />}
         {view === "subscription" && <SubscriptionView />}
@@ -3189,32 +3190,146 @@ function ReportsView({ data, appointments = [], setView, reload }) {
     </div>
   );
 }
-function NotificationsView({ notifications, compact }) {
-  const unread = notifications.filter((n) => !n.isRead).length;
-  const content = notifications.length ? (
+function NotificationsView({ notifications: initialNotifications, compact, reload }) {
+  const [items, setItems] = useState(initialNotifications || []);
+  const [filter, setFilter] = useState("all");
+  const [markingAll, setMarkingAll] = useState(false);
+  const [busyId, setBusyId] = useState(null);
+
+  useEffect(() => {
+    setItems(initialNotifications || []);
+  }, [initialNotifications]);
+
+  const markAsRead = async (id) => {
+    try {
+      setBusyId(id);
+      await api.patch(`/api/v1/notification/read/${id}`, { isRead: true });
+      setItems((prev) =>
+        prev.map((item) => (item._id === id ? { ...item, isRead: true, read: true } : item))
+      );
+      toast.success("Notification marked as read");
+      if (typeof reload === "function") reload();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to update notification");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      setMarkingAll(true);
+      await api.patch("/api/v1/notification/mark-all", { isRead: true });
+      setItems((prev) => prev.map((item) => ({ ...item, isRead: true, read: true })));
+      toast.success("All hospital notifications marked as read");
+      if (typeof reload === "function") reload();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to mark all as read");
+    } finally {
+      setMarkingAll(false);
+    }
+  };
+
+  const deleteItem = async (id) => {
+    try {
+      setBusyId(id);
+      await api.delete(`/api/v1/notification/delete/${id}`);
+      setItems((prev) => prev.filter((item) => item._id !== id));
+      toast.success("Notification deleted");
+      if (typeof reload === "function") reload();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to delete notification");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const filteredItems = useMemo(() => {
+    return items.filter((n) => {
+      if (filter === "unread") return !n.isRead;
+      if (filter === "high") return n.priority === "high" || n.priority === "urgent";
+      if (filter === "bookings") {
+        const t = (n.type || "").toLowerCase();
+        return t.includes("appointment") || t.includes("booking") || t.includes("cancel");
+      }
+      return true;
+    });
+  }, [items, filter]);
+
+  const unread = items.filter((n) => !n.isRead).length;
+
+  const content = filteredItems.length ? (
     <div className="notification-list">
-      {notifications.map((item) => (
-        <article key={item._id} className={!item.isRead ? "unread-notif" : ""}>
-          <span className={`priority ${item.priority || "normal"}`}>
+      {filteredItems.map((item) => (
+        <article
+          key={item._id}
+          className={!item.isRead ? "unread-notif" : ""}
+          style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "14px", borderBottom: "1px solid #f1f5f9" }}
+        >
+          <span className={`priority ${item.priority || "normal"}`} style={{ marginTop: "4px" }}>
             <FaBell />
           </span>
           <div style={{ flex: 1 }}>
-            <strong>{item.title}</strong>
-            <p>{item.message}</p>
-            <small>
-              {item.createdAt
-                ? new Date(item.createdAt).toLocaleString("en-IN")
-                : "Just now"}
-            </small>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px" }}>
+              <strong style={{ fontSize: "0.95rem", color: item.isRead ? "#475569" : "#0f172a" }}>{item.title}</strong>
+              <small style={{ color: "#94a3b8", fontSize: "0.75rem", whiteSpace: "nowrap" }}>
+                {item.createdAt ? new Date(item.createdAt).toLocaleString("en-IN") : "Just now"}
+              </small>
+            </div>
+            <p style={{ margin: "4px 0 8px 0", color: "#64748b", fontSize: "0.85rem" }}>{item.message}</p>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              {!item.isRead && (
+                <button
+                  type="button"
+                  style={{
+                    padding: "3px 8px",
+                    fontSize: "0.75rem",
+                    background: "#f0fdf4",
+                    color: "#16a34a",
+                    border: "1px solid #bbf7d0",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                  }}
+                  onClick={() => markAsRead(item._id)}
+                  disabled={busyId === item._id}
+                >
+                  <FaCheck size={10} /> Mark Read
+                </button>
+              )}
+              <button
+                type="button"
+                style={{
+                  padding: "3px 8px",
+                  fontSize: "0.75rem",
+                  background: "#fef2f2",
+                  color: "#dc2626",
+                  border: "1px solid #fecaca",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
+                onClick={() => deleteItem(item._id)}
+                disabled={busyId === item._id}
+                title="Delete alert"
+              >
+                <FaTrash size={10} /> Delete
+              </button>
+            </div>
           </div>
           {!item.isRead && (
             <span
               style={{
-                width: "10px",
-                height: "10px",
+                width: "9px",
+                height: "9px",
                 borderRadius: "50%",
                 background: "#0d9488",
                 flexShrink: 0,
+                marginTop: "6px",
               }}
             />
           )}
@@ -3222,9 +3337,9 @@ function NotificationsView({ notifications, compact }) {
       ))}
     </div>
   ) : (
-    <div className="empty-state small">
-      <FaBell />
-      <strong>No hospital notifications yet.</strong>
+    <div className="empty-state small" style={{ padding: "36px", textAlign: "center" }}>
+      <FaBell size={28} style={{ color: "#94a3b8", marginBottom: "8px" }} />
+      <p style={{ margin: 0, color: "#64748b", fontWeight: 600 }}>No hospital notifications matching this filter.</p>
     </div>
   );
 
@@ -3257,9 +3372,31 @@ function NotificationsView({ notifications, compact }) {
             )}
           </h1>
           <p>
-            Live system events, booking updates and clinical alerts · {unread}{" "}
-            unread of {notifications.length} total
+            Live system events, booking updates and clinical alerts · {unread} unread of {items.length} total
           </p>
+        </div>
+        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+          {typeof reload === "function" && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={reload}
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+            >
+              <FaSyncAlt /> Refresh
+            </button>
+          )}
+          {unread > 0 && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={markAllAsRead}
+              disabled={markingAll}
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+            >
+              <FaCheckDouble /> {markingAll ? "Marking..." : "Mark All as Read"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -3274,7 +3411,7 @@ function NotificationsView({ notifications, compact }) {
         {[
           {
             label: "Total Alerts",
-            val: notifications.length,
+            val: items.length,
             color: "#0d9488",
           },
           {
@@ -3284,12 +3421,12 @@ function NotificationsView({ notifications, compact }) {
           },
           {
             label: "Read",
-            val: notifications.length - unread,
+            val: items.length - unread,
             color: "#64748b",
           },
           {
             label: "High Priority",
-            val: notifications.filter((n) => n.priority === "high").length,
+            val: items.filter((n) => n.priority === "high" || n.priority === "urgent").length,
             color: "#f59e0b",
           },
         ].map(({ label, val, color }) => (
@@ -3321,9 +3458,34 @@ function NotificationsView({ notifications, compact }) {
       </div>
 
       <section className="panel">
-        <div className="panel-heading">
-          <h2>Notification Feed</h2>
-          <span className="record-count">{notifications.length} alerts</span>
+        <div className="panel-heading" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            {[
+              { id: "all", label: `All (${items.length})` },
+              { id: "unread", label: `Unread (${unread})` },
+              { id: "high", label: "High Priority" },
+              { id: "bookings", label: "Bookings" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                style={{
+                  padding: "6px 12px",
+                  fontSize: "0.82rem",
+                  fontWeight: 600,
+                  borderRadius: "8px",
+                  border: filter === tab.id ? "1px solid #0d9488" : "1px solid #e2e8f0",
+                  background: filter === tab.id ? "#f0fdfa" : "#fff",
+                  color: filter === tab.id ? "#0d9488" : "#64748b",
+                  cursor: "pointer",
+                }}
+                onClick={() => setFilter(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <span className="record-count">{filteredItems.length} alerts visible</span>
         </div>
         {content}
       </section>

@@ -4,6 +4,49 @@ All notable changes across HealPoint 2.0 development phases are documented in th
 
 ---
 
+## [Phase 6 Part 2: Notifications, Routing, Refresh Fix & Final Testing] - 2026-11-01
+
+### Branch: `phase-6-part-2-notifications-routing`
+### Status: Fully Implemented, Tested & Deployed Across All 4 Portals
+
+### Added & Enhanced
+- **Smart Notification Architecture** (`HealPointBackend/models/notificationModel.js`, `controllers/notificationController.js`, `routes/notificationRoutes.js`):
+  - Role-based and tenant-isolated notifications for Patient, Doctor, Hospital Admin, and Super Admin.
+  - Endpoints added: `GET /get-all`, `GET /unread-count`, `PATCH /read/:id`, `PATCH /mark-all`, `DELETE /delete/:id`, `GET /preferences`, `PUT /preferences`, `POST /register-push-token`, `DELETE /device-token`.
+  - Automatic `read` <-> `isRead` and `type` <-> `category` synchronization.
+  - Pagination, full-text live search, and filters by status (`read`, `unread`), category, and priority.
+- **Expo Push Notification Service** (`HealPointBackend/services/pushNotificationService.js`, `models/userModel.js`):
+  - Official Expo Push API dispatch (`https://exp.host/--/api/v2/push/send`).
+  - Validation of `ExponentPushToken[...]` and `ExpoPushToken[...]`.
+  - Quiet hours enforcement (suppresses non-urgent alerts during user-configured quiet hours).
+  - Dead token pruning (`DeviceNotRegistered` tickets automatically removed from database).
+- **Socket.IO Real-Time Dispatch** (`HealPointBackend/services/socketService.js`):
+  - Added `dispatchNotification` helper: persists notification to MongoDB and emits `notification:new` and `notification:sync` to recipient rooms (`user:id`, `doctor:id`, `hospital:id`, `room:super_admin`).
+  - Automatically triggers background Expo push notifications for patient users.
+  - Super admin socket room join logic (`room:super_admin`) for platform alerts.
+- **Patient Mobile App Notifications** (`app/notification/index.tsx`, `services/pushNotifications.ts`, `hooks/use-push-notifications.ts`):
+  - Native Expo SDK 54 device push token registration on user login.
+  - Android notification channel setup (`healpoint_alerts`).
+  - Deep-link routing on notification tap (`Notifications.addNotificationResponseReceivedListener`).
+  - Synchronized unread badges in drawer and header.
+- **Doctor Portal Notifications** (`HealPointDoctorWeb/src/pages/DoctorPortal.jsx`):
+  - Filter tabs: All, Unread, Appointments, Security & System.
+  - Added delete notification functionality (`api.delete('/api/v1/notification/delete/:id')`).
+  - Live count updates and Mark All as Read action.
+- **Hospital Admin Portal Notifications** (`HealPointHospitalAdminWeb/src/App.jsx`, `controllers/hospitalAdminController.js`):
+  - Strict hospital isolation: notifications strictly filtered by `hospitalId` (zero cross-hospital leakage).
+  - Interactive NotificationsView: Mark as Read, Mark All as Read, Delete Notification, and category filter tabs.
+- **Super Admin Notifications** (`HealPointSuperAdminWeb/src/pages/NotificationsPage.jsx`):
+  - Full support for system, security, and hospital registration alerts.
+- **Multi-Portal SPA Routing & Deep-Linking Verification** (`scripts/test-deployments.js`):
+  - Verified SPA fallback on browser refresh across all 4 deployed portals.
+  - 100% of tested routes returned HTTP 200 OK without 404 errors.
+- **Test Suite** (`HealPointBackend/tests/notificationsAndRouting.test.js`):
+  - 16 new automated unit and integration tests.
+  - Total backend test count increased from 107 to 123 (123/123 PASS).
+
+---
+
 ## [Phase 6 Part 1: Advanced Analytics Dashboard & Reporting System] - 2026-11-01
 
 ### Branch: `phase-6-analytics-part-1`

@@ -657,3 +657,95 @@
     - `startDate`, `endDate`: ISO date strings (for `custom` range)
   - **Security**: Hospital Admins can only export their own hospital; Doctors can only export their own consultations; Patients only export their own data.
   - **Response**: Streams binary file with `Content-Disposition: attachment; filename="<type>-report-<timestamp>.<ext>"` and exact MIME headers (`application/pdf`, `text/csv; charset=utf-8`, or `application/vnd.ms-excel`).
+
+---
+
+## 7. Smart Notifications & Push Token Specification (Phase 6 Part 2)
+
+### A. Notifications Endpoints (`/api/v1/notification`)
+
+#### 1. Role-Scoped Notifications Feed
+- **GET** `/api/v1/notification/get-all` (Aliases: `/my`)
+  - **Auth**: Bearer Token (Patient / Doctor / Hospital Admin / Super Admin)
+  - **Query Parameters**:
+    - `status`: `all` | `read` | `unread`
+    - `type` or `category`: Category or type name
+    - `priority`: `low` | `normal` | `medium` | `high` | `urgent`
+    - `search`: Full-text search string for title or message
+    - `page`: Page number (default: 1)
+    - `limit`: Items per page (default: 20, max: 100)
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "count": 20,
+      "total": 45,
+      "unreadCount": 3,
+      "page": 1,
+      "totalPages": 3,
+      "notifications": [
+        {
+          "_id": "6724...",
+          "title": "Prescription Ready",
+          "message": "Dr. Sharma issued your prescription for Token #C-002",
+          "type": "prescription",
+          "category": "prescription",
+          "priority": "normal",
+          "read": false,
+          "isRead": false,
+          "link": "/health/prescriptions",
+          "createdAt": "2026-11-01T06:30:00.000Z"
+        }
+      ]
+    }
+    ```
+
+#### 2. Fast Unread Badge Query
+- **GET** `/api/v1/notification/unread-count`
+  - **Auth**: Bearer Token
+  - **Response (200)**: `{ "success": true, "unreadCount": 3 }`
+
+#### 3. Mark As Read / Unread
+- **PATCH** `/api/v1/notification/read/:id` (Alias: `/:id/read`)
+  - **Auth**: Bearer Token (Owner / Tenant isolated)
+  - **Body**: `{ "isRead": true }` (optional, defaults to true)
+  - **Response (200)**: `{ "success": true, "message": "Notification marked as read", "notification": { ... }, "unreadCount": 2 }`
+
+#### 4. Mark All As Read
+- **PATCH** `/api/v1/notification/mark-all` (Alias: `/read-all`)
+  - **Auth**: Bearer Token
+  - **Response (200)**: `{ "success": true, "message": "All notifications marked as read", "unreadCount": 0 }`
+
+#### 5. Delete Notification
+- **DELETE** `/api/v1/notification/delete/:id` (Alias: `/:id`)
+  - **Auth**: Bearer Token (Owner / Tenant isolated)
+  - **Response (200)**: `{ "success": true, "message": "Notification deleted", "id": "...", "unreadCount": 2 }`
+
+#### 6. Patient Notification Preferences
+- **GET** `/api/v1/notification/preferences`
+  - **Auth**: Bearer Token (Patient)
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "preferences": {
+        "channels": { "inApp": true, "push": true, "email": true, "sms": false },
+        "categories": { "appointments": true, "prescriptions": true, "payments": true, "queue": true },
+        "quietHours": { "enabled": false, "start": "22:00", "end": "07:00" }
+      }
+    }
+    ```
+- **PUT** `/api/v1/notification/preferences`
+  - **Auth**: Bearer Token (Patient)
+  - **Body**: Partial preferences object
+
+#### 7. Expo Device Push Token Registration
+- **POST** `/api/v1/notification/register-push-token` (Alias: `/device-token`)
+  - **Auth**: Bearer Token
+  - **Body**: `{ "token": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]", "platform": "expo" }`
+  - **Validation**: Enforces valid Expo token prefix (`ExponentPushToken[` or `ExpoPushToken[`)
+  - **Response (200)**: `{ "success": true, "message": "Push token registered successfully", "token": "..." }`
+- **DELETE** `/api/v1/notification/device-token`
+  - **Auth**: Bearer Token
+  - **Body**: `{ "token": "..." }`
+  - **Response (200)**: `{ "success": true, "message": "Push token removed successfully" }`

@@ -12808,6 +12808,23 @@ function NotificationsView({ doctorId, doctor, onCountChange, navigate }) {
     }
   };
 
+  const deleteNotif = async (notificationId) => {
+    try {
+      await api.delete(`/api/v1/notification/delete/${notificationId}`);
+      setNotifications((prev) => prev.filter((item) => item._id !== notificationId));
+      if (typeof onCountChange === "function") {
+        setNotifications((latest) => {
+          const unread = latest.filter((n) => !n.isRead).length;
+          onCountChange(unread);
+          return latest;
+        });
+      }
+      toast.success("Notification deleted");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to delete notification");
+    }
+  };
+
   const filteredNotifications = useMemo(() => {
     return notifications.filter((item) => {
       if (filter === "unread") return !item.isRead;
@@ -13017,6 +13034,15 @@ function NotificationsView({ doctorId, doctor, onCountChange, navigate }) {
                             : "Mark as read"}
                         </button>
                       )}
+                      <button
+                        type="button"
+                        className="dp-btn dp-btn-sm dp-btn-outline"
+                        style={{ color: "#ef4444", borderColor: "#fecaca" }}
+                        onClick={() => deleteNotif(item._id)}
+                        title="Delete notification"
+                      >
+                        <FaTrash /> Delete
+                      </button>
                     </div>
                   </div>
                 </article>

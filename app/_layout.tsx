@@ -25,6 +25,12 @@ import { DoctorComparisonProvider } from "@/hooks/use-doctor-comparison";
 import { FavoritesProvider } from "@/hooks/use-favorites";
 import { HospitalComparisonProvider } from "@/hooks/use-hospital-comparison";
 import { LocationProvider } from "@/hooks/use-user-location";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
+
+function PushNotificationListener() {
+  usePushNotifications();
+  return null;
+}
 
 export const unstable_settings = {
   anchor: "(drawer)",
@@ -41,6 +47,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
         <AuthProvider>
+          <PushNotificationListener />
           <LocationProvider>
             <FavoritesProvider>
               <HospitalComparisonProvider>

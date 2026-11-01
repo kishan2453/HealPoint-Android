@@ -242,3 +242,47 @@ This document records all additive, backward-compatible database modifications a
   - `appointments`: Compound index on `{ paymentStatus: 1, createdAt: -1 }` (for verified financial aggregation)
 - **Rollback Procedure**:
   - No database migration rollback required. The analytics engine is read-only and uses stateless aggregation pipelines.
+
+---
+
+## Phase 6 Part 2: Notifications, Routing & Device Tokens
+
+- **Additive Fields on `users` collection (`HealPointBackend/models/userModel.js`)**:
+  - `pushTokens`: Array of `{ token: String, platform: String, updatedAt: Date }` (Expo device push tokens)
+  - `deviceTokens`: Array of `{ token: String, platform: String, lastUsedAt: Date }` (backward compatibility alias)
+  - `pushToken`: `String` (single token fallback)
+  - `notificationPreferences`:
+    - `channels`: `{ push: Boolean, email: Boolean, sms: Boolean, inApp: Boolean }`
+    - `categories`: `{ appointments: Boolean, payments: Boolean, consultations: Boolean, prescriptions: Boolean, reports: Boolean, referrals: Boolean, consent: Boolean, documents: Boolean, subscriptions: Boolean, security: Boolean, queue: Boolean, system: Boolean }`
+    - `quietHours`: `{ enabled: Boolean, startHour: Number, endHour: Number, start: String, end: String }`
+
+- **Additive Fields & Hooks on `notifications` collection (`HealPointBackend/models/notificationModel.js`)**:
+  - `recipientRole`: `String` enum (`["patient", "doctor", "hospital_admin", "super_admin", "all"]`, default: `"patient"`, indexed)
+  - `category`: `String` (default: `"general"`, indexed)
+  - `priority`: `String` enum (`["low", "normal", "medium", "high", "urgent"]`, default: `"normal"`, indexed)
+  - `isRead`: `Boolean` (default: `false`, indexed, synced with `read`)
+  - `actorName`: `String` (sender or triggered entity name)
+  - `actorRole`: `String`
+  - `refId`: `String`
+  - `refModel`: `String`
+  - Pre-save and pre-validate synchronization hook ensuring `read` and `isRead` are identically mirrored.
+
+- **Indexes Created on `notifications`**:
+  - `{ userId: 1, read: 1, createdAt: -1 }` (for patient notification center & unread count)
+  - `{ doctorId: 1, read: 1, createdAt: -1 }` (for doctor portal notifications)
+  - `{ hospitalId: 1, read: 1, createdAt: -1 }` (for strictly isolated hospital admin operational feed)
+  - `{ recipientRole: 1, read: 1, createdAt: -1 }` (for super admin system & security alerts)
+
+- **Rollback Procedure**:
+  ```javascript
+  // Remove Phase 6 Part 2 indexes if rollback is needed
+  db.notifications.dropIndex("userId_1_read_1_createdAt_-1");
+  db.notifications.dropIndex("doctorId_1_read_1_createdAt_-1");
+  db.notifications.dropIndex("hospitalId_1_read_1_createdAt_-1");
+  db.notifications.dropIndex("recipientRole_1_read_1_createdAt_-1");
+
+  // Remove pushTokens and preferences fields from users
+  db.users.updateMany({}, {
+    $unset: { pushTokens: "", deviceTokens: "", pushToken: "", notificationPreferences: "" }
+  });
+  ```

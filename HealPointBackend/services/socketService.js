@@ -14,6 +14,8 @@ import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import { createAdapter } from "@socket.io/redis-adapter";
 import Redis from "ioredis";
+import notificationModel from "../models/notificationModel.js";
+import { sendExpoPushNotification } from "./pushNotificationService.js";
 
 let ioInstance = null;
 let redisPubClient = null;
@@ -130,6 +132,11 @@ export const initSocketServer = (httpServer, allowedOrigins = ["*"]) => {
       socket.join(`hospital:${userHospitalId}`);
     }
 
+    // Automatically join authenticated super admin's room
+    if (userRole.includes("super") || user?.isAdmin) {
+      socket.join("room:super_admin");
+    }
+
     // Explicit room subscription with authorization verification
     socket.on("join:hospital", ({ hospitalId }, callback) => {
       if (!hospitalId) {
@@ -193,6 +200,18 @@ export const initSocketServer = (httpServer, allowedOrigins = ["*"]) => {
 
       socket.join(`user:${String(patientId)}`);
       if (typeof callback === "function") callback({ success: true, room: `user:${patientId}` });
+    });
+
+    socket.on("join:superadmin", (_, callback) => {
+      const isSuper = userRole.includes("super") || user?.isAdmin;
+      if (!socket.authenticated || !isSuper) {
+        if (typeof callback === "function") {
+          callback({ success: false, message: "Forbidden: Super Admin access required" });
+        }
+        return;
+      }
+      socket.join("room:super_admin");
+      if (typeof callback === "function") callback({ success: true, room: "room:super_admin" });
     });
 
     // -------------------------------------------------------------------------
@@ -424,11 +443,109 @@ export const broadcastAppointmentSync = ({
   if (userId) ioInstance.to(`user:${String(userId)}`).emit("appointment:sync", payload);
 };
 
+/**
+ * Persists a notification to MongoDB and emits real-time events via Socket.IO
+ * and optionally dispatches Expo Push Notifications.
+ */
+export const dispatchNotification = async ({
+  userId,
+  doctorId,
+  hospitalId,
+  recipientRole = "patient",
+  title,
+  message,
+  type = "general",
+  category = "general",
+  priority = "normal",
+  link = "",
+  meta = {},
+  actorName = "",
+  actorRole = "",
+  refId = "",
+  refModel = "",
+  sendPush = true,
+}) => {
+  try {
+    // 1. Persist notification to MongoDB
+    const notif = await notificationModel.create({
+      userId: userId || undefined,
+      doctorId: doctorId || undefined,
+      hospitalId: hospitalId || undefined,
+      recipientRole,
+      title,
+      message,
+      type,
+      category: category || type,
+      priority,
+      read: false,
+      isRead: false,
+      link,
+      actorName,
+      actorRole,
+      refId,
+      refModel,
+      meta,
+    });
+
+    const formatted = {
+      ...notif.toObject(),
+      isRead: false,
+      read: false,
+    };
+
+    // 2. Real-time Socket.IO emission to target rooms
+    if (ioInstance) {
+      if (userId) {
+        ioInstance.to(`user:${String(userId)}`).emit("notification:new", formatted);
+        ioInstance.to(`user:${String(userId)}`).emit("notification:sync", { count: 1 });
+      }
+      if (doctorId) {
+        ioInstance.to(`doctor:${String(doctorId)}`).emit("notification:new", formatted);
+        ioInstance.to(`doctor:${String(doctorId)}`).emit("notification:sync", { count: 1 });
+      }
+      if (hospitalId) {
+        ioInstance.to(`hospital:${String(hospitalId)}`).emit("notification:new", formatted);
+        ioInstance.to(`hospital:${String(hospitalId)}`).emit("notification:sync", { count: 1 });
+      }
+      if (recipientRole === "super_admin" || recipientRole === "all") {
+        ioInstance.to("room:super_admin").emit("notification:new", formatted);
+        ioInstance.to("room:super_admin").emit("notification:sync", { count: 1 });
+      }
+    }
+
+    // 3. Optional Background Expo Push Notification dispatch
+    if (sendPush && userId) {
+      sendExpoPushNotification({
+        recipientUserId: userId,
+        title,
+        body: message,
+        data: {
+          id: String(notif._id),
+          type,
+          category: category || type,
+          link,
+          priority,
+          ...meta,
+        },
+        priority,
+      }).catch((err) => {
+        console.warn("[dispatchNotification] Push dispatch error:", err.message);
+      });
+    }
+
+    return formatted;
+  } catch (error) {
+    console.error("[dispatchNotification] Error saving/emitting notification:", error);
+    return null;
+  }
+};
+
 export default {
   initSocketServer,
   getIO,
   verifySocketToken,
   broadcastQueueSync,
   broadcastAppointmentSync,
+  dispatchNotification,
 };
 

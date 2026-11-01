@@ -251,13 +251,18 @@ export const getDashboard = async (req, res) => {
       };
     });
 
-    // Recent notifications
-    const notifications = await notificationModel
-      .find({
-        $or: [{ hospitalId }, { recipientRole: "hospital_admin" }, { type: "hospital" }],
-      })
+    // Recent notifications (strictly hospital isolated)
+    const rawNotifications = await notificationModel
+      .find({ hospitalId })
       .sort({ createdAt: -1 })
-      .limit(15);
+      .limit(50)
+      .lean();
+
+    const notifications = rawNotifications.map((n) => ({
+      ...n,
+      read: Boolean(n.read),
+      isRead: Boolean(n.read || n.isRead),
+    }));
 
     // Metrics calculation
     const now = new Date();
