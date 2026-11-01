@@ -109,6 +109,16 @@ const userSchema = new mongoose.Schema(
       },
     ],
     pushToken: { type: String, default: "" },
+    languagePreference: {
+      type: String,
+      enum: ["en", "hi", "gu"],
+      default: "en",
+    },
+    accessibilityPreferences: {
+      highContrast: { type: Boolean, default: false },
+      fontScale: { type: String, enum: ["normal", "large", "extra-large"], default: "normal" },
+      reduceMotion: { type: Boolean, default: false },
+    },
     notificationPreferences: {
       channels: {
         push: { type: Boolean, default: true },

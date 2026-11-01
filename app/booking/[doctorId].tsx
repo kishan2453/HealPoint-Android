@@ -1,3 +1,5 @@
+import { isDeviceOnline } from "@/hooks/use-network";
+import { t } from "@/lib/i18n";
 /**
  * HealPoint - Book Appointment (Production Premium Flow).
  *
@@ -691,6 +693,15 @@ export default function BookingScreen() {
             },
           },
         ],
+      );
+      return;
+    }
+
+    if (!isDeviceOnline()) {
+      Alert.alert(
+        t("offline.bannerTitle", "Offline Mode"),
+        t("offline.actionBlocked", "Internet connection required to book appointments or process payments."),
+        [{ text: t("btn.close", "OK") }]
       );
       return;
     }

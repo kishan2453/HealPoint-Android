@@ -20,6 +20,8 @@ import "react-native-reanimated";
 
 import { InstallAppModal } from "@/components/InstallAppModal";
 import { AuthProvider } from "@/hooks/use-auth";
+import { LanguageProvider } from "@/hooks/use-language";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { DoctorComparisonProvider } from "@/hooks/use-doctor-comparison";
 import { FavoritesProvider } from "@/hooks/use-favorites";
@@ -47,6 +49,8 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
         <AuthProvider>
+          <LanguageProvider>
+            <OfflineBanner />
           <PushNotificationListener />
           <LocationProvider>
             <FavoritesProvider>
@@ -179,6 +183,7 @@ export default function RootLayout() {
               </HospitalComparisonProvider>
             </FavoritesProvider>
           </LocationProvider>
+          </LanguageProvider>
         </AuthProvider>
       </ThemeProvider>
     </GestureHandlerRootView>

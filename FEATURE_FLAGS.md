@@ -28,3 +28,9 @@ Flags can be configured via environment variables or database hospital settings.
 | `FEATURE_ABHA_INTEGRATION` | `false` | Phase 15 | Ayushman Bharat Health Account integration (only when official keys exist). |
 | `FEATURE_DARK_MODE` | `false` | Phase 16 | Royal-blue consistent dark theme toggle. |
 
+### Phase 12: Multi-Language, Accessibility & Customer Support Flags
+- `FEATURE_MULTI_LANGUAGE`: Defaults to `true`. Enables runtime language switching between English, Hindi, and Gujarati.
+- `FEATURE_ACCESSIBILITY_HIGH_CONTRAST`: Defaults to `true`. Enables high contrast mode toggle in user preferences.
+- `FEATURE_OFFLINE_BANNER`: Defaults to `true`. Renders connectivity banner when device loses internet access.
+- `FEATURE_SERVICE_DESK`: Defaults to `true`. Enables full support ticket management and hospital admin triage.
+

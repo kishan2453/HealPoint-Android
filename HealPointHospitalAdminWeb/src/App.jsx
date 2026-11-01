@@ -4012,25 +4012,16 @@ function SettingsView({ admin, hospital, setView, initialTab = "facility" }) {
     setSupportLoading(true);
     try {
       const sess = session();
-      const res = await fetch(
-        "http://localhost:8080/api/v1/webmessage/create",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: sess?.token ? `Bearer ${sess.token}` : undefined,
-          },
-          body: JSON.stringify({
-            name: admin?.name || "Hospital Admin",
-            email: admin?.email || "admin@hospital.com",
-            subject: `[${supportForm.category}] ${supportForm.subject}`,
-            message: supportForm.message,
-          }),
-        },
-      );
-      const resData = await res.json();
-      if (!res.ok || !resData.success) {
-        throw new Error(resData.message || "Failed to submit ticket.");
+      const res = await api.post("/api/v1/webmessage/create", {
+        name: admin?.name || "Hospital Admin",
+        email: admin?.email || "admin@hospital.com",
+        subject: `[${supportForm.category}] ${supportForm.subject}`,
+        message: supportForm.message,
+        category: supportForm.category,
+        hospitalId: admin?.hospitalId || admin?.hospital?._id,
+      });
+      if (!res.data?.success) {
+        throw new Error(res.data?.message || "Failed to submit ticket.");
       }
       setSupportMsg({
         text: "Support ticket dispatched successfully! Reference logged. HealPoint engineering will respond shortly.",

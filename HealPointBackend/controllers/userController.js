@@ -281,6 +281,9 @@ export const updateUserProfile = async (req, res) => {
       "chronicConditions",
       "emergencyContact",
       "image",
+      "languagePreference",
+      "accessibilityPreferences",
+      "notificationPreferences",
     ];
     const updates = {};
     for (const key of allowed) {
@@ -713,5 +716,65 @@ export const updateHospitalAdminStatus = async (req, res) => {
     res.status(200).json({ success: true, message: "Admin status updated", admin });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const updateUserPreferences = async (req, res) => {
+  try {
+    const userId = req.user?.id || req.user?._id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+    const { languagePreference, accessibilityPreferences, notificationPreferences } = req.body;
+    const updates = {};
+    if (languagePreference && ["en", "hi", "gu"].includes(languagePreference)) {
+      updates.languagePreference = languagePreference;
+    }
+    if (accessibilityPreferences && typeof accessibilityPreferences === "object") {
+      updates.accessibilityPreferences = accessibilityPreferences;
+    }
+    if (notificationPreferences && typeof notificationPreferences === "object") {
+      updates.notificationPreferences = notificationPreferences;
+    }
+
+    const user = await userModel.findByIdAndUpdate(userId, { $set: updates }, { new: true }).select("-password");
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    return res.status(200).json({
+      success: true,
+      message: "Preferences updated successfully",
+      user,
+      preferences: {
+        languagePreference: user.languagePreference || "en",
+        accessibilityPreferences: user.accessibilityPreferences || {},
+        notificationPreferences: user.notificationPreferences || {},
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getUserPreferences = async (req, res) => {
+  try {
+    const userId = req.user?.id || req.user?._id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+    const user = await userModel.findById(userId).select("languagePreference accessibilityPreferences notificationPreferences");
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    return res.status(200).json({
+      success: true,
+      preferences: {
+        languagePreference: user.languagePreference || "en",
+        accessibilityPreferences: user.accessibilityPreferences || { highContrast: false, fontScale: "normal", reduceMotion: false },
+        notificationPreferences: user.notificationPreferences || {},
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 };

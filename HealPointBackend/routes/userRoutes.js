@@ -5,6 +5,8 @@ import {
   googleLogin,
   getUserProfile,
   updateUserProfile,
+  updateUserPreferences,
+  getUserPreferences,
   changeUserEmail,
   changeUserPassword,
   getStats,
@@ -85,6 +87,8 @@ router.post("/logout", (req, res) =>
   res.status(200).json({ success: true, message: "Logged out successfully" }),
 );
 router.patch("/profile", authenticate, upload.single("image"), updateUserProfile);
+router.get("/preferences", authenticate, getUserPreferences);
+router.patch("/preferences", authenticate, updateUserPreferences);
 router.patch("/update/:id", authenticate, upload.single("image"), updateUserProfile);
 router.patch("/change-email", authenticate, changeUserEmail);
 router.patch("/change-email/:id", authenticate, changeUserEmail);

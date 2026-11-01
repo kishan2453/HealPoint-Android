@@ -29,6 +29,7 @@ import {
   Typography,
 } from "@/constants/theme";
 import { useAuth } from "@/hooks/use-auth";
+import { useLanguage } from "@/hooks/use-language";
 import * as supportService from "@/services/support";
 import type {
   SupportTicket,
@@ -447,6 +448,7 @@ function MyTicketsTab() {
 // Main Screen
 // ---------------------------------------------------------------------------
 export default function SupportScreen() {
+  const { t, highContrast } = useLanguage();
   const { user } = useAuth();
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -529,8 +531,8 @@ export default function SupportScreen() {
   return (
     <View style={styles.safe}>
       <DrawerHeader
-        title="Help & Support"
-        subtitle="24×7 Healthcare assistance & guides"
+        title={t("support.title", "Help & Support")}
+        subtitle={t("support.subtitle", "24×7 Healthcare assistance & guides")}
       />
 
       {/* Tab Bar */}

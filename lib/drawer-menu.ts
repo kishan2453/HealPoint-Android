@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 /**
  * HealPoint - role-aware drawer menu configuration.
  *
@@ -22,84 +23,84 @@ export interface DrawerMenuSection {
 
 export function patientDrawerMenu(): DrawerMenuSection[] {
   const homeItem: DrawerMenuItem = {
-    label: "Home",
+    label: t("nav.home", "Home"),
     icon: "home-outline",
     href: "/(drawer)" as Href,
   };
 
   const menuItems: DrawerMenuItem[] = [
     {
-      label: "Care Command Center",
+      label: t("nav.commandCenter", "Care Command Center"),
       icon: "pulse-outline",
       href: "/command-center" as Href,
     },
     {
-      label: "Care Community",
+      label: t("nav.careCommunity", "Care Community"),
       icon: "people-circle-outline",
       href: "/care-community" as Href,
     },
     {
-      label: "Care Continuity",
+      label: t("nav.careContinuity", "Care Continuity"),
       icon: "repeat-outline",
       href: "/care-continuity" as Href,
     },
     {
-      label: "Care Passport",
+      label: t("nav.carePassport", "Care Passport"),
       icon: "id-card-outline",
       href: "/care-passport" as Href,
     },
     {
-      label: "Consult Online",
+      label: t("nav.consultOnline", "Consult Online"),
       icon: "videocam-outline",
       href: "/consult-online" as Href,
     },
     {
-      label: "Digital Health Wallet",
+      label: t("nav.healthWallet", "Digital Health Wallet"),
       icon: "wallet-outline",
       href: "/health-wallet" as Href,
     },
     {
-      label: "Emergency Help",
+      label: t("nav.emergency", "Emergency Help"),
       icon: "alert-circle-outline",
       href: "/emergency" as Href,
     },
     {
-      label: "Family Members",
+      label: t("nav.familyMembers", "Family Members"),
       icon: "people-outline",
       href: "/health/family" as Href,
     },
     {
-      label: "Find Doctors",
+      label: t("nav.findDoctors", "Find Doctors"),
       icon: "search-outline",
       href: "/doctors" as Href,
     },
     {
-      label: "Health Document Center",
+      label: t("nav.documentCenter", "Health Document Center"),
       icon: "document-attach-outline",
       href: "/health/documents" as Href,
     },
     {
-      label: "Health Goals",
+      label: t("nav.healthGoals", "Health Goals"),
       icon: "trophy-outline",
       href: "/health/goals" as Href,
     },
     {
-      label: "Help & Support",
+      label: t("nav.support", "Help & Support"),
       icon: "help-buoy-outline",
       href: "/support" as Href,
     },
     {
-      label: "Hospitals",
+      label: t("nav.hospitals", "Hospitals"),
       icon: "business-outline",
       href: "/hospitals" as Href,
     },
     {
-      label: "Medical Records",
+      label: t("nav.medicalRecords", "Medical Records"),
       icon: "folder-open-outline",
       href: "/health/records" as Href,
     },
     {
-      label: "My Appointments",
+      label: t("nav.myAppointments", "My Appointments"),
       icon: "calendar-outline",
       href: "/appointments" as Href,
     },
@@ -124,12 +125,12 @@ export function patientDrawerMenu(): DrawerMenuSection[] {
       href: "/health/reports" as Href,
     },
     {
-      label: "Saved Doctors & Hospitals",
+      label: t("nav.favorites", "Saved Doctors & Hospitals"),
       icon: "heart-outline",
       href: "/favorites" as Href,
     },
     {
-      label: "Settings",
+      label: t("nav.settings", "Settings"),
       icon: "settings-outline",
       href: "/settings" as Href,
     },
