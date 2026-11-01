@@ -274,9 +274,35 @@
 
 ---
 
-## 8. Summary of Overall Verification
+## 8. Detailed Test Cases (Phase 7 Emergency SOS & Auth Session Fix Suite)
 
-- **Total Backend Unit & Integration Tests**: 123/123 PASS (0 FAILURES)
+1. **`Generates valid formatted emergencyCode with EMG prefix and timestamp`**:
+   - Asserts pattern `/^EMG-\d+-[A-Z0-9]{4}$/` and uniqueness across repeated calls.
+2. **`Validates EmergencyRequest model schema properties and defaults`**:
+   - Confirms required fields (`patientId`, `emergencyCode`, `status`, `emergencyType`, `severity`, `location`, `patientSnapshot`).
+   - Asserts default values: `status === 'pending'`, `severity === 'critical'`, `emergencyType === 'other'`.
+3. **`Enforces strict state transitions across emergency lifecycle`**:
+   - Validates linear progression (`pending` -> `accepted` -> `in_progress` -> `resolved`).
+   - Validates terminal state immutability (cannot modify already `resolved` or `cancelled` emergencies).
+4. **`Validates ambulance dispatch details structure`**:
+   - Checks vehicle number, driver contact, driver phone, and ETA in minutes.
+5. **`Validates Indian 10-digit emergency contact phone numbers`**:
+   - Accepts valid 10-digit mobile numbers starting with 6, 7, 8, or 9.
+   - Rejects invalid phone lengths, letters, and non-numeric inputs.
+6. **`Identifies primary contact flag accurately`**:
+   - Confirms only designated primary contact carries `isPrimary === true`.
+7. **`Emergency location payload parses latitude and longitude numbers accurately`**:
+   - Validates coordinates parsing and numeric bounds check.
+8. **`Calculates mathematical JWT expiration without server round-trip`**:
+   - Confirms `isJwtExpired(token)` correctly assesses expiration mathematically based on Unix timestamp `exp`.
+9. **`Preserves valid unexpired session without premature logout`**:
+   - Asserts token is retained and not cleared on non-auth or transient network failures.
+
+---
+
+## 9. Summary of Overall Verification
+
+- **Total Backend Unit & Integration Tests**: 134/134 PASS (0 FAILURES)
 - **Patient Mobile App**: TypeScript clean (`npm run typecheck`, 0 errors), Expo web export PASS (183 static routes exported)
 - **HealPointDoctorWeb**: Vite build PASS (0 errors), deployed to `https://heal-point-doctor-web.vercel.app`
 - **HealPointHospitalAdminWeb**: Vite build PASS (0 errors), deployed to `https://heal-point-hospital-admin.vercel.app`

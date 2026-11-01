@@ -28,6 +28,7 @@ import SupportManagement from "./pages/SupportManagement";
 import Subscriptions from "./pages/subscriptions/Subscriptions";
 import SubscriptionPlans from "./pages/subscriptions/SubscriptionPlans";
 import PlatformAnalytics from "./pages/PlatformAnalytics";
+import EmergencyMonitoring from "./pages/EmergencyMonitoring";
 import SystemHealth from "./pages/SystemHealth";
 import AuditLogs from "./pages/AuditLogs";
 import NotFound from "./pages/NotFound";
@@ -161,6 +162,14 @@ function App() {
           element={
             <ProtectedRoute requiredPermission="reports">
               <PlatformAnalytics />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/emergencies"
+          element={
+            <ProtectedRoute>
+              <EmergencyMonitoring />
             </ProtectedRoute>
           }
         />

@@ -54,6 +54,7 @@ import {
   FaCheckDouble,
   FaQrcode,
   FaTrash,
+  FaAmbulance,
 } from "react-icons/fa";
 import api from "./services/api";
 import { jsPDF } from "jspdf";
@@ -66,6 +67,7 @@ import Appointments from "./pages/Appointments";
 import DoctorScheduling from "./pages/DoctorScheduling";
 import CheckInScannerView from "./pages/CheckInScannerView";
 import ComplianceGovernanceCenter from "./pages/ComplianceGovernanceCenter";
+import { HospitalEmergencyManager } from "./components/HospitalEmergencyManager";
 import { formatDoctorName } from "./services/doctorFormat";
 import {
   initHospitalSocket,
@@ -100,6 +102,7 @@ const menuGroups = [
   {
     label: "Operations",
     items: [
+      ["emergency", "Emergency SOS Queue", FaAmbulance],
       ["check-in", "Check-In & Queue", FaQrcode],
       ["appointments", "Appointments", FaClipboardList],
       ["online-consultations", "Online Consultations", FaVideo],
@@ -682,6 +685,7 @@ function Portal() {
         {view === "compliance" && (
           <ComplianceGovernanceCenter hospital={hospital} />
         )}
+        {view === "emergency" && <HospitalEmergencyManager hospital={hospital} />}
         {view === "online-consultations" && <OnlineConsultationsView />}
         {view === "appointments" && <Appointments hospital={hospital} />}
         {view === "doctors" && <Doctors />}

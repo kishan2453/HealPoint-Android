@@ -4,6 +4,49 @@ All notable changes across HealPoint 2.0 development phases are documented in th
 
 ---
 
+## [Phase 7: Emergency SOS, Emergency Services & Authentication Session Fix] - 2026-11-01
+
+### Branch: `phase-7-emergency-sos-auth-fix`
+### Status: Fully Implemented, Tested & Verified Across All 4 Portals & Mobile
+
+### Added & Enhanced
+- **Root-Cause Session Persistence & Expiration Fix (Task 1 - Top Priority)**:
+  - `lib/storage.ts`: Implemented synchronous local storage accessor (`getStorageItemSync`, `setStorageItemSync`, `deleteStorageItemSync`) to eliminate asynchronous React startup delays during web app hydration and browser page refreshes.
+  - `services/api.ts`: Implemented `setAuthReady()` and `waitForAuth(maxMs)` barrier to ensure initial requests during refresh wait for auth state restoration rather than firing unauthenticated requests. Enforced client-side auth barrier (`auth: true` throwing `ApiClientError("Please sign in to view your account details.")` rather than sending doomed requests that returned HTTP 401).
+  - `hooks/use-auth.tsx`: Added `isJwtExpired(token)` helper to mathematically calculate JWT expiration before attempting refresh or wiping credentials. Synchronously initialized token state on web. Session is retained during transient network or backend offline states.
+  - `hooks/use-appointments.ts`, `hooks/use-health-overview.ts`, `hooks/use-notifications.ts`: Added state guards to wait for `authLoading` completion before dispatching requests.
+  - `HealPointDoctorWeb/src/services/api.js` & `HealPointSuperAdminWeb/src/Api/API.jsx`: Added mathematical JWT expiration verification before wiping sessions on HTTP 401.
+- **Emergency SOS Command Center & Mobile Experience (Tasks 2, 3, 8)**:
+  - `components/emergency/EmergencySosModal.tsx`: Created 5-second countdown confirmation modal with cancel button to prevent accidental SOS triggers. Includes emergency nature selector (Cardiac, Accident, Respiratory, Pregnancy, Severe Pain, Other).
+  - `components/emergency/ActiveEmergencyBanner.tsx`: Live real-time emergency tracker with 4-step progress stepper (`pending` -> `accepted` -> `in_progress` -> `resolved`), live ETA badge, ambulance vehicle number, driver contact, and cancel trigger.
+  - `components/emergency/EmergencyContactsModal.tsx`: Full emergency contacts management modal (add, edit, delete, primary toggle, 10-digit Indian phone number validation).
+  - `components/emergency/EmergencyFloatingButton.tsx`: Floating 1-tap SOS trigger button.
+  - `app/(drawer)/emergency.tsx`: Transformed into a full Emergency SOS Command Center with SOS trigger, active case tracker, Patient Medical Passport (blood group, allergies, chronic conditions), emergency contacts management, emergency history timeline, and national helpline direct dialers (112, 108, 102).
+  - `hooks/use-emergency.ts`: Complete React hook managing SOS dispatch, GPS location fetching via `expo-location`, contacts, history, and real-time Socket.IO synchronization.
+  - `services/emergency.ts`: Full typed API client for emergency endpoints.
+- **Emergency Backend Workflow & Model (Task 4)**:
+  - `HealPointBackend/models/emergencyRequestModel.js`: Complete schema with `emergencyCode` (e.g. `EMG-1730448000000-A1B2`), `patientId`, `hospitalId`, `assignedDoctorId`, `status` (`pending`, `accepted`, `in_progress`, `resolved`, `cancelled`), `emergencyType`, `severity`, `notes`, `location` (latitude, longitude, address), `patientSnapshot` (name, phone, bloodGroup, allergies), `emergencyContacts`, `ambulance` (vehicleNumber, driverName, driverPhone, etaMinutes, status), `statusHistory`, and audit resolution details.
+  - `HealPointBackend/models/userModel.js`: Added structured `emergencyContacts` subdocument array with 10-digit phone validation and primary contact flag.
+  - `HealPointBackend/controllers/emergencyController.js`: Full emergency lifecycle management controller (`createEmergencyRequest`, `getActivePatientEmergency`, `getPatientEmergencyHistory`, `cancelEmergencyRequest`, `getHospitalEmergencies`, `updateEmergencyStatus`, `dispatchAmbulance`, `getEmergencyContacts`, `saveEmergencyContact`, `deleteEmergencyContact`, `getSuperAdminEmergencyOverview`).
+  - `HealPointBackend/routes/emergencyRoutes.js`: Mounted at `/api/v1/emergency`.
+  - `HealPointBackend/services/socketService.js`: Added `broadcastEmergencyAlert` and `broadcastEmergencyStatus` to emit to `hospital:<id>`, `doctor:<id>`, `user:<id>`, and `room:super_admin`.
+- **Hospital Admin Emergency Dashboard (Task 5)**:
+  - `HealPointHospitalAdminWeb/src/components/HospitalEmergencyManager.jsx`: Full real-time Emergency SOS Queue dashboard with live active alerts, accept SOS, ambulance dispatch modal (vehicle number, driver name, phone, ETA), resolution modal with clinical outcomes, and auto-polling + real-time sync.
+  - `HealPointHospitalAdminWeb/src/App.jsx`: Added Emergency Queue navigation item under Operations.
+- **Doctor Web Real-Time Emergency Alerts (Task 6)**:
+  - `HealPointDoctorWeb/src/services/socket.js`: Integrated `onEmergencyAlert` and `onEmergencyStatus` events.
+  - `HealPointDoctorWeb/src/pages/DoctorPortal.jsx`: Added real-time Emergency SOS alert banner at the top of the Doctor Command Center with patient details, GPS link, and urgent toast notification.
+- **Super Admin Central Emergency Monitoring (Task 7)**:
+  - `HealPointSuperAdminWeb/src/pages/EmergencyMonitoring.jsx`: Platform-wide emergency telemetry dashboard with KPI summary cards (Total SOS, Active Critical, Resolved, Cancelled), distribution charts (by clinical category and hospital), and real-time emergency feed table with live GPS maps.
+  - `HealPointSuperAdminWeb/src/App.jsx` & `Menus.jsx`: Mounted `/emergencies` route with sidebar navigation.
+- **Automated Test Suite & Verification (Task 10)**:
+  - `HealPointBackend/tests/emergency.test.js`: 11 new comprehensive automated tests covering emergency lifecycle, ambulance dispatch, contact validation, and JWT persistence. Total backend test count increased to 134/134 PASS (0 failures).
+  - TypeScript validation (`tsc --noEmit`): PASSED with 0 errors.
+  - Web builds for Doctor Web, Hospital Admin Web, and Super Admin Web: All PASSED.
+  - Expo web export (`npx expo export -p web`): PASSED (183 static routes exported).
+
+---
+
 ## [Phase 6 Part 2: Notifications, Routing, Refresh Fix & Final Testing] - 2026-11-01
 
 ### Branch: `phase-6-part-2-notifications-routing`

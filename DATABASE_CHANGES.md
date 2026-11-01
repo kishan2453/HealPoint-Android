@@ -286,3 +286,45 @@ This document records all additive, backward-compatible database modifications a
     $unset: { pushTokens: "", deviceTokens: "", pushToken: "", notificationPreferences: "" }
   });
   ```
+
+---
+
+## Phase 7: Emergency SOS & Emergency Services
+
+- **New Collection: `emergencyrequests` (`HealPointBackend/models/emergencyRequestModel.js`)**:
+  - `emergencyCode`: Unique identifier string (format: `EMG-<timestamp>-<hash>`).
+  - `patientId`: Reference to `users` collection (`ObjectId`, required, indexed).
+  - `hospitalId`: Reference to `hospitals` collection (`ObjectId`, optional/assigned, indexed).
+  - `assignedDoctorId`: Reference to `doctors` collection (`ObjectId`, optional).
+  - `status`: String enum (`["pending", "accepted", "in_progress", "resolved", "cancelled"]`, default: `"pending"`, indexed).
+  - `emergencyType`: String enum (`["cardiac", "accident", "respiratory", "pregnancy", "severe_pain", "other"]`, default: `"other"`, indexed).
+  - `severity`: String enum (`["critical", "high", "medium"]`, default: `"critical"`).
+  - `notes`: String.
+  - `location`: `{ latitude: Number, longitude: Number, address: String, accuracy: Number, updatedAt: Date }`.
+  - `patientSnapshot`: `{ name: String, phone: String, bloodGroup: String, allergies: [String], chronicConditions: [String] }`.
+  - `emergencyContacts`: Array of `{ name: String, relationship: String, phone: String, isPrimary: Boolean }`.
+  - `ambulance`: `{ vehicleNumber: String, driverName: String, driverPhone: String, etaMinutes: Number, status: String enum ["dispatched", "en_route", "arrived", "patient_loaded", "hospital_reached"], dispatchedAt: Date }`.
+  - `statusHistory`: Array of `{ status: String, changedBy: ObjectId, changedByModel: String, timestamp: Date, note: String }`.
+  - `resolutionDetails`: `{ resolvedAt: Date, resolvedBy: ObjectId, clinicalNotes: String, outcome: String }`.
+  - `cancellationDetails`: `{ cancelledAt: Date, cancelledBy: ObjectId, reason: String }`.
+
+- **Indexes Created on `emergencyrequests`**:
+  - `{ emergencyCode: 1 }` (unique)
+  - `{ patientId: 1, status: 1 }`
+  - `{ hospitalId: 1, status: 1 }`
+  - `{ status: 1, createdAt: -1 }`
+  - `{ createdAt: -1 }`
+
+- **Additive Fields on `users` collection (`HealPointBackend/models/userModel.js`)**:
+  - `emergencyContacts`: Array of `{ name: String, relationship: String, phone: String (10-digit validation), isPrimary: Boolean }` (preserving legacy single `emergencyContact`).
+
+- **Rollback Procedure**:
+  ```javascript
+  // Drop collection emergencyrequests
+  db.emergencyrequests.drop();
+
+  // Remove emergencyContacts subdocument array from users
+  db.users.updateMany({}, {
+    $unset: { emergencyContacts: "" }
+  });
+  ```

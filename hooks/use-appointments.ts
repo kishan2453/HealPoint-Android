@@ -31,7 +31,7 @@ function todayKey(): string {
 }
 
 export function useAppointments() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const userId = user?._id;
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +49,7 @@ export function useAppointments() {
   const abortRef = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
+    if (authLoading) return;
     const requestUserId = userId;
     if (!requestUserId) {
       abortRef.current?.abort();
@@ -99,7 +100,7 @@ export function useAppointments() {
       )
         setLoading(false);
     }
-  }, [userId]);
+  }, [userId, authLoading]);
 
   useEffect(() => {
     // When the logged-in user changes (login/logout/switch account) the old

@@ -62,6 +62,8 @@ export const subscribeDoctorSync = ({
   onQueueSync,
   onConsultationSync,
   onNotification,
+  onEmergencyAlert,
+  onEmergencyStatus,
 }) => {
   if (!socket) return () => {};
 
@@ -69,6 +71,8 @@ export const subscribeDoctorSync = ({
   if (onQueueSync) socket.on("queue:sync", onQueueSync);
   if (onConsultationSync) socket.on("consultation:sync", onConsultationSync);
   if (onNotification) socket.on("notification:new", onNotification);
+  if (onEmergencyAlert) socket.on("emergency:alert", onEmergencyAlert);
+  if (onEmergencyStatus) socket.on("emergency:status", onEmergencyStatus);
 
   return () => {
     if (!socket) return;
@@ -76,5 +80,7 @@ export const subscribeDoctorSync = ({
     if (onQueueSync) socket.off("queue:sync", onQueueSync);
     if (onConsultationSync) socket.off("consultation:sync", onConsultationSync);
     if (onNotification) socket.off("notification:new", onNotification);
+    if (onEmergencyAlert) socket.off("emergency:alert", onEmergencyAlert);
+    if (onEmergencyStatus) socket.off("emergency:status", onEmergencyStatus);
   };
 };

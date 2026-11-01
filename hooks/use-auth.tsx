@@ -5,7 +5,14 @@
  * session survives app restarts. Registers itself as the token provider for
  * the shared API client. No secrets are logged or stored anywhere else.
  */
-import { getStorageItem, setStorageItem, deleteStorageItem } from "@/lib/storage";
+import {
+  getStorageItem,
+  setStorageItem,
+  deleteStorageItem,
+  getStorageItemSync,
+  setStorageItemSync,
+  deleteStorageItemSync,
+} from "@/lib/storage";
 import React, {
   createContext,
   useCallback,
@@ -16,7 +23,11 @@ import React, {
   useState,
 } from "react";
 
-import { registerAuthTokenProvider, ApiClientError } from "@/services/api";
+import {
+  registerAuthTokenProvider,
+  setAuthReady,
+  ApiClientError,
+} from "@/services/api";
 import * as authService from "@/services/auth";
 import { initSocket, disconnectSocket } from "@/services/socket";
 import type {
@@ -94,6 +105,34 @@ function isUnauthorizedError(error: unknown): boolean {
   return false;
 }
 
+/**
+ * Safely verify if a JWT has passed its expiration time client-side.
+ * Returns true only if the token has an exp claim that is in the past.
+ */
+function isJwtExpired(token: string): boolean {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return false;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    let jsonStr = "";
+    if (typeof atob === "function") {
+      jsonStr = atob(base64);
+    } else if (typeof Buffer !== "undefined") {
+      jsonStr = Buffer.from(base64, "base64").toString("utf-8");
+    }
+    if (!jsonStr) return false;
+    const payload = JSON.parse(jsonStr);
+    if (payload && typeof payload.exp === "number") {
+      // Check expiration with a 10-second grace window
+      return payload.exp < Date.now() / 1000 - 10;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 interface AuthContextValue {
   user: User | null;
   token: string | null;
@@ -127,14 +166,34 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
-  const tokenRef = useRef<string | null>(null);
+  // Synchronous recovery on web ensures token and user are available on the very first render tick
+  const initialToken = getStorageItemSync(TOKEN_KEY);
+  let initialUser: User | null = null;
+  const initialUserRaw = getStorageItemSync(USER_KEY);
+  if (initialUserRaw) {
+    try {
+      initialUser = fromStoredUser(JSON.parse(initialUserRaw) as StoredUser);
+    } catch {
+      initialUser = null;
+    }
+  }
+  const initialOnboarding = getStorageItemSync(ONBOARDING_KEY) === "true";
+
+  const [token, setToken] = useState<string | null>(initialToken);
+  const [user, setUser] = useState<User | null>(initialUser);
+  const [isLoading, setIsLoading] = useState(!initialToken);
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState(initialOnboarding);
+  const tokenRef = useRef<string | null>(initialToken);
+
+  // Register the token provider immediately
+  registerAuthTokenProvider(() => tokenRef.current || getStorageItemSync(TOKEN_KEY));
+  if (initialToken && !isJwtExpired(initialToken)) {
+    setAuthReady(true);
+  }
 
   const markOnboardingCompleted = useCallback(async () => {
     setHasSeenOnboarding(true);
+    setStorageItemSync(ONBOARDING_KEY, "true");
     try {
       await setStorageItem(ONBOARDING_KEY, "true");
     } catch (error) {
@@ -147,6 +206,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(nextToken);
     setUser(nextUser);
     setHasSeenOnboarding(true);
+    setStorageItemSync(TOKEN_KEY, nextToken);
+    setStorageItemSync(USER_KEY, JSON.stringify(toStoredUser(nextUser)));
+    setStorageItemSync(ONBOARDING_KEY, "true");
+    setAuthReady(true);
     try {
       await setStorageItem(TOKEN_KEY, nextToken);
       await setStorageItem(
@@ -165,6 +228,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     tokenRef.current = null;
     setToken(null);
     setUser(null);
+    deleteStorageItemSync(TOKEN_KEY);
+    deleteStorageItemSync(USER_KEY);
     try {
       await deleteStorageItem(TOKEN_KEY);
       await deleteStorageItem(USER_KEY);
@@ -175,7 +240,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Register the token provider for the API client exactly once.
   useEffect(() => {
-    registerAuthTokenProvider(() => tokenRef.current);
+    registerAuthTokenProvider(() => tokenRef.current || getStorageItemSync(TOKEN_KEY));
   }, []);
 
   // Synchronize WebSocket lifecycle with auth session.
@@ -207,17 +272,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (!storedToken) {
           setIsLoading(false);
+          setAuthReady(true);
+          return;
+        }
+
+        // Verify if token has truly expired client-side
+        if (isJwtExpired(storedToken)) {
+          console.warn("[auth] Stored JWT token has expired; clearing session.");
+          await clearAuth();
+          if (!cancelled) {
+            setIsLoading(false);
+            setAuthReady(true);
+          }
           return;
         }
 
         tokenRef.current = storedToken;
         setToken(storedToken);
+        setAuthReady(true);
 
         if (storedUser) {
           try {
             setUser(fromStoredUser(JSON.parse(storedUser) as StoredUser));
           } catch {
-            setUser(null);
+            // keep existing user
           }
         }
 
@@ -236,19 +314,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               // record (`doctorAuth`), never against the patient `users` API.
               const panel = await authService.getDoctorProfile(userId);
               if (!cancelled) {
-                const user = panel.doctor
+                const updatedDoctorUser = panel.doctor
                   ? toUserFromDoctor(panel.doctor)
                   : fromStoredUser(parsedUser);
-                setUser(user);
+                setUser(updatedDoctorUser);
+                setStorageItemSync(
+                  USER_KEY,
+                  JSON.stringify(toStoredUser(updatedDoctorUser)),
+                );
                 await setStorageItem(
                   USER_KEY,
-                  JSON.stringify(toStoredUser(user)),
+                  JSON.stringify(toStoredUser(updatedDoctorUser)),
                 );
               }
             } else {
               const res = await authService.getProfile(userId);
-              if (!cancelled) {
+              if (!cancelled && res?.user) {
                 setUser(res.user);
+                setStorageItemSync(
+                  USER_KEY,
+                  JSON.stringify(toStoredUser(res.user)),
+                );
                 await setStorageItem(
                   USER_KEY,
                   JSON.stringify(toStoredUser(res.user)),
@@ -257,17 +343,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           }
         } catch (error) {
-          // Only treat a real 401 (expired/revoked token) as signed-out. A
-          // non-401 failure (backend offline) keeps the cached session so the
-          // user isn't logged out by a transient network problem.
-          if (!cancelled && isUnauthorizedError(error)) {
+          // Only clear session if token is truly expired.
+          // Non-expired tokens with transient network or server errors are preserved.
+          if (!cancelled && isUnauthorizedError(error) && storedToken && isJwtExpired(storedToken)) {
             await clearAuth();
           }
         }
       } catch (error) {
         console.warn("Session restore failed", error);
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+          setAuthReady(true);
+        }
       }
     }
 

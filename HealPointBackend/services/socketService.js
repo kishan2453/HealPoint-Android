@@ -540,12 +540,69 @@ export const dispatchNotification = async ({
   }
 };
 
+export const broadcastEmergencyAlert = (emergency) => {
+  if (!ioInstance) return;
+  const payload = {
+    emergencyId: String(emergency._id || emergency.id || ""),
+    emergencyCode: emergency.emergencyCode || "",
+    status: emergency.status || "pending",
+    emergencyType: emergency.emergencyType || "other",
+    severity: emergency.severity || "critical",
+    location: emergency.location || {},
+    patientSnapshot: emergency.patientSnapshot || {},
+    notes: emergency.notes || "",
+    ambulance: emergency.ambulance || {},
+    createdAt: emergency.createdAt || new Date().toISOString(),
+  };
+
+  if (emergency.hospitalId) {
+    ioInstance.to(`hospital:${String(emergency.hospitalId)}`).emit("emergency:alert", payload);
+  } else {
+    ioInstance.to("room:hospital_admins").emit("emergency:alert", payload);
+  }
+  ioInstance.to("room:super_admin").emit("emergency:alert", payload);
+  if (emergency.patientId) {
+    ioInstance.to(`user:${String(emergency.patientId)}`).emit("emergency:alert", payload);
+  }
+};
+
+export const broadcastEmergencyStatus = (emergency) => {
+  if (!ioInstance) return;
+  const payload = {
+    emergencyId: String(emergency._id || emergency.id || ""),
+    emergencyCode: emergency.emergencyCode || "",
+    status: emergency.status,
+    emergencyType: emergency.emergencyType,
+    severity: emergency.severity,
+    location: emergency.location || {},
+    patientSnapshot: emergency.patientSnapshot || {},
+    ambulance: emergency.ambulance || {},
+    statusHistory: emergency.statusHistory || [],
+    resolutionDetails: emergency.resolutionDetails || {},
+    cancellationDetails: emergency.cancellationDetails || {},
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (emergency.hospitalId) {
+    ioInstance.to(`hospital:${String(emergency.hospitalId)}`).emit("emergency:status", payload);
+  }
+  if (emergency.patientId) {
+    ioInstance.to(`user:${String(emergency.patientId)}`).emit("emergency:status", payload);
+  }
+  if (emergency.assignedDoctorId) {
+    ioInstance.to(`doctor:${String(emergency.assignedDoctorId)}`).emit("emergency:status", payload);
+  }
+  ioInstance.to("room:super_admin").emit("emergency:status", payload);
+};
+
 export default {
   initSocketServer,
   getIO,
   verifySocketToken,
   broadcastQueueSync,
   broadcastAppointmentSync,
+  broadcastEmergencyAlert,
+  broadcastEmergencyStatus,
   dispatchNotification,
 };
 

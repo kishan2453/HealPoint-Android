@@ -61,7 +61,7 @@ function parseActivityTimestamp(dateStr?: string, createdAt?: string): number {
 }
 
 export function useHealthOverview(): UseHealthOverviewResult {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const userId = user?._id;
 
   const {
@@ -86,6 +86,7 @@ export function useHealthOverview(): UseHealthOverviewResult {
 
   const loadData = useCallback(
     async (isPullToRefresh = false) => {
+      if (authLoading) return;
       if (!userId) {
         setMedicalHistory(null);
         setReviews([]);
@@ -136,7 +137,7 @@ export function useHealthOverview(): UseHealthOverviewResult {
         setRefreshing(false);
       }
     },
-    [userId],
+    [userId, authLoading],
   );
 
   useEffect(() => {

@@ -12,7 +12,59 @@ import { Platform } from "react-native";
 // In-memory fallback if both SecureStore and localStorage are unavailable
 const memoryFallback = new Map<string, string>();
 
+/**
+ * Synchronous storage reader.
+ * On web, reads window.localStorage synchronously so tokens and users are
+ * immediately available during component initialization without an async render tick.
+ */
+export function getStorageItemSync(key: string): string | null {
+  if (Platform.OS === "web") {
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        return window.localStorage.getItem(key);
+      }
+    } catch (err) {
+      console.warn("[storage] Web localStorage.getItemSync failed", err);
+    }
+    return memoryFallback.get(key) || null;
+  }
+  return memoryFallback.get(key) || null;
+}
+
+/**
+ * Synchronous storage writer (web only, updates memory cache everywhere).
+ */
+export function setStorageItemSync(key: string, value: string): void {
+  memoryFallback.set(key, value);
+  if (Platform.OS === "web") {
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.setItem(key, value);
+      }
+    } catch (err) {
+      console.warn("[storage] Web localStorage.setItemSync failed", err);
+    }
+  }
+}
+
+/**
+ * Synchronous storage remover (web only, clears memory cache everywhere).
+ */
+export function deleteStorageItemSync(key: string): void {
+  memoryFallback.delete(key);
+  if (Platform.OS === "web") {
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.removeItem(key);
+      }
+    } catch (err) {
+      console.warn("[storage] Web localStorage.removeItemSync failed", err);
+    }
+  }
+}
+
 export async function setStorageItem(key: string, value: string): Promise<void> {
+  memoryFallback.set(key, value);
   if (Platform.OS === "web") {
     try {
       if (typeof window !== "undefined" && window.localStorage) {
@@ -22,7 +74,6 @@ export async function setStorageItem(key: string, value: string): Promise<void> 
     } catch (err) {
       console.warn("[storage] Web localStorage.setItem failed, using memory fallback", err);
     }
-    memoryFallback.set(key, value);
     return;
   }
 
@@ -30,7 +81,6 @@ export async function setStorageItem(key: string, value: string): Promise<void> 
     await SecureStore.setItemAsync(key, value);
   } catch (err) {
     console.warn("[storage] SecureStore.setItemAsync failed, using memory fallback", err);
-    memoryFallback.set(key, value);
   }
 }
 
@@ -55,6 +105,7 @@ export async function getStorageItem(key: string): Promise<string | null> {
 }
 
 export async function deleteStorageItem(key: string): Promise<void> {
+  memoryFallback.delete(key);
   if (Platform.OS === "web") {
     try {
       if (typeof window !== "undefined" && window.localStorage) {
@@ -64,7 +115,6 @@ export async function deleteStorageItem(key: string): Promise<void> {
     } catch (err) {
       console.warn("[storage] Web localStorage.removeItem failed", err);
     }
-    memoryFallback.delete(key);
     return;
   }
 
@@ -72,7 +122,6 @@ export async function deleteStorageItem(key: string): Promise<void> {
     await SecureStore.deleteItemAsync(key);
   } catch (err) {
     console.warn("[storage] SecureStore.deleteItemAsync failed", err);
-    memoryFallback.delete(key);
   }
 }
 

@@ -5,6 +5,21 @@ const instance = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+function isJwtExpired(token) {
+  try {
+    const parts = (token || "").split(".");
+    if (parts.length !== 3) return false;
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(atob(base64));
+    if (payload && typeof payload.exp === "number") {
+      return payload.exp < Date.now() / 1000;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 instance.interceptors.request.use(
   (config) => {
     try {
@@ -29,13 +44,21 @@ instance.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       try {
-        sessionStorage.removeItem("doctorApp");
-        localStorage.removeItem("doctorApp");
-        if (
-          typeof window !== "undefined" &&
-          !window.location.pathname.startsWith("/login")
-        ) {
-          window.location.href = "/login";
+        const raw =
+          sessionStorage.getItem("doctorApp") ||
+          localStorage.getItem("doctorApp");
+        const data = JSON.parse(raw || "null");
+        const token = data?.token;
+        const msg = String(error.response?.data?.message || "");
+        if (!token || isJwtExpired(token) || /expired|invalid/i.test(msg)) {
+          sessionStorage.removeItem("doctorApp");
+          localStorage.removeItem("doctorApp");
+          if (
+            typeof window !== "undefined" &&
+            !window.location.pathname.startsWith("/login")
+          ) {
+            window.location.href = "/login";
+          }
         }
       } catch {
         // ignore

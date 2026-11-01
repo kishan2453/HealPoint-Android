@@ -15,6 +15,7 @@ import {
 } from "@/lib/env";
 export { getApiDiagnosticInfo as getApiRuntimeDiagnostic } from "@/lib/env";
 import { Platform } from "react-native";
+import { getStorageItemSync } from "@/lib/storage";
 import type { ApiErrorCategory } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -67,14 +68,62 @@ export interface RequestOptions {
 type TokenProvider = () => string | null | undefined;
 
 let tokenProvider: TokenProvider | null = null;
+let isAuthReadyState = false;
+let authReadyPromise: Promise<void> | null = null;
+let resolveAuthReady: (() => void) | null = null;
 
 /** The auth context registers a token provider once at app startup. */
 export function registerAuthTokenProvider(provider: TokenProvider) {
   tokenProvider = provider;
 }
 
+/** Mark auth restoration as complete so waiting requests proceed immediately. */
+export function setAuthReady(ready: boolean = true) {
+  isAuthReadyState = ready;
+  if (ready && resolveAuthReady) {
+    resolveAuthReady();
+    resolveAuthReady = null;
+  }
+}
+
+/**
+ * Returns true if auth restoration has completed or synchronous token is present.
+ */
+export function isAuthReady(): boolean {
+  return isAuthReadyState;
+}
+
+/**
+ * Wait for auth restoration to settle before firing an authenticated request.
+ * Caps at maxMs so network requests never hang permanently.
+ */
+export async function waitForAuth(maxMs = 2500): Promise<void> {
+  if (isAuthReadyState) return;
+  // If synchronous token is already available on web, no need to wait
+  if (getAuthToken()) {
+    isAuthReadyState = true;
+    return;
+  }
+  if (!authReadyPromise) {
+    authReadyPromise = new Promise((resolve) => {
+      resolveAuthReady = resolve;
+      setTimeout(() => {
+        resolve();
+      }, maxMs);
+    });
+  }
+  await authReadyPromise;
+}
+
 export function getAuthToken(): string | null | undefined {
-  return tokenProvider ? tokenProvider() : null;
+  if (tokenProvider) {
+    const token = tokenProvider();
+    if (token) return token;
+  }
+  // Synchronous fallback for web/memory cache to eliminate refresh race conditions
+  const syncToken = getStorageItemSync("healpoint.auth.token");
+  if (syncToken) return syncToken;
+  return null;
 }
 
 /** Safe, diagnostic-only description of the resolved backend base URL. */
@@ -285,7 +334,7 @@ function throwForStatus(
 
   const fallback =
     status === 401
-      ? "Your session has expired. Please login again."
+      ? serverMessage || "Your session has expired. Please login again."
       : status === 403
         ? "You do not have permission to perform this action."
         : status === 404
@@ -461,9 +510,19 @@ async function performFetch<T>(args: {
   }
 
   if (auth) {
+    if (!isAuthReady()) {
+      await waitForAuth(2500);
+    }
     const token = getAuthToken();
     if (token) {
       requestHeaders.Authorization = `Bearer ${token}`;
+    } else {
+      throw new ApiClientError(
+        "Please sign in to view your account details.",
+        "UNAUTHORIZED",
+        401,
+        "No authorization token available",
+      );
     }
   }
 

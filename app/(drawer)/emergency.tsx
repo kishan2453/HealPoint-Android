@@ -40,15 +40,34 @@ import {
   Typography,
 } from "@/constants/theme";
 import { useAuth } from "@/hooks/use-auth";
+import { useEmergency } from "@/hooks/use-emergency";
+import { EmergencySosModal } from "@/components/emergency/EmergencySosModal";
+import { ActiveEmergencyBanner } from "@/components/emergency/ActiveEmergencyBanner";
+import { EmergencyContactsModal } from "@/components/emergency/EmergencyContactsModal";
 import { resolveHospitalImage } from "@/lib/image";
 import { getEmergencyHospitals } from "@/services/hospitals";
-import type { Hospital } from "@/types";
+import type { EmergencyType, Hospital } from "@/types";
 
 type FilterTab = "all" | "ambulance" | "icu";
 
 export default function EmergencyScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const {
+    activeEmergency,
+    emergencies,
+    contacts,
+    triggerSOS,
+    cancelActiveEmergency,
+    saveContact,
+    removeContact,
+    triggering,
+    refreshAll,
+  } = useEmergency();
+
+  const [sosModalVisible, setSosModalVisible] = useState(false);
+  const [contactsModalVisible, setContactsModalVisible] = useState(false);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
 
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,6 +75,18 @@ export default function EmergencyScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [error, setError] = useState<string | null>(null);
+
+  const handleConfirmSOS = async (type: EmergencyType, notes: string) => {
+    try {
+      await triggerSOS({ emergencyType: type, notes });
+      setSosModalVisible(false);
+    } catch (err: any) {
+      Alert.alert(
+        "SOS Alert Failed",
+        err?.message || "Please call emergency services directly at 112 / 108.",
+      );
+    }
+  };
 
   const fetchHospitals = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -254,12 +285,217 @@ export default function EmergencyScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => fetchHospitals(true)}
+            onRefresh={() => {
+              fetchHospitals(true);
+              refreshAll();
+            }}
             colors={[Palette.primary]}
             tintColor={Palette.primary}
           />
         }
       >
+        {/* 1. Live Active Emergency SOS Tracker (Task 8) */}
+        {activeEmergency ? (
+          <ActiveEmergencyBanner
+            emergency={activeEmergency}
+            onCancel={cancelActiveEmergency}
+            cancelling={triggering}
+          />
+        ) : null}
+
+        {/* 2. Giant Emergency SOS Command Trigger Card (Task 2) */}
+        <Card style={styles.sosHeroCard}>
+          <View style={styles.sosHeroHeader}>
+            <View style={styles.sosLiveBadge}>
+              <View style={styles.pulseDot} />
+              <Text style={styles.sosLiveBadgeText}>ONE-TAP SOS BROADCAST</Text>
+            </View>
+            <Text style={styles.sosHeroSubtitle}>
+              Instantly transmits your medical identity & GPS coordinates to response desks
+            </Text>
+          </View>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.giantSosButton,
+              pressed && styles.giantSosButtonPressed,
+            ]}
+            onPress={() => setSosModalVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Trigger Emergency SOS"
+          >
+            <View style={styles.sosButtonRing}>
+              <View style={styles.sosButtonCore}>
+                <Ionicons name="warning" size={36} color="#FFFFFF" />
+                <Text style={styles.sosButtonText}>SOS</Text>
+                <Text style={styles.sosButtonSub}>TAP FOR HELP</Text>
+              </View>
+            </View>
+          </Pressable>
+
+          <View style={styles.sosProtectionRow}>
+            <View style={styles.protectionPill}>
+              <Ionicons name="location" size={14} color="#2563EB" />
+              <Text style={styles.protectionPillText}>GPS Location Attached</Text>
+            </View>
+            <View style={styles.protectionPill}>
+              <Ionicons name="shield-checkmark" size={14} color="#059669" />
+              <Text style={styles.protectionPillText}>Vitals Shared</Text>
+            </View>
+          </View>
+        </Card>
+
+        {/* 3. Patient Medical Identity & Vitals Snapshot */}
+        <Card style={styles.medicalVitalsCard}>
+          <View style={styles.vitalsHeaderRow}>
+            <View style={styles.vitalsHeaderLeft}>
+              <Ionicons name="medkit" size={20} color="#2563EB" />
+              <Text style={styles.vitalsTitle}>Patient Medical Identity</Text>
+            </View>
+            {user?.bloodGroup ? (
+              <View style={styles.bloodGroupBadge}>
+                <Text style={styles.bloodGroupText}>
+                  BLOOD: {user.bloodGroup.toUpperCase()}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={styles.vitalsGrid}>
+            <View style={styles.vitalCol}>
+              <Text style={styles.vitalLabel}>Patient Name</Text>
+              <Text style={styles.vitalVal}>{user?.name || "Patient"}</Text>
+            </View>
+            <View style={styles.vitalCol}>
+              <Text style={styles.vitalLabel}>Contact Phone</Text>
+              <Text style={styles.vitalVal}>{user?.phone || "Not provided"}</Text>
+            </View>
+          </View>
+
+          {/* Allergies & Conditions */}
+          <View style={styles.tagsContainer}>
+            <Text style={styles.tagSectionLabel}>Known Allergies:</Text>
+            {user?.allergies && user.allergies.length > 0 ? (
+              <View style={styles.tagsRow}>
+                {user.allergies.map((a) => (
+                  <View key={a} style={styles.allergyTag}>
+                    <Text style={styles.allergyTagText}>{a}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.tagNoneText}>No known drug allergies reported</Text>
+            )}
+
+            <Text style={[styles.tagSectionLabel, { marginTop: 8 }]}>
+              Chronic Conditions:
+            </Text>
+            {user?.chronicConditions && user.chronicConditions.length > 0 ? (
+              <View style={styles.tagsRow}>
+                {user.chronicConditions.map((c) => (
+                  <View key={c} style={styles.conditionTag}>
+                    <Text style={styles.conditionTagText}>{c}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.tagNoneText}>None reported</Text>
+            )}
+          </View>
+
+          {/* Emergency Contacts Button (Task 3) */}
+          <Pressable
+            style={styles.manageContactsBtn}
+            onPress={() => setContactsModalVisible(true)}
+          >
+            <View style={styles.manageContactsBtnLeft}>
+              <Ionicons name="people" size={18} color="#2563EB" />
+              <Text style={styles.manageContactsBtnText}>
+                Emergency Contacts ({contacts.length})
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#2563EB" />
+          </Pressable>
+        </Card>
+
+        {/* 4. Past Emergency SOS History (Task 8) */}
+        {emergencies.length > 0 ? (
+          <Card style={styles.historyCard}>
+            <Pressable
+              style={styles.historyHeader}
+              onPress={() => setHistoryExpanded(!historyExpanded)}
+            >
+              <View style={styles.historyHeaderLeft}>
+                <Ionicons name="time" size={18} color="#2563EB" />
+                <Text style={styles.historyTitle}>
+                  Emergency SOS History ({emergencies.length})
+                </Text>
+              </View>
+              <Ionicons
+                name={historyExpanded ? "chevron-up" : "chevron-down"}
+                size={18}
+                color={Palette.textMuted}
+              />
+            </Pressable>
+
+            {historyExpanded ? (
+              <View style={styles.historyList}>
+                {emergencies.map((emg) => (
+                  <View key={emg._id} style={styles.historyItem}>
+                    <View style={styles.historyItemTop}>
+                      <Text style={styles.historyCode}>{emg.emergencyCode}</Text>
+                      <View
+                        style={[
+                          styles.historyStatusBadge,
+                          emg.status === "resolved"
+                            ? styles.statusResolved
+                            : emg.status === "cancelled"
+                            ? styles.statusCancelled
+                            : styles.statusActive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.historyStatusText,
+                            emg.status === "resolved"
+                              ? styles.statusTextResolved
+                              : emg.status === "cancelled"
+                              ? styles.statusTextCancelled
+                              : styles.statusTextActive,
+                          ]}
+                        >
+                          {emg.status.toUpperCase().replace("_", " ")}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.historyDate}>
+                      {new Date(emg.createdAt).toLocaleDateString()} at{" "}
+                      {new Date(emg.createdAt).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </Text>
+                    <Text style={styles.historyType}>
+                      Nature: {emg.emergencyType.toUpperCase().replace("_", " ")}
+                    </Text>
+                    {emg.ambulance?.isDispatched ? (
+                      <Text style={styles.historyAmbulance}>
+                        Ambulance: {emg.ambulance.vehicleNumber} (Driver:{" "}
+                        {emg.ambulance.driverName})
+                      </Text>
+                    ) : null}
+                    {emg.resolutionDetails?.outcome ? (
+                      <Text style={styles.historyOutcome}>
+                        Outcome: {emg.resolutionDetails.outcome}
+                      </Text>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </Card>
+        ) : null}
+
         {/* National Emergency Helplines Quick Dial */}
         <Card style={styles.nationalHelplineCard}>
           <View style={styles.helplineHeader}>
@@ -835,6 +1071,23 @@ export default function EmergencyScreen() {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {/* Emergency Confirmation Modal */}
+      <EmergencySosModal
+        visible={sosModalVisible}
+        onClose={() => setSosModalVisible(false)}
+        onConfirm={handleConfirmSOS}
+        loading={triggering}
+      />
+
+      {/* Emergency Contacts Management Modal */}
+      <EmergencyContactsModal
+        visible={contactsModalVisible}
+        onClose={() => setContactsModalVisible(false)}
+        contacts={contacts}
+        onSaveContact={saveContact}
+        onDeleteContact={removeContact}
+      />
     </SafeAreaView>
   );
 }
@@ -1385,5 +1638,319 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.8,
+  },
+  // Phase 7 SOS Styles
+  sosHeroCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: Radius.xl,
+    padding: Spacing.xl,
+    alignItems: "center",
+    marginBottom: Spacing.md,
+    borderWidth: 2,
+    borderColor: "#FCA5A5",
+    ...Shadows.md,
+  },
+  sosHeroHeader: {
+    alignItems: "center",
+    marginBottom: Spacing.lg,
+  },
+  sosLiveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FEE2E2",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 4,
+    borderRadius: Radius.pill,
+    marginBottom: Spacing.xs,
+  },
+  pulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#DC2626",
+  },
+  sosLiveBadgeText: {
+    fontSize: 11,
+    fontWeight: "900",
+    color: "#DC2626",
+    letterSpacing: 0.5,
+  },
+  sosHeroSubtitle: {
+    fontSize: 13,
+    color: Palette.textMuted,
+    textAlign: "center",
+    maxWidth: 320,
+  },
+  giantSosButton: {
+    marginVertical: Spacing.xs,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  giantSosButtonPressed: {
+    transform: [{ scale: 0.96 }],
+  },
+  sosButtonRing: {
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: "#FEE2E2",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 6,
+    borderColor: "#FECACA",
+  },
+  sosButtonCore: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    backgroundColor: "#DC2626",
+    alignItems: "center",
+    justifyContent: "center",
+    ...Shadows.lg,
+  },
+  sosButtonText: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#FFFFFF",
+    letterSpacing: 2,
+    marginTop: -2,
+  },
+  sosButtonSub: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#FEE2E2",
+    letterSpacing: 0.5,
+  },
+  sosProtectionRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+  },
+  protectionPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+    borderColor: Palette.border,
+  },
+  protectionPillText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Palette.text,
+  },
+  medicalVitalsCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Palette.border,
+  },
+  vitalsHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.sm,
+  },
+  vitalsHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  vitalsTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: Palette.text,
+  },
+  bloodGroupBadge: {
+    backgroundColor: "#FEE2E2",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: Radius.sm,
+  },
+  bloodGroupText: {
+    fontSize: 11,
+    fontWeight: "900",
+    color: "#DC2626",
+  },
+  vitalsGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: Spacing.sm,
+    paddingBottom: Spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: Palette.border,
+  },
+  vitalCol: {
+    flex: 1,
+  },
+  vitalLabel: {
+    fontSize: 12,
+    color: Palette.textMuted,
+  },
+  vitalVal: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Palette.text,
+    marginTop: 2,
+  },
+  tagsContainer: {
+    marginBottom: Spacing.sm,
+  },
+  tagSectionLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Palette.textMuted,
+  },
+  tagsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 4,
+  },
+  allergyTag: {
+    backgroundColor: "#FEE2E2",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.sm,
+  },
+  allergyTagText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#B91C1C",
+  },
+  conditionTag: {
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.sm,
+  },
+  conditionTagText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#1E40AF",
+  },
+  tagNoneText: {
+    fontSize: 12,
+    color: Palette.textMuted,
+    fontStyle: "italic",
+    marginTop: 2,
+  },
+  manageContactsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#EFF6FF",
+    padding: Spacing.sm,
+    borderRadius: Radius.md,
+    marginTop: Spacing.xs,
+  },
+  manageContactsBtnLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  manageContactsBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#2563EB",
+  },
+  historyCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Palette.border,
+  },
+  historyHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  historyHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  historyTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: Palette.text,
+  },
+  historyList: {
+    marginTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Palette.border,
+    paddingTop: Spacing.xs,
+  },
+  historyItem: {
+    paddingVertical: Spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: Palette.border,
+  },
+  historyItemTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  historyCode: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: Palette.text,
+  },
+  historyStatusBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: Radius.sm,
+  },
+  statusResolved: {
+    backgroundColor: "#ECFDF5",
+  },
+  statusCancelled: {
+    backgroundColor: "#F1F5F9",
+  },
+  statusActive: {
+    backgroundColor: "#FEF2F2",
+  },
+  historyStatusText: {
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  statusTextResolved: {
+    color: "#059669",
+  },
+  statusTextCancelled: {
+    color: Palette.textMuted,
+  },
+  statusTextActive: {
+    color: "#DC2626",
+  },
+  historyDate: {
+    fontSize: 10,
+    color: Palette.textMuted,
+    marginTop: 2,
+  },
+  historyType: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Palette.text,
+    marginTop: 2,
+  },
+  historyAmbulance: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#2563EB",
+    marginTop: 2,
+  },
+  historyOutcome: {
+    fontSize: 12,
+    color: "#059669",
+    marginTop: 2,
   },
 });

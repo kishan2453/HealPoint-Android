@@ -538,6 +538,7 @@ export default function DoctorPortal() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
+  const [activeEmergencyAlerts, setActiveEmergencyAlerts] = useState([]);
 
   useEffect(() => {
     if (!profileMenuOpen) return;
@@ -626,6 +627,16 @@ export default function DoctorPortal() {
       }, 400);
     };
 
+    // Fetch existing active hospital emergencies for doctor view
+    api
+      .get("/emergency/hospital?status=active&limit=5")
+      .then((res) => {
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          setActiveEmergencyAlerts(res.data.data);
+        }
+      })
+      .catch(() => {});
+
     const unsubscribe = subscribeDoctorSync({
       onAppointmentSync: () => triggerDebouncedRefresh(),
       onQueueSync: () => triggerDebouncedRefresh(),
@@ -633,6 +644,38 @@ export default function DoctorPortal() {
       onNotification: (notif) => {
         fetchUnreadCount();
         if (notif?.title) toast.info(notif.title);
+      },
+      onEmergencyAlert: (alertData) => {
+        if (alertData) {
+          setActiveEmergencyAlerts((prev) => {
+            const exists = prev.some(
+              (item) =>
+                (item.emergencyCode && item.emergencyCode === alertData.emergencyCode) ||
+                (item._id && item._id === alertData._id)
+            );
+            if (exists) return prev;
+            return [alertData, ...prev];
+          });
+          toast.error(
+            `🚨 EMERGENCY SOS: ${alertData.emergencyCode || "ALERT"} - ${
+              alertData.patientSnapshot?.name || alertData.patientName || "Patient in Emergency"
+            } (${alertData.emergencyType?.toUpperCase() || "CRITICAL"})`,
+            { autoClose: 12000 }
+          );
+        }
+      },
+      onEmergencyStatus: (statusData) => {
+        if (statusData?.emergencyId) {
+          setActiveEmergencyAlerts((prev) =>
+            prev
+              .map((item) =>
+                item._id === statusData.emergencyId || item.emergencyCode === statusData.emergencyCode
+                  ? { ...item, status: statusData.status, ambulance: statusData.ambulance || item.ambulance }
+                  : item
+              )
+              .filter((item) => item.status !== "resolved" && item.status !== "cancelled")
+          );
+        }
       },
     });
 
@@ -1072,6 +1115,90 @@ export default function DoctorPortal() {
             </div>
           </div>
         </div>
+
+        {/* Doctor Emergency SOS Real-time Alert Banner */}
+        {activeEmergencyAlerts.length > 0 && (
+          <div
+            style={{
+              margin: "16px 24px 0 24px",
+              backgroundColor: "#FEF2F2",
+              border: "2px solid #EF4444",
+              borderRadius: 12,
+              padding: "16px 20px",
+              boxShadow: "0 4px 12px rgba(239, 68, 68, 0.15)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span
+                  style={{
+                    backgroundColor: "#EF4444",
+                    color: "#FFFFFF",
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    fontWeight: "700",
+                    fontSize: 12,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  <FaExclamationTriangle /> EMERGENCY SOS ({activeEmergencyAlerts.length})
+                </span>
+                <div>
+                  <strong style={{ color: "#991B1B", fontSize: 15, display: "block" }}>
+                    Active Patient Emergency: {activeEmergencyAlerts[0].emergencyCode}
+                  </strong>
+                  <span style={{ color: "#B91C1C", fontSize: 13 }}>
+                    Patient: {activeEmergencyAlerts[0].patientSnapshot?.name || "Patient in Emergency"}
+                    {activeEmergencyAlerts[0].emergencyType ? ` | Type: ${activeEmergencyAlerts[0].emergencyType.toUpperCase()}` : ""}
+                    {activeEmergencyAlerts[0].patientSnapshot?.phone ? ` | Ph: ${activeEmergencyAlerts[0].patientSnapshot.phone}` : ""}
+                    {activeEmergencyAlerts[0].ambulance?.status ? ` | Ambulance: ${activeEmergencyAlerts[0].ambulance.status.toUpperCase()}` : ""}
+                  </span>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {activeEmergencyAlerts[0].location?.latitude && activeEmergencyAlerts[0].location?.longitude && (
+                  <a
+                    href={`https://maps.google.com/?q=${activeEmergencyAlerts[0].location.latitude},${activeEmergencyAlerts[0].location.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      padding: "6px 14px",
+                      backgroundColor: "#DC2626",
+                      color: "#FFFFFF",
+                      borderRadius: 6,
+                      textDecoration: "none",
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    Open GPS Map
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveEmergencyAlerts((prev) => prev.slice(1));
+                  }}
+                  style={{
+                    padding: "6px 12px",
+                    backgroundColor: "#FFFFFF",
+                    color: "#7F1D1D",
+                    border: "1px solid #FCA5A5",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                >
+                  Acknowledge
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <header className="dp-header">
           <div className="dp-header-content">
             <div>

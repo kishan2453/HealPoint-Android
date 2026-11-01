@@ -18,6 +18,15 @@ const userSchema = new mongoose.Schema(
       phone: { type: String, default: "" },
       relation: { type: String, default: "" },
     },
+    emergencyContacts: [
+      {
+        name: { type: String, required: true },
+        phone: { type: String, required: true },
+        relation: { type: String, default: "" },
+        isPrimary: { type: Boolean, default: false },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
     role: {
       type: String,
       enum: [

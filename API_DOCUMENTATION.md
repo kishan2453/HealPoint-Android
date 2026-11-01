@@ -749,3 +749,156 @@
   - **Auth**: Bearer Token
   - **Body**: `{ "token": "..." }`
   - **Response (200)**: `{ "success": true, "message": "Push token removed successfully" }`
+
+---
+
+## 7. Phase 7: Emergency SOS & Emergency Services API
+
+### A. Patient SOS & Emergency Tracking
+
+#### 1. Trigger Emergency SOS
+- **POST** `/api/v1/emergency/sos` (Alias: `/create`)
+  - **Auth**: Bearer Token (Patient)
+  - **Body**:
+    ```json
+    {
+      "emergencyType": "cardiac",
+      "severity": "critical",
+      "notes": "Severe chest tightness and breathing difficulty",
+      "location": {
+        "latitude": 23.0225,
+        "longitude": 72.5714,
+        "address": "Navrangpura, Ahmedabad, Gujarat"
+      },
+      "hospitalId": "60c72b2f9b1d8b2badbee5a1"
+    }
+    ```
+  - **Behavior**: If patient already has an active emergency (`pending`, `accepted`, `in_progress`), updates coordinates and returns existing case.
+  - **Response (201 / 200)**:
+    ```json
+    {
+      "success": true,
+      "message": "Emergency SOS triggered successfully! Help is on the way.",
+      "data": {
+        "_id": "...",
+        "emergencyCode": "EMG-1730448000000-8F9E",
+        "status": "pending",
+        "emergencyType": "cardiac",
+        "severity": "critical",
+        "location": { "latitude": 23.0225, "longitude": 72.5714 },
+        "patientSnapshot": { "name": "Kishan Patel", "phone": "9876543210", "bloodGroup": "B+" },
+        "createdAt": "2026-11-01T10:00:00.000Z"
+      }
+    }
+    ```
+
+#### 2. Get Active Patient Emergency
+- **GET** `/api/v1/emergency/active`
+  - **Auth**: Bearer Token (Patient)
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "active": true,
+      "data": {
+        "emergencyCode": "EMG-1730448000000-8F9E",
+        "status": "accepted",
+        "ambulance": {
+          "vehicleNumber": "GJ-01-HP-108",
+          "driverName": "Ramesh Kumar",
+          "driverPhone": "9876500001",
+          "etaMinutes": 8,
+          "status": "en_route"
+        }
+      }
+    }
+    ```
+
+#### 3. Patient Emergency History
+- **GET** `/api/v1/emergency/my-history`
+  - **Auth**: Bearer Token (Patient)
+  - **Response (200)**: `{ "success": true, "data": [ ... ] }`
+
+#### 4. Cancel Emergency Request
+- **POST** `/api/v1/emergency/:id/cancel`
+  - **Auth**: Bearer Token (Patient / Hospital Staff)
+  - **Body**: `{ "reason": "Patient stable / accidental click" }`
+  - **Response (200)**: `{ "success": true, "message": "Emergency request cancelled successfully" }`
+
+### B. Emergency Contacts Management
+
+#### 1. Get Emergency Contacts
+- **GET** `/api/v1/emergency/contacts`
+  - **Auth**: Bearer Token
+  - **Response (200)**: `{ "success": true, "data": [ { "name": "Papa", "phone": "9876543211", "relationship": "Father", "isPrimary": true } ] }`
+
+#### 2. Save / Update Emergency Contact
+- **POST** `/api/v1/emergency/contacts`
+  - **Auth**: Bearer Token
+  - **Body**: `{ "name": "Brother", "phone": "9876543212", "relationship": "Brother", "isPrimary": false }`
+  - **Response (200)**: `{ "success": true, "message": "Emergency contact saved successfully", "data": [ ... ] }`
+
+#### 3. Delete Emergency Contact
+- **DELETE** `/api/v1/emergency/contacts/:contactId`
+  - **Auth**: Bearer Token
+  - **Response (200)**: `{ "success": true, "message": "Emergency contact removed", "data": [ ... ] }`
+
+### C. Hospital Admin Emergency Operations
+
+#### 1. Get Hospital Emergency Queue
+- **GET** `/api/v1/emergency/hospital?status=active`
+  - **Auth**: Bearer Token (Hospital Admin / Staff)
+  - **Isolation**: Strictly scoped to admin's `hospitalId`.
+
+#### 2. Update Emergency Status
+- **PATCH** `/api/v1/emergency/:id/status` (Alias: `POST /:id/status`)
+  - **Auth**: Bearer Token (Hospital Staff)
+  - **Body**:
+    ```json
+    {
+      "status": "resolved",
+      "clinicalNotes": "Patient treated and admitted in ICU Room 204",
+      "outcome": "Admitted in Stable Condition"
+    }
+    ```
+
+#### 3. Dispatch Ambulance
+- **POST** `/api/v1/emergency/:id/ambulance`
+  - **Auth**: Bearer Token (Hospital Admin)
+  - **Body**:
+    ```json
+    {
+      "vehicleNumber": "GJ-01-HP-108",
+      "driverName": "Ramesh Kumar",
+      "driverPhone": "9876500001",
+      "etaMinutes": 10
+    }
+    ```
+
+### D. Super Admin Platform Emergency Overview
+
+#### 1. Platform-wide Emergency Telemetry
+- **GET** `/api/v1/emergency/superadmin/overview`
+  - **Auth**: Bearer Token (Super Admin)
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "stats": {
+        "total": 42,
+        "active": 3,
+        "resolved": 35,
+        "cancelled": 4,
+        "byType": [{ "type": "cardiac", "count": 18 }, { "type": "accident", "count": 12 }],
+        "byHospital": [{ "hospitalName": "HealPoint Apex Hospital", "count": 22 }]
+      },
+      "recentEmergencies": [ ... ]
+    }
+    ```
+
+### E. Socket.IO Real-Time Emergency Events
+
+- **`emergency:alert`**: Broadcast when a new SOS is dispatched or accepted.
+  - Broadcast to: `hospital:<hospitalId>`, `room:super_admin`, `doctor:<doctorId>`.
+- **`emergency:status`**: Broadcast when emergency status or ambulance coordinates update.
+  - Broadcast to: `user:<patientId>`, `hospital:<hospitalId>`, `room:super_admin`.

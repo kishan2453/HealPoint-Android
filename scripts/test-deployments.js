@@ -54,6 +54,7 @@ async function run() {
     '/home',
     '/all-doctors',
     '/appointments',
+    '/emergencies',
     '/system-health',
     '/audit-logs',
     '/notifications',

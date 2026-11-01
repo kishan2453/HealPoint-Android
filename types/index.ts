@@ -7144,3 +7144,111 @@ export interface RecoveryVerificationResult {
   fallbackAvailable: boolean;
   verifiedAt: string;
 }
+
+// ============================================================================
+// Phase 7: Emergency SOS & Emergency Services Types
+// ============================================================================
+
+export type EmergencyType =
+  | "cardiac"
+  | "respiratory"
+  | "accident"
+  | "stroke"
+  | "pregnancy"
+  | "severe_pain"
+  | "other";
+
+export type EmergencyStatus =
+  | "pending"
+  | "accepted"
+  | "in_progress"
+  | "resolved"
+  | "cancelled";
+
+export interface EmergencyLocation {
+  latitude?: number;
+  longitude?: number;
+  address?: string;
+  accuracy?: number;
+  sharedAt?: string;
+}
+
+export interface EmergencyContactItem {
+  _id?: string;
+  name: string;
+  phone: string;
+  relation?: string;
+  isPrimary?: boolean;
+}
+
+export interface AmbulanceDetails {
+  isDispatched?: boolean;
+  vehicleNumber?: string;
+  driverName?: string;
+  driverPhone?: string;
+  etaMinutes?: number;
+  dispatchedAt?: string;
+}
+
+export interface EmergencyStatusHistoryItem {
+  status: EmergencyStatus;
+  updatedBy?: string;
+  role?: string;
+  timestamp?: string;
+  note?: string;
+}
+
+export interface EmergencyRequest {
+  _id: string;
+  emergencyCode: string;
+  patientId: string | { _id: string; name: string; email?: string; phone?: string; image?: string; bloodGroup?: string };
+  hospitalId?: string | { _id: string; name: string; phone?: string; address?: string; emergency?: string; rating?: number };
+  assignedDoctorId?: string | { _id: string; name: string; speciality?: string; phone?: string; image?: string };
+  status: EmergencyStatus;
+  emergencyType: EmergencyType;
+  severity: "critical" | "high" | "medium";
+  notes?: string;
+  location: EmergencyLocation;
+  patientSnapshot: {
+    name: string;
+    phone: string;
+    age?: number;
+    gender?: string;
+    bloodGroup?: string;
+    allergies?: string[];
+    chronicConditions?: string[];
+  };
+  emergencyContacts: EmergencyContactItem[];
+  ambulance: AmbulanceDetails;
+  statusHistory: EmergencyStatusHistoryItem[];
+  resolutionDetails?: {
+    resolvedBy?: string;
+    resolvedAt?: string;
+    clinicalNotes?: string;
+    outcome?: string;
+  };
+  cancellationDetails?: {
+    cancelledBy?: string;
+    cancelledAt?: string;
+    reason?: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TriggerEmergencyPayload {
+  hospitalId?: string;
+  emergencyType?: EmergencyType;
+  severity?: "critical" | "high" | "medium";
+  notes?: string;
+  location?: EmergencyLocation;
+  emergencyContacts?: EmergencyContactItem[];
+}
+
+export interface EmergencyResponse {
+  success: boolean;
+  message: string;
+  data: EmergencyRequest;
+  isExisting?: boolean;
+}
+

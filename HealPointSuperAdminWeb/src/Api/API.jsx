@@ -14,18 +14,36 @@ const API = axios.create({
   baseURL: API_BASE_URL,
 });
 
+function isJwtExpired(token) {
+  try {
+    const raw = (token || "").replace(/^Bearer\s+/i, "");
+    const parts = raw.split(".");
+    if (parts.length !== 3) return false;
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(atob(base64));
+    if (payload && typeof payload.exp === "number") {
+      return payload.exp < Date.now() / 1000;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 API.interceptors.request.use(
-  async (config) => {
+  (config) => {
     try {
-      const localData = await localStorage.getItem("appData");
-      const appData = JSON.parse(localData);
-      if (appData?.token) {
-        config.headers.Authorization = appData.token.startsWith("Bearer ")
-          ? appData.token
-          : `Bearer ${appData.token}`;
+      const localData = localStorage.getItem("appData");
+      if (localData) {
+        const appData = JSON.parse(localData);
+        if (appData?.token) {
+          config.headers.Authorization = appData.token.startsWith("Bearer ")
+            ? appData.token
+            : `Bearer ${appData.token}`;
+        }
       }
     } catch {
-      localStorage.removeItem("appData");
+      // ignore
     }
     return config;
   },
@@ -38,10 +56,20 @@ API.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error?.response?.status === 401) {
-      localStorage.removeItem("appData");
-      sessionStorage.clear();
-      if (typeof window !== "undefined" && window.location.pathname !== "/") {
-        window.location.replace("/");
+      try {
+        const localData = localStorage.getItem("appData");
+        const appData = localData ? JSON.parse(localData) : null;
+        const token = appData?.token;
+        const msg = String(error?.response?.data?.message || "");
+        if (!token || isJwtExpired(token) || /expired|invalid/i.test(msg)) {
+          localStorage.removeItem("appData");
+          sessionStorage.clear();
+          if (typeof window !== "undefined" && window.location.pathname !== "/") {
+            window.location.replace("/");
+          }
+        }
+      } catch {
+        // ignore
       }
     }
     return Promise.reject(error);

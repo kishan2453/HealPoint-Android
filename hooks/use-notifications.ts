@@ -7,6 +7,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useAuth } from "@/hooks/use-auth";
 import { useScreenFocus } from "@/hooks/use-screen-focus";
 import * as notificationService from "@/services/notifications";
 import { subscribeToNotificationSync } from "@/services/socket";
@@ -17,10 +18,15 @@ interface UseNotificationBadgeOptions {
 }
 
 export function useNotificationBadge(options?: UseNotificationBadgeOptions) {
+  const { isAuthenticated, isLoading } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   const inFlightRef = useRef(false);
 
   const load = useCallback(async () => {
+    if (isLoading || !isAuthenticated) {
+      setUnreadCount(0);
+      return;
+    }
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     try {
@@ -32,7 +38,7 @@ export function useNotificationBadge(options?: UseNotificationBadgeOptions) {
     } finally {
       inFlightRef.current = false;
     }
-  }, []);
+  }, [isAuthenticated, isLoading]);
 
   useEffect(() => {
     load();

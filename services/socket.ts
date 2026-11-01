@@ -257,3 +257,40 @@ export function subscribeToReviewSync(
     socketInstance?.off("review:sync", handler);
   };
 }
+
+export interface EmergencySyncPayload {
+  emergencyId?: string;
+  emergencyCode?: string;
+  status?: string;
+  emergencyType?: string;
+  severity?: string;
+  location?: unknown;
+  patientSnapshot?: unknown;
+  ambulance?: unknown;
+  timestamp?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Subscribe to real-time Emergency SOS status updates and alerts.
+ */
+export function subscribeToEmergencyStatus(
+  callback: (payload: EmergencySyncPayload) => void,
+): () => void {
+  if (!socketInstance) return () => {};
+
+  const handler = (data: EmergencySyncPayload) => {
+    try {
+      callback(data);
+    } catch (e) {
+      console.error("[Socket.IO] Error handling emergency sync:", e);
+    }
+  };
+
+  socketInstance.on("emergency:status", handler);
+  socketInstance.on("emergency:alert", handler);
+  return () => {
+    socketInstance?.off("emergency:status", handler);
+    socketInstance?.off("emergency:alert", handler);
+  };
+}

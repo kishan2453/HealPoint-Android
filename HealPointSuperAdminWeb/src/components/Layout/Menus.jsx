@@ -16,6 +16,7 @@ import {
   FaUserTie,
   FaHeartbeat,
   FaSignOutAlt,
+  FaAmbulance,
 } from "react-icons/fa";
 import { hasPermission } from "../../utils/permissions";
 import HealPointBrandLogo from "../common/HealPointBrandLogo";
@@ -35,6 +36,12 @@ const NAV_GROUPS = [
         label: "Hospitals",
         icon: <FaHospital />,
         permission: "hospitals",
+      },
+      {
+        to: "/emergencies",
+        label: "Emergency SOS",
+        icon: <FaAmbulance />,
+        permission: "dashboard",
       },
     ],
   },
