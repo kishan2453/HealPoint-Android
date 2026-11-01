@@ -240,7 +240,7 @@ export default function DoctorDetailScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.container,
-          { paddingBottom: 110 + insets.bottom },
+          { paddingBottom: 130 + Math.max(insets.bottom, Spacing.md) },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -920,13 +920,16 @@ export default function DoctorDetailScreen() {
           <Text style={styles.bottomFeeLabel}>Consultation Fee</Text>
           <Text style={styles.bottomFeeValue}>{formatINR(doctor.fees)}</Text>
         </View>
-        <Button
-          title={available ? "Book Appointment" : "Currently Unavailable"}
-          icon="calendar"
-          onPress={openBooking}
-          disabled={!available}
-          style={styles.bottomButton}
-        />
+        <View style={styles.bottomButtonContainer}>
+          <Button
+            title={available ? "Book Appointment" : "Currently Unavailable"}
+            icon="calendar"
+            onPress={openBooking}
+            disabled={!available}
+            fullWidth={false}
+            style={styles.bottomButton}
+          />
+        </View>
       </View>
 
       <ReviewModal
@@ -1684,25 +1687,40 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: Palette.surface,
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingTop: Spacing.md,
     borderTopWidth: 1,
     borderTopColor: Palette.border,
+    zIndex: 9999,
+    elevation: 16,
     ...Shadows.navbar,
   },
   bottomFee: {
     gap: 2,
+    flexShrink: 0,
+    marginRight: Spacing.md,
   },
   bottomFeeLabel: {
     ...Typography.caption,
     color: Palette.textMuted,
+    fontSize: 11,
+    fontWeight: "500",
   },
   bottomFeeValue: {
     ...Typography.h3,
     color: Palette.primaryDark,
     fontWeight: "800",
+    fontSize: 20,
+    lineHeight: 24,
+  },
+  bottomButtonContainer: {
+    flex: 1,
+    maxWidth: 240,
+    alignItems: "flex-end",
   },
   bottomButton: {
-    minWidth: 180,
+    width: "100%",
+    minHeight: 48,
+    borderRadius: Radius.pill,
   },
   fabActive: {
     backgroundColor: Palette.primaryLight,

@@ -1,3 +1,19 @@
+
+## [Phase 11] - 2026-11-01
+### Added
+- **Official 3D HealPoint Branding**: Integrated user's exact official 3D logo across mobile app, splash, icons, and all three web portals (`HealPointDoctorWeb`, `HealPointHospitalAdminWeb`, `HealPointSuperAdminWeb`), replacing legacy SVG mocks.
+- **Care Continuity Backend Engine**: Implemented `GET /api/v1/appointment/patient/follow-ups` in `appointmentController.js` with active state machine and deterministic smart next actions.
+- **Care Community Hub**: Added `app/(drawer)/care-community.tsx` and backend `/api/v1/community` for authentic patient feedback, doctor insights, search, and category topics.
+- **Database Automated Backup & SHA-256 Manifest**: Created `scripts/backupDatabase.js` and `scripts/restoreDatabase.js` with automated 7-day retention rotation and SHA-256 checksum verification.
+- **Compound Performance Indexes**: Added performance indexes across `Appointment`, `Doctor`, `Hospital`, and `Review` schemas.
+
+### Fixed
+- **Doctor Profile Sticky Booking Button (Task 10)**: Corrected flex-row layout, set `fullWidth={false}`, `maxWidth: 240`, `minHeight: 48`, `elevation: 16`, and safe area insets to eliminate overlapping on Android.
+- **Hospital Card 0 Doctor Count (Task 11)**: Implemented real MongoDB aggregation in `getAllHospitals` and `compareHospitals` to populate actual active verified doctor counts for every hospital.
+- **Patient Side Menu Alphabetical Order (Task 12)**: Ensured Home is permanently #1, sorted all remaining visible items strictly A-Z, and kept Logout fixed at the bottom.
+- **Care Continuity 404 Resource Not Found (Task 13)**: Resolved missing `/appointment/patient/follow-ups` route, preventing the route fallback error.
+- **File Upload Security (Tasks 4 & 8)**: Added strict MIME type filtering (`image/jpeg`, `image/png`, `image/webp`, `application/pdf`) and 10MB limit.
+
 # HealPoint 2.0 — Changelog
 
 All notable changes across HealPoint 2.0 development phases are documented in this file.

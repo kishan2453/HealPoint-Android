@@ -13,4 +13,9 @@ const reviewSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Performance Optimization Compound Indexes
+reviewSchema.index({ doctorId: 1, isApproved: 1, createdAt: -1 });
+reviewSchema.index({ userId: 1, createdAt: -1 });
+
+
 export default mongoose.models.Review || mongoose.model("Review", reviewSchema);

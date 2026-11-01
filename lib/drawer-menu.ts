@@ -21,127 +21,137 @@ export interface DrawerMenuSection {
 }
 
 export function patientDrawerMenu(): DrawerMenuSection[] {
-  return [
+  const homeItem: DrawerMenuItem = {
+    label: "Home",
+    icon: "home-outline",
+    href: "/(drawer)" as Href,
+  };
+
+  const menuItems: DrawerMenuItem[] = [
     {
-      title: "Main",
-      items: [
-        { label: "Home", icon: "home-outline", href: "/(drawer)" as Href },
-        {
-          label: "My Appointments",
-          icon: "calendar-outline",
-          href: "/appointments" as Href,
-        },
-        {
-          label: "Recent Health Activity",
-          icon: "time-outline",
-          href: "/health/timeline" as Href,
-        },
-        {
-          label: "Health Document Center",
-          icon: "document-attach-outline",
-          href: "/health/documents" as Href,
-        },
-        {
-          label: "Medical Records",
-          icon: "folder-open-outline",
-          href: "/health/records" as Href,
-        },
-        {
-          label: "Prescriptions",
-          icon: "document-text-outline",
-          href: "/health/prescriptions" as Href,
-        },
-        {
-          label: "Reports",
-          icon: "bar-chart-outline",
-          href: "/health/reports" as Href,
-        },
-        {
-          label: "Digital Health Wallet",
-          icon: "wallet-outline",
-          href: "/health-wallet" as Href,
-        },
-        {
-          label: "Saved Doctors & Hospitals",
-          icon: "heart-outline",
-          href: "/favorites" as Href,
-        },
-        {
-          label: "Notifications",
-          icon: "notifications-outline",
-          href: "/notification" as Href,
-        },
-        {
-          label: "Help & Support",
-          icon: "help-buoy-outline",
-          href: "/support" as Href,
-        },
-        {
-          label: "Settings",
-          icon: "settings-outline",
-          href: "/settings" as Href,
-        },
-      ],
+      label: "Care Command Center",
+      icon: "pulse-outline",
+      href: "/command-center" as Href,
     },
     {
-      title: "Care Services",
-      items: [
-        {
-          label: "Emergency Help",
-          icon: "alert-circle-outline",
-          href: "/emergency" as Href,
-        },
-        {
-          label: "Care Command Center",
-          icon: "pulse-outline",
-          href: "/command-center" as Href,
-        },
-        {
-          label: "Smart Care Planner",
-          icon: "today-outline",
-          href: "/care-planner" as Href,
-        },
-        {
-          label: "Consult Online",
-          icon: "videocam-outline",
-          href: "/consult-online" as Href,
-        },
-        {
-          label: "Find Doctors",
-          icon: "search-outline",
-          href: "/doctors" as Href,
-        },
-        {
-          label: "Hospitals",
-          icon: "business-outline",
-          href: "/hospitals" as Href,
-        },
-        {
-          label: "Care Passport",
-          icon: "id-card-outline",
-          href: "/care-passport" as Href,
-        },
-        {
-          label: "Care Continuity",
-          icon: "repeat-outline",
-          href: "/care-continuity" as Href,
-        },
-        {
-          label: "Health Goals",
-          icon: "trophy-outline",
-          href: "/health/goals" as Href,
-        },
-        {
-          label: "Family Members",
-          icon: "people-outline",
-          href: "/health/family" as Href,
-        },
-        {
-          label: "Subscription & Plans",
-          icon: "shield-checkmark-outline",
-          href: "/subscription" as Href,
-        },
-      ],
+      label: "Care Community",
+      icon: "people-circle-outline",
+      href: "/care-community" as Href,
+    },
+    {
+      label: "Care Continuity",
+      icon: "repeat-outline",
+      href: "/care-continuity" as Href,
+    },
+    {
+      label: "Care Passport",
+      icon: "id-card-outline",
+      href: "/care-passport" as Href,
+    },
+    {
+      label: "Consult Online",
+      icon: "videocam-outline",
+      href: "/consult-online" as Href,
+    },
+    {
+      label: "Digital Health Wallet",
+      icon: "wallet-outline",
+      href: "/health-wallet" as Href,
+    },
+    {
+      label: "Emergency Help",
+      icon: "alert-circle-outline",
+      href: "/emergency" as Href,
+    },
+    {
+      label: "Family Members",
+      icon: "people-outline",
+      href: "/health/family" as Href,
+    },
+    {
+      label: "Find Doctors",
+      icon: "search-outline",
+      href: "/doctors" as Href,
+    },
+    {
+      label: "Health Document Center",
+      icon: "document-attach-outline",
+      href: "/health/documents" as Href,
+    },
+    {
+      label: "Health Goals",
+      icon: "trophy-outline",
+      href: "/health/goals" as Href,
+    },
+    {
+      label: "Help & Support",
+      icon: "help-buoy-outline",
+      href: "/support" as Href,
+    },
+    {
+      label: "Hospitals",
+      icon: "business-outline",
+      href: "/hospitals" as Href,
+    },
+    {
+      label: "Medical Records",
+      icon: "folder-open-outline",
+      href: "/health/records" as Href,
+    },
+    {
+      label: "My Appointments",
+      icon: "calendar-outline",
+      href: "/appointments" as Href,
+    },
+    {
+      label: "Notifications",
+      icon: "notifications-outline",
+      href: "/notification" as Href,
+    },
+    {
+      label: "Prescriptions",
+      icon: "document-text-outline",
+      href: "/health/prescriptions" as Href,
+    },
+    {
+      label: "Recent Health Activity",
+      icon: "time-outline",
+      href: "/health/timeline" as Href,
+    },
+    {
+      label: "Reports",
+      icon: "bar-chart-outline",
+      href: "/health/reports" as Href,
+    },
+    {
+      label: "Saved Doctors & Hospitals",
+      icon: "heart-outline",
+      href: "/favorites" as Href,
+    },
+    {
+      label: "Settings",
+      icon: "settings-outline",
+      href: "/settings" as Href,
+    },
+    {
+      label: "Smart Care Planner",
+      icon: "today-outline",
+      href: "/care-planner" as Href,
+    },
+    {
+      label: "Subscription & Plans",
+      icon: "shield-checkmark-outline",
+      href: "/subscription" as Href,
+    },
+  ];
+
+  // Guaranteed alphabetical sorting A-Z for all non-Home items
+  menuItems.sort((a, b) => a.label.localeCompare(b.label));
+
+  return [
+    {
+      title: "Menu",
+      items: [homeItem, ...menuItems],
     },
   ];
 }

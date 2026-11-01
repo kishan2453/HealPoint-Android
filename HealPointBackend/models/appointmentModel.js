@@ -109,4 +109,12 @@ const appointmentSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Performance Optimization Compound Indexes
+appointmentSchema.index({ userId: 1, createdAt: -1 });
+appointmentSchema.index({ doctorId: 1, slotDate: 1, slotTime: 1 });
+appointmentSchema.index({ hospitalId: 1, createdAt: -1 });
+appointmentSchema.index({ status: 1, paymentStatus: 1 });
+appointmentSchema.index({ familyMemberId: 1, status: 1 });
+
+
 export default mongoose.models.Appointment || mongoose.model("Appointment", appointmentSchema);

@@ -138,7 +138,7 @@ const Login = () => {
             style={{ background: "transparent", padding: 0 }}
           >
             <img
-              src="/healpoint-favicon.svg"
+              src="/logo.png"
               alt="HealPoint"
               width={56}
               height={56}

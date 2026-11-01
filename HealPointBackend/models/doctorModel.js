@@ -90,4 +90,10 @@ const doctorSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Performance Optimization Compound Indexes
+doctorSchema.index({ hospitalId: 1, isActive: 1, verificationStatus: 1 });
+doctorSchema.index({ speciality: 1, isActive: 1 });
+doctorSchema.index({ rating: -1, reviewCount: -1 });
+
+
 export default mongoose.models.Doctor || mongoose.model("Doctor", doctorSchema);

@@ -1,5 +1,6 @@
 import express from "express";
 import {
+  getPatientFollowUps,
   bookAppointment,
   createPaymentOrder,
   verifyAppointmentPayment,
@@ -32,6 +33,8 @@ router.post("/validate-slot/:doctorId", validateSlot);
 // Health Wallet & Medical History (MUST precede dynamic /:id route)
 router.get("/health-wallet", authenticate, getHealthWallet);
 router.get("/patient/medical-history", authenticate, getPatientMedicalHistory);
+router.get("/patient/follow-ups", authenticate, getPatientFollowUps);
+router.get("/patient/care-continuity", authenticate, getPatientFollowUps);
 router.get("/patient/medication-reminders", authenticate, getPatientMedicationReminders);
 router.post("/patient/medication-reminders/status", authenticate, updateMedicationDoseStatus);
 router.patch("/patient/medication-reminders/:reminderId/action", authenticate, updateMedicationDoseStatus);

@@ -46,4 +46,9 @@ const hospitalSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Performance Optimization Compound Indexes
+hospitalSchema.index({ isActive: 1, rating: -1, name: 1 });
+hospitalSchema.index({ "location.city": 1, isActive: 1 });
+
+
 export default mongoose.models.Hospital || mongoose.model("Hospital", hospitalSchema);

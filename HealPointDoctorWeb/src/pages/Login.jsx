@@ -280,7 +280,7 @@ export default function Login() {
       <section className="login-card doctor-auth-card hp-auth-card">
         <div className="doctor-auth-brand hp-auth-brand">
           <img
-            src="/healpoint-favicon.svg"
+            src="/logo.png"
             alt="HealPoint"
             width={46}
             height={46}

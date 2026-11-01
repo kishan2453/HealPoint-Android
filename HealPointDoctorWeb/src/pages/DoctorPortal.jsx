@@ -935,7 +935,7 @@ export default function DoctorPortal() {
       <aside className="dp-sidebar">
         <div className="dp-brand">
           <img
-            src="/healpoint-favicon.svg"
+            src="/logo.png"
             alt="HealPoint"
             width={38}
             height={38}

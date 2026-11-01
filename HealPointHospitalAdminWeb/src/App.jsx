@@ -560,7 +560,7 @@ function Portal() {
             />
           ) : (
             <img
-              src="/healpoint-favicon.svg"
+              src="/logo.png"
               alt="HealPoint"
               width={38}
               height={38}
