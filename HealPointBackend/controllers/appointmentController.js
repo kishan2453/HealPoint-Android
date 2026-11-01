@@ -7,6 +7,7 @@ import healthDocumentModel from "../models/healthDocumentModel.js";
 import subscriptionModel from "../models/subscriptionModel.js";
 import { createRazorpayOrder, verifyPaymentSignature } from "../services/razorpayService.js";
 import { processAppointmentReminders } from "../services/reminderScheduler.js";
+import { dispatchNotification } from "../services/socketService.js";
 import {
   generateDoctorSlotsForDate,
   getHourlyBookingCount,
@@ -170,6 +171,52 @@ export const bookAppointment = async (req, res) => {
       }
     }
 
+        // Trigger real notifications to Patient, Doctor, and Hospital
+    try {
+      dispatchNotification({
+        userId: req.user.id,
+        recipientRole: "patient",
+        title: "Appointment Booked",
+        message: `Your appointment with Dr. ${doctor.name} on ${slotDate} at ${slotTime} has been successfully placed.`,
+        type: "appointment",
+        category: "appointment",
+        priority: "normal",
+        link: `/appointment/${newAppointment._id}`,
+        refId: newAppointment._id.toString(),
+        refModel: "Appointment",
+        meta: { appointmentId: newAppointment.appointmentId, doctorId: doctor._id.toString(), slotDate, slotTime },
+      }).catch(() => {});
+
+      dispatchNotification({
+        doctorId: doctor._id,
+        recipientRole: "doctor",
+        title: "New Appointment Booked",
+        message: `${finalPatientName} has booked an appointment for ${slotDate} at ${slotTime}.`,
+        type: "appointment",
+        category: "appointment",
+        priority: "normal",
+        link: `/doctor/appointments`,
+        refId: newAppointment._id.toString(),
+        refModel: "Appointment",
+        meta: { appointmentId: newAppointment.appointmentId, userId: req.user.id, slotDate, slotTime },
+      }).catch(() => {});
+
+      if (finalHospitalId) {
+        dispatchNotification({
+          hospitalId: finalHospitalId,
+          recipientRole: "hospital_admin",
+          title: "New OPD Booking",
+          message: `${finalPatientName} booked with Dr. ${doctor.name} on ${slotDate} at ${slotTime}.`,
+          type: "appointment",
+          category: "appointment",
+          priority: "normal",
+          link: `/admin/appointments`,
+          refId: newAppointment._id.toString(),
+          refModel: "Appointment",
+        }).catch(() => {});
+      }
+    } catch (err) {}
+
     res.status(201).json({
       success: true,
       message: "Appointment booked successfully",
@@ -293,6 +340,34 @@ export const verifyAppointmentPayment = async (req, res) => {
     appointment.razorpayOrderId = orderId;
     await appointment.save();
 
+        try {
+      dispatchNotification({
+        userId: appointment.userId,
+        recipientRole: "patient",
+        title: "Payment Confirmed",
+        message: `Payment of ₹${appointment.amount} for appointment #${appointment.displayAppointmentId || appointment.appointmentId} was successful.`,
+        type: "payment",
+        category: "payment",
+        priority: "normal",
+        link: `/appointment/${appointment._id}`,
+        refId: appointment._id.toString(),
+        refModel: "Appointment",
+      }).catch(() => {});
+
+      if (appointment.hospitalId) {
+        dispatchNotification({
+          hospitalId: appointment.hospitalId,
+          recipientRole: "hospital_admin",
+          title: "Payment Received",
+          message: `Payment of ₹${appointment.amount} received for appointment #${appointment.displayAppointmentId || appointment.appointmentId}.`,
+          type: "payment",
+          category: "payment",
+          refId: appointment._id.toString(),
+          refModel: "Appointment",
+        }).catch(() => {});
+      }
+    } catch (err) {}
+
     res.status(200).json({
       success: true,
       message: "Payment verified successfully",
@@ -375,6 +450,34 @@ export const cancelAppointment = async (req, res) => {
     appointment.medicalNotes = (appointment.medicalNotes ? appointment.medicalNotes + "\n" : "") + `Cancelled: ${reason || "User request"}`;
     await appointment.save();
 
+    try {
+      dispatchNotification({
+        userId: appointment.userId,
+        recipientRole: "patient",
+        title: "Appointment Cancelled",
+        message: `Appointment #${appointment.displayAppointmentId || appointment.appointmentId} has been cancelled.`,
+        type: "appointment",
+        category: "appointment",
+        priority: "normal",
+        refId: appointment._id.toString(),
+        refModel: "Appointment",
+      }).catch(() => {});
+
+      if (appointment.doctorId) {
+        dispatchNotification({
+          doctorId: appointment.doctorId,
+          recipientRole: "doctor",
+          title: "Appointment Cancelled",
+          message: `Appointment for ${appointment.patientName} on ${appointment.slotDate} at ${appointment.slotTime} was cancelled.`,
+          type: "appointment",
+          category: "appointment",
+          priority: "normal",
+          refId: appointment._id.toString(),
+          refModel: "Appointment",
+        }).catch(() => {});
+      }
+    } catch (err) {}
+
     res.status(200).json({ success: true, message: "Appointment cancelled successfully", appointment });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -424,6 +527,34 @@ export const rescheduleAppointment = async (req, res) => {
         `Rescheduled: ${reason}`;
     }
     await appointment.save();
+
+    try {
+      dispatchNotification({
+        userId: appointment.userId,
+        recipientRole: "patient",
+        title: "Appointment Rescheduled",
+        message: `Your appointment has been rescheduled to ${slotDate} at ${slotTime}.`,
+        type: "appointment",
+        category: "appointment",
+        priority: "normal",
+        refId: appointment._id.toString(),
+        refModel: "Appointment",
+      }).catch(() => {});
+
+      if (appointment.doctorId) {
+        dispatchNotification({
+          doctorId: appointment.doctorId,
+          recipientRole: "doctor",
+          title: "Appointment Rescheduled",
+          message: `Appointment for ${appointment.patientName} was rescheduled to ${slotDate} at ${slotTime}.`,
+          type: "appointment",
+          category: "appointment",
+          priority: "normal",
+          refId: appointment._id.toString(),
+          refModel: "Appointment",
+        }).catch(() => {});
+      }
+    } catch (err) {}
 
     res.status(200).json({ success: true, message: "Appointment rescheduled successfully", appointment });
   } catch (error) {
@@ -499,6 +630,40 @@ export const updateAppointmentStatus = async (req, res) => {
     if (medicalNotes) appointment.medicalNotes = medicalNotes;
     if (meetingUrl) appointment.meetingUrl = meetingUrl;
     await appointment.save();
+
+    try {
+      if (appointment.userId && status) {
+        const statusTitle =
+          status === "confirmed"
+            ? "Appointment Confirmed"
+            : status === "completed"
+            ? "Consultation Completed"
+            : status === "cancel"
+            ? "Appointment Cancelled by Clinic"
+            : "Appointment Status Updated";
+
+        const statusMsg =
+          status === "confirmed"
+            ? `Your appointment on ${appointment.slotDate} at ${appointment.slotTime} has been confirmed.`
+            : status === "completed"
+            ? `Your consultation has concluded successfully.`
+            : status === "cancel"
+            ? `Your appointment on ${appointment.slotDate} at ${appointment.slotTime} was cancelled.`
+            : `Your appointment status has changed to ${status}.`;
+
+        dispatchNotification({
+          userId: appointment.userId,
+          recipientRole: "patient",
+          title: statusTitle,
+          message: statusMsg,
+          type: "appointment",
+          category: "appointment",
+          priority: status === "cancel" ? "high" : "normal",
+          refId: appointment._id.toString(),
+          refModel: "Appointment",
+        }).catch(() => {});
+      }
+    } catch (err) {}
 
     res.status(200).json({ success: true, message: "Appointment updated successfully", appointment });
   } catch (error) {

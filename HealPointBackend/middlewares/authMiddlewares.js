@@ -19,6 +19,10 @@ export const authenticate = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "healpoint_dev_secret_jwt_key_2026");
 
     req.user = decoded;
+    if (req.user) {
+      if (req.user.id && !req.user._id) req.user._id = req.user.id;
+      if (req.user._id && !req.user.id) req.user.id = req.user._id;
+    }
     next();
   } catch (error) {
     return res.status(401).json({ success: false, message: "Invalid or expired token", code: "UNAUTHORIZED" });
@@ -32,6 +36,10 @@ export const optionalAuth = (req, res, next) => {
       const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : authHeader.trim();
       const decoded = jwt.verify(token, process.env.JWT_SECRET || "healpoint_dev_secret_jwt_key_2026");
       req.user = decoded;
+      if (req.user) {
+        if (req.user.id && !req.user._id) req.user._id = req.user.id;
+        if (req.user._id && !req.user.id) req.user.id = req.user._id;
+      }
     }
   } catch (err) {
     // Ignore invalid token in optional auth
@@ -48,12 +56,8 @@ export const authorizeRoles = (...roles) => {
   };
 };
 
-export const enforceHospitalScope = (req, res, next) => {
-  if (req.user && req.user.role === "hospital_admin") {
-    if (!req.user.hospitalId) {
-      return res.status(403).json({ success: false, message: "Forbidden: No hospital associated with this admin" });
-    }
-    req.hospitalId = req.user.hospitalId;
-  }
-  next();
+export default {
+  authenticate,
+  optionalAuth,
+  authorizeRoles,
 };

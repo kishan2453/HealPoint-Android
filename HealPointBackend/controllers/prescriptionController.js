@@ -7,6 +7,7 @@ import hospitalModel from "../models/hospitalModel.js";
 import medicationReminderModel from "../models/medicationReminderModel.js";
 import healthDocumentModel from "../models/healthDocumentModel.js";
 import { generatePrescriptionPdfBuffer } from "../services/prescriptionPdfService.js";
+import { dispatchNotification } from "../services/socketService.js";
 
 // Helper to generate unique prescription reference number
 function generateRxNumber() {
@@ -334,6 +335,21 @@ export const issuePrescription = async (req, res) => {
       },
       { upsert: true }
     );
+
+        try {
+      dispatchNotification({
+        userId: prescription.userId,
+        recipientRole: "patient",
+        title: "Digital Prescription Issued",
+        message: `Dr. ${prescription.doctorName} has issued your official digital prescription (${prescription.medicines?.length || 0} medicines).`,
+        type: "prescription",
+        category: "prescription",
+        priority: "normal",
+        link: `/health/prescriptions`,
+        refId: prescription._id.toString(),
+        refModel: "Prescription",
+      }).catch(() => {});
+    } catch (err) {}
 
     return res.status(200).json({
       success: true,

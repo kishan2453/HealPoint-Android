@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import User from "../models/userModel.js";
 import Doctor from "../models/doctorModel.js";
 import Hospital from "../models/hospitalModel.js";
+import { dispatchNotification } from "../services/socketService.js";
 
 /**
  * Get Authenticated Patient's Favorite Doctors
@@ -10,7 +11,7 @@ import Hospital from "../models/hospitalModel.js";
  */
 export const getFavoriteDoctors = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?._id || req.user?.id;
     if (!userId) {
       return res.status(401).json({ success: false, message: "Authentication required" });
     }
@@ -29,15 +30,28 @@ export const getFavoriteDoctors = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // Filter out null or missing doctor records (e.g. if doctor was removed from system)
+    // Filter out null records and gracefully fall back to embedded fields if needed
     const formatted = (user.favorites || [])
-      .filter((item) => item && item.doctorId)
+      .filter((item) => item && (item.doctorId || item._id))
       .map((item) => {
-        const doc = item.doctorId.toObject ? item.doctorId.toObject() : item.doctorId;
+        const isPopulated = item.doctorId && typeof item.doctorId === "object" && item.doctorId._id;
+        const doc = isPopulated
+          ? (item.doctorId.toObject ? item.doctorId.toObject() : item.doctorId)
+          : {};
+        const docId = isPopulated
+          ? doc._id?.toString()
+          : (item.doctorId?.toString() || item._id?.toString());
         return {
           ...doc,
-          _id: doc._id?.toString() || item.doctorId?.toString(),
-          doctorId: doc._id?.toString() || item.doctorId?.toString(),
+          _id: docId,
+          doctorId: docId,
+          name: doc.name || item.doctorName || "Doctor",
+          speciality: doc.speciality || item.speciality || "General Physician",
+          image: doc.image || item.image || "",
+          fees: doc.fees !== undefined ? doc.fees : 500,
+          rating: doc.rating !== undefined ? doc.rating : 4.8,
+          experience: doc.experience || "10+ years",
+          hospitalName: doc.hospitalName || (doc.hospitalId?.name) || "HealPoint Clinic",
           addedAt: item.addedAt || user.updatedAt,
         };
       });
@@ -60,7 +74,7 @@ export const getFavoriteDoctors = async (req, res) => {
  */
 export const addFavoriteDoctor = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?._id || req.user?.id;
     const doctorId = req.params.doctorId || req.body.doctorId;
 
     if (!userId) {
@@ -98,14 +112,27 @@ export const addFavoriteDoctor = async (req, res) => {
         addedAt: new Date(),
       });
       await user.save();
+
+      // Dispatch in-app notification confirming addition
+      dispatchNotification({
+        userId: user._id,
+        recipientRole: "patient",
+        title: "Doctor Saved to Favorites",
+        message: `Dr. ${doctor.name} (${doctor.speciality || "Specialist"}) has been saved to your favorites.`,
+        type: "favorite",
+        category: "favorites",
+        refId: doctor._id.toString(),
+        refModel: "Doctor",
+        link: `/doctor/${doctor._id}`,
+        sendPush: false,
+      }).catch(() => {});
     }
 
     return res.status(200).json({
       success: true,
-      message: "Doctor saved to favorites successfully",
+      message: alreadyExists ? "Doctor is already in favorites" : "Doctor added to favorites",
       isFavorite: true,
       doctorId: doctor._id.toString(),
-      count: user.favorites.length,
     });
   } catch (error) {
     console.error("[addFavoriteDoctor] Error:", error);
@@ -120,15 +147,15 @@ export const addFavoriteDoctor = async (req, res) => {
  */
 export const removeFavoriteDoctor = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?._id || req.user?.id;
     const doctorId = req.params.doctorId || req.body.doctorId;
 
     if (!userId) {
       return res.status(401).json({ success: false, message: "Authentication required" });
     }
 
-    if (!doctorId || !mongoose.Types.ObjectId.isValid(doctorId)) {
-      return res.status(400).json({ success: false, message: "Invalid or missing doctor ID" });
+    if (!doctorId) {
+      return res.status(400).json({ success: false, message: "Doctor ID is required" });
     }
 
     const user = await User.findById(userId);
@@ -136,19 +163,24 @@ export const removeFavoriteDoctor = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    if (Array.isArray(user.favorites)) {
-      user.favorites = user.favorites.filter(
-        (f) => f.doctorId && f.doctorId.toString() !== doctorId.toString()
-      );
+    if (!Array.isArray(user.favorites)) {
+      user.favorites = [];
+    }
+
+    const initialLength = user.favorites.length;
+    user.favorites = user.favorites.filter(
+      (f) => f.doctorId && f.doctorId.toString() !== doctorId.toString()
+    );
+
+    if (user.favorites.length !== initialLength) {
       await user.save();
     }
 
     return res.status(200).json({
       success: true,
-      message: "Doctor removed from favorites successfully",
+      message: "Doctor removed from favorites",
       isFavorite: false,
       doctorId: doctorId.toString(),
-      count: (user.favorites || []).length,
     });
   } catch (error) {
     console.error("[removeFavoriteDoctor] Error:", error);
@@ -163,7 +195,7 @@ export const removeFavoriteDoctor = async (req, res) => {
  */
 export const getFavoriteHospitals = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?._id || req.user?.id;
     if (!userId) {
       return res.status(401).json({ success: false, message: "Authentication required" });
     }
@@ -179,13 +211,24 @@ export const getFavoriteHospitals = async (req, res) => {
     }
 
     const formatted = (user.favoriteHospitals || [])
-      .filter((item) => item && item.hospitalId)
+      .filter((item) => item && (item.hospitalId || item._id))
       .map((item) => {
-        const hosp = item.hospitalId.toObject ? item.hospitalId.toObject() : item.hospitalId;
+        const isPopulated = item.hospitalId && typeof item.hospitalId === "object" && item.hospitalId._id;
+        const hosp = isPopulated
+          ? (item.hospitalId.toObject ? item.hospitalId.toObject() : item.hospitalId)
+          : {};
+        const hospId = isPopulated
+          ? hosp._id?.toString()
+          : (item.hospitalId?.toString() || item._id?.toString());
         return {
           ...hosp,
-          _id: hosp._id?.toString() || item.hospitalId?.toString(),
-          hospitalId: hosp._id?.toString() || item.hospitalId?.toString(),
+          _id: hospId,
+          hospitalId: hospId,
+          name: hosp.name || "Hospital",
+          location: hosp.location || "Nearby",
+          rating: hosp.rating !== undefined ? hosp.rating : 4.8,
+          logo: hosp.logo || "",
+          image: hosp.coverImage || hosp.image || "",
           addedAt: item.addedAt || user.updatedAt,
         };
       });
@@ -208,7 +251,7 @@ export const getFavoriteHospitals = async (req, res) => {
  */
 export const addFavoriteHospital = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?._id || req.user?.id;
     const hospitalId = req.params.hospitalId || req.body.hospitalId;
 
     if (!userId) {
@@ -234,7 +277,7 @@ export const addFavoriteHospital = async (req, res) => {
     }
 
     const alreadyExists = user.favoriteHospitals.some(
-      (f) => f.hospitalId && f.hospitalId.toString() === hospitalId.toString()
+      (h) => h.hospitalId && h.hospitalId.toString() === hospitalId.toString()
     );
 
     if (!alreadyExists) {
@@ -243,14 +286,27 @@ export const addFavoriteHospital = async (req, res) => {
         addedAt: new Date(),
       });
       await user.save();
+
+      // Dispatch in-app notification confirming addition
+      dispatchNotification({
+        userId: user._id,
+        recipientRole: "patient",
+        title: "Hospital Saved to Favorites",
+        message: `${hospital.name} has been added to your favorites list.`,
+        type: "favorite",
+        category: "favorites",
+        refId: hospital._id.toString(),
+        refModel: "Hospital",
+        link: `/hospital/${hospital._id}`,
+        sendPush: false,
+      }).catch(() => {});
     }
 
     return res.status(200).json({
       success: true,
-      message: "Hospital saved to favorites successfully",
+      message: alreadyExists ? "Hospital is already in favorites" : "Hospital added to favorites",
       isFavorite: true,
       hospitalId: hospital._id.toString(),
-      count: user.favoriteHospitals.length,
     });
   } catch (error) {
     console.error("[addFavoriteHospital] Error:", error);
@@ -265,15 +321,15 @@ export const addFavoriteHospital = async (req, res) => {
  */
 export const removeFavoriteHospital = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?._id || req.user?.id;
     const hospitalId = req.params.hospitalId || req.body.hospitalId;
 
     if (!userId) {
       return res.status(401).json({ success: false, message: "Authentication required" });
     }
 
-    if (!hospitalId || !mongoose.Types.ObjectId.isValid(hospitalId)) {
-      return res.status(400).json({ success: false, message: "Invalid or missing hospital ID" });
+    if (!hospitalId) {
+      return res.status(400).json({ success: false, message: "Hospital ID is required" });
     }
 
     const user = await User.findById(userId);
@@ -281,19 +337,24 @@ export const removeFavoriteHospital = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    if (Array.isArray(user.favoriteHospitals)) {
-      user.favoriteHospitals = user.favoriteHospitals.filter(
-        (f) => f.hospitalId && f.hospitalId.toString() !== hospitalId.toString()
-      );
+    if (!Array.isArray(user.favoriteHospitals)) {
+      user.favoriteHospitals = [];
+    }
+
+    const initialLength = user.favoriteHospitals.length;
+    user.favoriteHospitals = user.favoriteHospitals.filter(
+      (h) => h.hospitalId && h.hospitalId.toString() !== hospitalId.toString()
+    );
+
+    if (user.favoriteHospitals.length !== initialLength) {
       await user.save();
     }
 
     return res.status(200).json({
       success: true,
-      message: "Hospital removed from favorites successfully",
+      message: "Hospital removed from favorites",
       isFavorite: false,
       hospitalId: hospitalId.toString(),
-      count: (user.favoriteHospitals || []).length,
     });
   } catch (error) {
     console.error("[removeFavoriteHospital] Error:", error);
@@ -302,13 +363,13 @@ export const removeFavoriteHospital = async (req, res) => {
 };
 
 /**
- * Get All Favorite Counts
+ * Get Total Favorites Counts
  * GET /api/v1/user/favorites/counts
  * GET /api/v1/favorites/counts
  */
 export const getFavoriteCounts = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?._id || req.user?.id;
     if (!userId) {
       return res.status(401).json({ success: false, message: "Authentication required" });
     }
@@ -334,18 +395,19 @@ export const getFavoriteCounts = async (req, res) => {
 };
 
 /**
- * Check Favorite Status for Doctor or Hospital
- * GET /api/v1/user/favorites/check?doctorId=...&hospitalId=...
- * GET /api/v1/favorites/check?doctorId=...&hospitalId=...
+ * Check if Doctor or Hospital is Favorited
+ * GET /api/v1/user/favorites/check
+ * GET /api/v1/favorites/check
  */
 export const checkFavoriteStatus = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?._id || req.user?.id;
+    const { doctorId, hospitalId } = req.query;
+
     if (!userId) {
       return res.status(401).json({ success: false, message: "Authentication required" });
     }
 
-    const { doctorId, hospitalId } = req.query;
     const user = await User.findById(userId).select("favorites favoriteHospitals");
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
@@ -362,7 +424,7 @@ export const checkFavoriteStatus = async (req, res) => {
 
     if (hospitalId && Array.isArray(user.favoriteHospitals)) {
       isHospitalFavorite = user.favoriteHospitals.some(
-        (f) => f.hospitalId && f.hospitalId.toString() === hospitalId.toString()
+        (h) => h.hospitalId && h.hospitalId.toString() === hospitalId.toString()
       );
     }
 
@@ -376,4 +438,3 @@ export const checkFavoriteStatus = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
-

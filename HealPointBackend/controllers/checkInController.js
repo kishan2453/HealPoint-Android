@@ -1,3 +1,4 @@
+import { dispatchNotification } from "../services/socketService.js";
 import mongoose from "mongoose";
 import appointmentModel from "../models/appointmentModel.js";
 import doctorModel from "../models/doctorModel.js";

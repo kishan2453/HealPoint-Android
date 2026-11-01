@@ -1,3 +1,4 @@
+import { dispatchNotification } from "../services/socketService.js";
 import reviewModel from "../models/reviewModel.js";
 import doctorModel from "../models/doctorModel.js";
 import appointmentModel from "../models/appointmentModel.js";
@@ -88,6 +89,23 @@ export const createReview = async (req, res) => {
       doctor.reviewCount = allDocReviews.length;
       await doctor.save();
     }
+
+        try {
+      if (doctor) {
+        dispatchNotification({
+          doctorId: doctor._id,
+          recipientRole: "doctor",
+          title: "New Patient Review",
+          message: `A patient left a ${rating}★ review for your consultation.`,
+          type: "review",
+          category: "review",
+          priority: "normal",
+          link: "/reviews",
+          refId: review._id.toString(),
+          refModel: "Review",
+        }).catch(() => {});
+      }
+    } catch (err) {}
 
     res.status(201).json({ success: true, message: "Review submitted successfully", review });
   } catch (error) {
