@@ -1,20 +1,19 @@
 /**
  * HealPoint - Premium Brand Lockup & Healthcare Identity.
  *
- * A modern, authoritative healthcare emblem: a rounded squircle in HealPoint teal
- * housing a surgical white medical cross, unified with a central precision focal
- * "Point" aperture and vitality accents, paired with the geometric HealPoint wordmark.
+ * Uses the official 3D HealPoint healthcare brand emblem:
+ * A glossy heart symbol formed by caring hands, doctor silhouettes, and medical cross,
+ * paired with the vibrant HealPoint wordmark and vitality slogan.
  *
  * Used across the patient mobile app, splash screen, welcome, auth headers, and drawer.
- * Built purely from lightweight, performant React Native Views.
  */
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 
 import { Palette, Shadows, Typography } from "@/constants/theme";
 
 interface HealPointLogoProps {
-  /** Size of the square mark in px. Default 72. */
+  /** Size of the logo emblem in px. Default 72. */
   size?: number;
   /** Render the wordmark next to / below the mark. Default true. */
   showWordmark?: boolean;
@@ -36,15 +35,7 @@ export function HealPointLogo({
   light = false,
   badge = false,
 }: HealPointLogoProps) {
-  // Proportions scaled to `size`
-  const radius = Math.round(size * 0.25);
-  const crossW = Math.round(size * 0.22); // arm thickness
-  const crossL = Math.round(size * 0.62); // arm length
-  const barRadius = Math.max(2, Math.round(crossW * 0.28));
-
-  const aperture = Math.round(crossW * 1.36);
-  const beacon = Math.round(aperture * 0.45);
-
+  const radius = Math.round(size * 0.22);
   const brandPrimary = light ? "#60A5FA" : Palette.primary;
   const brandBase = light ? Palette.white : Palette.text;
 
@@ -56,100 +47,17 @@ export function HealPointLogo({
           width: size,
           height: size,
           borderRadius: radius,
-          backgroundColor: Palette.primary,
+          backgroundColor: Palette.white,
         },
         Shadows.card,
       ]}
       accessibilityLabel="HealPoint logo"
     >
-      {/* Specular top-left illumination & depth accent */}
-      <View
-        pointerEvents="none"
-        style={[
-          styles.specular,
-          {
-            top: -size * 0.25,
-            left: -size * 0.2,
-            width: size * 0.85,
-            height: size * 0.85,
-          },
-        ]}
+      <Image
+        source={require("@/assets/images/logo.png")}
+        style={{ width: size, height: size, borderRadius: radius }}
+        resizeMode="contain"
       />
-      <View
-        pointerEvents="none"
-        style={[
-          styles.shade,
-          {
-            bottom: -size * 0.3,
-            right: -size * 0.2,
-            width: size * 0.8,
-            height: size * 0.8,
-            backgroundColor: Palette.primaryDark,
-          },
-        ]}
-      />
-      <View pointerEvents="none" style={styles.borderRing} />
-
-      {/* Balanced Medical Cross (Vertical & Horizontal Arms) */}
-      <View
-        style={[
-          styles.crossArm,
-          {
-            width: crossW,
-            height: crossL,
-            borderRadius: barRadius,
-          },
-        ]}
-      />
-      <View
-        style={[
-          styles.crossArm,
-          {
-            width: crossL,
-            height: crossW,
-            borderRadius: barRadius,
-          },
-        ]}
-      />
-
-      {/* Inbound & Outbound Vitality Groove Channels */}
-      <View
-        pointerEvents="none"
-        style={[
-          styles.vitalityLine,
-          {
-            width: Math.round(crossL * 0.76),
-            height: Math.max(2, Math.round(crossW * 0.16)),
-            backgroundColor: Palette.primary,
-          },
-        ]}
-      />
-
-      {/* Central Precision Focal "Point" Aperture */}
-      <View
-        style={[
-          styles.aperture,
-          {
-            width: aperture,
-            height: aperture,
-            borderRadius: aperture / 2,
-            backgroundColor: Palette.primary,
-          },
-        ]}
-      >
-        {/* Core Beacon Point */}
-        <View
-          style={[
-            styles.beacon,
-            {
-              width: beacon,
-              height: beacon,
-              borderRadius: beacon / 2,
-              backgroundColor: Palette.white,
-            },
-          ]}
-        />
-      </View>
     </View>
   );
 
@@ -185,7 +93,7 @@ export function HealPointLogo({
             { color: light ? "rgba(255,255,255,0.78)" : Palette.textMuted },
           ]}
         >
-          HEALTHCARE SERVICES
+          Your Health, Our Priority
         </Text>
       ) : (
         <Text
@@ -200,7 +108,7 @@ export function HealPointLogo({
     </View>
   );
 
-  const badgeSize = size + Math.round(size * 0.48);
+  const badgeSize = size + Math.round(size * 0.44);
 
   return (
     <View
@@ -252,50 +160,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-    position: "relative",
-  },
-  specular: {
-    position: "absolute",
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.16)",
-  },
-  shade: {
-    position: "absolute",
-    borderRadius: 999,
-    opacity: 0.5,
-  },
-  borderRing: {
-    ...StyleSheet.absoluteFillObject,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.22)",
-  },
-  crossArm: {
-    position: "absolute",
-    backgroundColor: Palette.white,
-  },
-  vitalityLine: {
-    position: "absolute",
-    borderRadius: 2,
-    opacity: 0.85,
-  },
-  aperture: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  beacon: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 1,
-    elevation: 1,
   },
   badge: {
     backgroundColor: Palette.primaryLight,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(37, 99, 235, 0.15)",
+    borderWidth: 1.5,
+    borderColor: "rgba(37, 99, 235, 0.18)",
   },
   wordmark: {
     alignItems: "center",
@@ -311,7 +182,7 @@ const styles = StyleSheet.create({
   tagline: {
     fontSize: 10,
     fontWeight: "700",
-    letterSpacing: 1.8,
+    letterSpacing: 1.5,
     marginTop: 3,
     textAlign: "center",
     textTransform: "uppercase",
