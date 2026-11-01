@@ -7,8 +7,6 @@ import {
   updateUserProfile,
   changeUserEmail,
   changeUserPassword,
-  addFamilyMember,
-  getFamilyMembers,
   getStats,
   getAnalytics,
   getPlatformUsers,
@@ -18,6 +16,13 @@ import {
   updatePatientStatus,
   updateHospitalAdminStatus,
 } from "../controllers/userController.js";
+import {
+  getFamilyMembers,
+  getFamilyMemberById,
+  addFamilyMember,
+  updateFamilyMember,
+  deleteFamilyMember,
+} from "../controllers/familyController.js";
 import {
   getFavoriteDoctors,
   addFavoriteDoctor,
@@ -71,8 +76,20 @@ router.patch("/change-email", authenticate, changeUserEmail);
 router.patch("/change-email/:id", authenticate, changeUserEmail);
 router.patch("/update-password", authenticate, changeUserPassword);
 router.patch("/update-password/:id", authenticate, changeUserPassword);
-router.post("/family", authenticate, addFamilyMember);
+// Family Endpoints
+router.get("/family-members/:userId", authenticate, getFamilyMembers);
+router.post("/family-members/:userId", authenticate, addFamilyMember);
+router.get("/family-members/:userId/:memberId", authenticate, getFamilyMemberById);
+router.patch("/family-members/:userId/:memberId", authenticate, updateFamilyMember);
+router.put("/family-members/:userId/:memberId", authenticate, updateFamilyMember);
+router.delete("/family-members/:userId/:memberId", authenticate, deleteFamilyMember);
+
 router.get("/family", authenticate, getFamilyMembers);
+router.post("/family", authenticate, addFamilyMember);
+router.get("/family/:memberId", authenticate, getFamilyMemberById);
+router.patch("/family/:memberId", authenticate, updateFamilyMember);
+router.put("/family/:memberId", authenticate, updateFamilyMember);
+router.delete("/family/:memberId", authenticate, deleteFamilyMember);
 
 // Favorites Endpoints
 router.get("/favorites", authenticate, getFavoriteDoctors);

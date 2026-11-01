@@ -355,3 +355,50 @@ This document records all additive, backward-compatible database modifications a
     $set: { favorites: [], favoriteHospitals: [] }
   });
   ```
+
+---
+
+## Phase 9: Family Account Management & Family Appointment Booking System
+
+- **Collections Utilized**:
+  - `users`: Utilizes existing `familyMembers` subdocument array schema:
+    ```javascript
+    familyMembers: [
+      {
+        name: { type: String, required: true },
+        relationship: { type: String, required: true },
+        gender: { type: String, default: "" },
+        dob: { type: String, default: "" },
+        phone: { type: String, default: "" },
+        bloodGroup: { type: String, default: "" },
+        allergies: { type: [String], default: [] },
+        chronicConditions: { type: [String], default: [] },
+        image: { type: String, default: "" },
+        isArchived: { type: Boolean, default: false },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ]
+    ```
+  - `appointments`: Stores `familyMemberId` (`ObjectId`), `familyRelationship` (`String`), and `isFamilyBooking` (`Boolean`).
+  - `healthdocuments`: Tagged with `familyMemberId` (`ObjectId`) for health wallet data isolation.
+
+- **Indexes Verified on `users` & `appointments`**:
+  - `{ "familyMembers._id": 1 }`: Fast subdocument identification.
+  - `{ userId: 1, "familyMembers.isArchived": 1 }`: Accelerated query for active dependents.
+  - `{ userId: 1, familyMemberId: 1, createdAt: -1 }`: Compound index for family appointment history queries.
+
+- **Data Integrity & Consistency Rules**:
+  - Ownership Verification: When booking an appointment or uploading a health document with `familyMemberId`, backend explicitly verifies that `user.familyMembers` contains that active, non-archived member ID.
+  - Demographic Synchronization: `patientName` and `familyRelationship` are directly read and populated from the verified family member record, eliminating client-side spoofing.
+  - Soft Archival vs. Hard Deletion: If historical appointment or medical document records exist, the family member is safely preserved with `isArchived: true` so medical audit trails remain intact. Hard deletion only occurs when zero records exist.
+
+- **Rollback Procedure**:
+  ```javascript
+  // Reset any archived family members if needed
+  db.users.updateMany(
+    {},
+    {
+      $set: { "familyMembers.$[].isArchived": false }
+    }
+  );
+  ```

@@ -1048,3 +1048,151 @@ Both `/api/v1/user/favorites*` and `/api/v1/favorites*` are fully supported endp
       "isHospitalFavorite": false
     }
     ```
+
+---
+
+## 13. Phase 9: Family Account Management & Family Booking APIs
+
+### A. Family Member Management
+
+#### 1. Get Family Members
+- **GET** `/api/v1/user/family-members/:userId`
+- **GET** `/api/v1/user/family` (Alias: `GET /api/v1/family`)
+  - **Auth**: Bearer Token (Caller must match `:userId` or have admin/doctor permissions)
+  - **Query**: `includeArchived=true|false` (default: `false`)
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "count": 2,
+      "familyMembers": [
+        {
+          "_id": "6724cf...",
+          "name": "Aarav Sharma",
+          "relationship": "Son",
+          "gender": "male",
+          "dob": "2015-08-12",
+          "bloodGroup": "O+",
+          "allergies": ["Peanuts"],
+          "chronicConditions": ["Asthma"],
+          "isArchived": false,
+          "createdAt": "2026-11-01T10:00:00.000Z"
+        }
+      ]
+    }
+    ```
+
+#### 2. Get Single Family Member by ID
+- **GET** `/api/v1/user/family-members/:userId/:memberId`
+- **GET** `/api/v1/user/family/:memberId`
+  - **Auth**: Bearer Token
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "familyMember": {
+        "_id": "6724cf...",
+        "name": "Aarav Sharma",
+        "relationship": "Son",
+        "bloodGroup": "O+",
+        "isArchived": false
+      }
+    }
+    ```
+
+#### 3. Add Family Member
+- **POST** `/api/v1/user/family-members/:userId`
+- **POST** `/api/v1/user/family`
+  - **Auth**: Bearer Token
+  - **Body**:
+    ```json
+    {
+      "name": "Aarav Sharma",
+      "relationship": "Son",
+      "gender": "male",
+      "dob": "2015-08-12",
+      "phone": "9876543210",
+      "bloodGroup": "O+",
+      "allergies": ["Peanuts"],
+      "chronicConditions": ["Asthma"]
+    }
+    ```
+  - **Response (201)**:
+    ```json
+    {
+      "success": true,
+      "message": "Family member added successfully",
+      "familyMember": {
+        "_id": "6724cf...",
+        "name": "Aarav Sharma",
+        "relationship": "Son"
+      }
+    }
+    ```
+
+#### 4. Update Family Member
+- **PATCH** `/api/v1/user/family-members/:userId/:memberId`
+- **PATCH** `/api/v1/user/family/:memberId`
+  - **Auth**: Bearer Token
+  - **Body**: Partial or complete demographic fields.
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "message": "Family member updated successfully",
+      "familyMember": { ... }
+    }
+    ```
+
+#### 5. Safe Remove or Archive Family Member
+- **DELETE** `/api/v1/user/family-members/:userId/:memberId`
+- **DELETE** `/api/v1/user/family/:memberId`
+  - **Auth**: Bearer Token
+  - **Query**: `archive=true` (optional)
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "archived": true,
+      "message": "Family member has historical health records and was safely archived."
+    }
+    ```
+
+### B. Family Appointment Booking & Query Filter
+
+#### 1. Book Appointment for Dependent
+- **POST** `/api/v1/appointment/book`
+  - **Auth**: Bearer Token
+  - **Body**:
+    ```json
+    {
+      "doctorId": "60c72b2f9b1d8b2badbee5a1",
+      "slotDate": "05-11-2026",
+      "slotTime": "10:00 AM",
+      "familyMemberId": "6724cf...",
+      "consultationType": "clinic",
+      "paymentMethod": "cash"
+    }
+    ```
+  - **Security Rule**: Backend validates that `familyMemberId` belongs to `user.familyMembers` and is not archived. Synchronizes `patientName` and `familyRelationship` directly from the verified dependent profile.
+  - **Error (403)**:
+    ```json
+    {
+      "success": false,
+      "code": "FAMILY_MEMBER_NOT_AUTHORIZED",
+      "message": "Family member not authorized or not found for this account"
+    }
+    ```
+
+#### 2. Get User Appointments by Family Member Filter
+- **GET** `/api/v1/appointment/get-user-appointments?familyMemberId=6724cf...`
+- **GET** `/api/v1/appointment/get-user-appointments?familyMemberId=self`
+  - **Auth**: Bearer Token
+  - **Response (200)**:
+    ```json
+    {
+      "success": true,
+      "totalCount": 3,
+      "appointments": [ ... ]
+    }
+    ```

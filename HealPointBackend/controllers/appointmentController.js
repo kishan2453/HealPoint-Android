@@ -61,6 +61,28 @@ export const bookAppointment = async (req, res) => {
     // Verify video consultation entitlement if user selected video
     const isVideo = consultationType === "video";
     const user = await userModel.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    // Validate and verify family member ownership if booking for a dependent
+    let finalPatientName = patientName;
+    let finalFamilyRelationship = familyRelationship || "Self";
+    let isFamilyBooking = false;
+
+    if (familyMemberId && familyMemberId !== "self" && familyMemberId !== "all") {
+      const match = user.familyMembers?.find(
+        (fm) => fm._id?.toString() === familyMemberId.toString() && !fm.isArchived
+      );
+      if (!match) {
+        return res.status(403).json({
+          success: false,
+          code: "FAMILY_MEMBER_NOT_AUTHORIZED",
+          message: "Family member not authorized or not found for this account",
+        });
+      }
+      isFamilyBooking = true;
+      finalPatientName = match.name || patientName;
+      finalFamilyRelationship = match.relationship || familyRelationship || "Dependent";
+    }
 
     if (isVideo) {
       const activeSub = await subscriptionModel
@@ -105,11 +127,11 @@ export const bookAppointment = async (req, res) => {
       hospitalName: finalHospital?.name || doctor.hospitalName || "HealPoint Clinic",
       slotDate,
       slotTime,
-      patientName,
+      patientName: finalPatientName,
       patientPhone: patientPhone || user.phone || "",
-      familyMemberId: familyMemberId || undefined,
-      familyRelationship: familyRelationship || "Self",
-      isFamilyBooking: Boolean(familyMemberId),
+      familyMemberId: isFamilyBooking ? familyMemberId : undefined,
+      familyRelationship: finalFamilyRelationship,
+      isFamilyBooking,
       amount,
       billing: {
         consultationFee: amount,
@@ -284,8 +306,25 @@ export const verifyAppointmentPayment = async (req, res) => {
 
 export const getUserAppointments = async (req, res) => {
   try {
+    const filter = { userId: req.user.id };
+    const { familyMemberId, memberId } = req.query;
+    const targetMemberId = familyMemberId || memberId;
+
+    if (targetMemberId && targetMemberId !== "all") {
+      if (targetMemberId === "self") {
+        filter.$or = [
+          { familyMemberId: { $exists: false } },
+          { familyMemberId: null },
+          { familyMemberId: "" },
+          { familyRelationship: "Self" },
+        ];
+      } else {
+        filter.familyMemberId = targetMemberId;
+      }
+    }
+
     const appointments = await appointmentModel
-      .find({ userId: req.user.id })
+      .find(filter)
       .populate("doctorId", "name speciality image rating phone email")
       .populate("hospitalId", "name location")
       .sort({ createdAt: -1 });

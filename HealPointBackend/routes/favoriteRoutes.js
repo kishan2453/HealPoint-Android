@@ -31,3 +31,4 @@ router.get("/counts", authenticate, getFavoriteCounts);
 router.get("/check", authenticate, checkFavoriteStatus);
 
 export default router;
+

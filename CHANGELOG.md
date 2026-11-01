@@ -4,6 +4,40 @@ All notable changes across HealPoint 2.0 development phases are documented in th
 
 ---
 
+## [Phase 9: Family Account Management & Family Appointment Booking System] - 2026-11-01
+
+### Branch: `phase-9-family-management`
+### Status: Fully Implemented, Tested & Verified Across Mobile & All Portals
+
+### Root Cause Analysis & Architecture Gap
+- **Backend Routing Endpoint Discrepancy**: The mobile family service called `/user/family-members/:userId`, `/user/family-members/:userId/:memberId`, etc. However, `userRoutes.js` previously only declared `/family` (without userId/memberId params), causing 404 errors.
+- **Cache Eviction on Refresh**: Because the API responded with 404, the frontend relied solely on an in-memory `Map` cache which was lost upon browser refresh or app restart, giving the illusion that added family members were disappearing.
+- **Appointment Authorization Hole**: The backend `bookAppointment` controller accepted `familyMemberId` from `req.body` without verifying whether that ID belonged to the authenticated user's family members list. This allowed potential cross-account spoofing.
+
+### Added & Enhanced
+- **Dedicated Backend Family Controller** (`HealPointBackend/controllers/familyController.js`):
+  - `getFamilyMembers`: Securely fetches active family members for the user. Supports `includeArchived=true|false`.
+  - `getFamilyMemberById`: Returns demographic and medical details for an authorized family member.
+  - `addFamilyMember`: Validates required fields (`name`, `relationship`), prevents duplicate active members with identical names/relationships, verifies subscription limits (`familyMembersLimit`), and saves demographics (`gender`, `dob`, `bloodGroup`, `allergies`, `chronicConditions`).
+  - `updateFamilyMember`: Allows partial or full updates of family member demographic and medical profiles.
+  - `deleteFamilyMember`: Safe deletion engine. If historical appointments or medical documents exist for the family member, automatically safely archives (`isArchived: true`) to preserve clinical history. If no historical records exist, cleanly hard-deletes from MongoDB.
+- **Multi-Route Resilience & Aliasing** (`HealPointBackend/routes/userRoutes.js`, `routes/familyRoutes.js`, `app.js`):
+  - Supported both `/api/v1/user/family-members/:userId*` and `/api/v1/user/family*`, plus root mount `/api/v1/family*`.
+- **Appointment Security & Ownership Verification** (`HealPointBackend/controllers/appointmentController.js`):
+  - Hardened `bookAppointment`: Verifies `familyMemberId` belongs to `user.familyMembers` and is not archived. Automatically synchronizes `patientName` and `familyRelationship` directly from the verified family member record, rejecting forged or mismatched IDs with HTTP 403 `FAMILY_MEMBER_NOT_AUTHORIZED`.
+  - Upgraded `getUserAppointments`: Supports `familyMemberId` query filter (`all`, `self`, or specific `memberId`) for server-side appointment segregation.
+- **Persistent Local Storage Caching** (`services/family.ts`):
+  - Backed in-memory cache with cross-platform persistent storage (`getStorageItemSync` / `setStorageItem` / `setStorageItemSync`), preventing profile loss during offline usage or page refresh.
+  - Aligned API endpoints and response parsing with backend data structures.
+- **Appointments Screen Family Filter** (`app/(drawer)/appointments.tsx`):
+  - Added horizontal family member chip selector with dynamic badges (`All Family`, `Myself`, `Dependent Members`).
+  - Real-time client filtering isolating appointment lists, badges, and counters per family member.
+- **Automated Test Suite** (`HealPointBackend/tests/family.test.js`):
+  - 9 automated tests covering mandatory field validation, cross-account injection rejection, duplicate prevention, demographics preservation, query archiving, safe archival with appointments, hard deletion without records, and ownership verification.
+  - Total backend tests increased from 141 to 150 (150/150 PASS, 0 failures).
+
+---
+
 ## [Phase 8: Favorites System Fix & Patient Experience Enhancements] - 2026-11-01
 
 ### Branch: `phase-8-favorites-system`

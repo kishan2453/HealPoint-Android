@@ -4,13 +4,13 @@
  * Real appointment data from the backend (`/appointment/get-user-appointments`
  * scoped to the logged-in user) split into Upcoming / Today / Completed /
  * Cancelled tabs. Includes skeleton loading, a friendly error + retry state,
- * pull-to-refresh, and a "Book an appointment" CTA that routes into the real
- * booking flow. Tapping a card opens the appointment details screen, where the
- * existing cancel / reschedule / pay actions live.
+ * pull-to-refresh, family member filter chips, and a "Book an appointment" CTA
+ * that routes into the real booking flow. Tapping a card opens the appointment
+ * details screen, where the existing cancel / reschedule / pay actions live.
  */
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FlatList,
   Pressable,
@@ -30,9 +30,11 @@ import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Palette, Radius, Spacing, Typography } from "@/constants/theme";
+import { useAuth } from "@/hooks/use-auth";
 import { useAppointments } from "@/hooks/use-appointments";
 import { useScreenFocus } from "@/hooks/use-screen-focus";
-import type { Appointment } from "@/types";
+import * as familyService from "@/services/family";
+import type { Appointment, FamilyMember } from "@/types";
 
 type Tab = "upcoming" | "today" | "completed" | "cancelled";
 
@@ -49,9 +51,13 @@ const SEGMENTS: {
 
 export default function AppointmentsScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [tab, setTab] = useState<Tab>("upcoming");
   const [refreshing, setRefreshing] = useState(false);
   const [reviewApt, setReviewApt] = useState<Appointment | null>(null);
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+  const [selectedMemberId, setSelectedMemberId] = useState<string>("all");
+
   const {
     appointments,
     upcoming,
@@ -63,46 +69,109 @@ export default function AppointmentsScreen() {
     refetch,
   } = useAppointments();
 
+  const loadFamily = useCallback(async () => {
+    if (!user?._id) return;
+    try {
+      const list = await familyService.getFamilyMembers(user._id);
+      setFamilyMembers(list);
+    } catch {
+      // Graceful fallback
+    }
+  }, [user?._id]);
+
+  useEffect(() => {
+    loadFamily();
+  }, [loadFamily]);
+
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await refetch();
+      await Promise.allSettled([refetch(), loadFamily()]);
     } finally {
       setRefreshing(false);
     }
   };
 
-  // Refresh on focus (throttled) so a freshly booked/cancelled/rescheduled/paid
-  // appointment appears without a manual reload — but focus-hopping must not
-  // re-download the list every time.
   useScreenFocus(() => {
     refetch();
+    loadFamily();
   }, 30_000);
+
+  const filterByMember = useCallback(
+    (list: Appointment[]) => {
+      if (selectedMemberId === "all") return list;
+      if (selectedMemberId === "self") {
+        return list.filter(
+          (a) => !a.familyMemberId || a.familyRelationship === "Self"
+        );
+      }
+      return list.filter((a) => a.familyMemberId === selectedMemberId);
+    },
+    [selectedMemberId]
+  );
+
+  const filteredUpcoming = useMemo(
+    () => filterByMember(upcoming),
+    [filterByMember, upcoming]
+  );
+  const filteredToday = useMemo(
+    () => filterByMember(today),
+    [filterByMember, today]
+  );
+  const filteredCompleted = useMemo(
+    () => filterByMember(completed),
+    [filterByMember, completed]
+  );
+  const filteredCancelled = useMemo(
+    () => filterByMember(cancelled),
+    [filterByMember, cancelled]
+  );
+  const filteredAppointments = useMemo(
+    () => filterByMember(appointments),
+    [filterByMember, appointments]
+  );
 
   const countFor = (key: Tab) =>
     key === "upcoming"
-      ? upcoming.length
+      ? filteredUpcoming.length
       : key === "today"
-        ? today.length
-        : key === "completed"
-          ? completed.length
-          : cancelled.length;
+      ? filteredToday.length
+      : key === "completed"
+      ? filteredCompleted.length
+      : filteredCancelled.length;
 
   const data =
     tab === "upcoming"
-      ? upcoming
+      ? filteredUpcoming
       : tab === "today"
-        ? today
-        : tab === "completed"
-          ? completed
-          : cancelled;
+      ? filteredToday
+      : tab === "completed"
+      ? filteredCompleted
+      : filteredCancelled;
 
-  const total = appointments.length;
-  const upcomingTotal = upcoming.length + today.length;
-  const subtitle =
-    total > 0
-      ? `${total} booking${total === 1 ? "" : "s"}${upcomingTotal > 0 ? ` · ${upcomingTotal} upcoming` : ""}`
-      : "Track and manage your bookings";
+  const total = filteredAppointments.length;
+  const upcomingTotal = filteredUpcoming.length + filteredToday.length;
+
+  const activeMemberObj = useMemo(() => {
+    if (selectedMemberId === "all" || selectedMemberId === "self") return null;
+    return familyMembers.find((m) => m._id === selectedMemberId) || null;
+  }, [familyMembers, selectedMemberId]);
+
+  const subtitle = useMemo(() => {
+    const scopeLabel =
+      selectedMemberId === "all"
+        ? "All Family"
+        : selectedMemberId === "self"
+        ? "Myself"
+        : activeMemberObj?.name || "Dependent";
+
+    if (total > 0) {
+      return `${scopeLabel} · ${total} booking${total === 1 ? "" : "s"}${
+        upcomingTotal > 0 ? ` (${upcomingTotal} upcoming)` : ""
+      }`;
+    }
+    return `Track and manage ${scopeLabel.toLowerCase()} bookings`;
+  }, [selectedMemberId, activeMemberObj?.name, total, upcomingTotal]);
 
   const empty = emptyStateFor(tab);
   const refreshControl = (
@@ -117,6 +186,7 @@ export default function AppointmentsScreen() {
     <View style={styles.safe}>
       <DrawerHeader title="My Appointments" subtitle={subtitle} />
 
+      {/* Segment Tabs */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -131,7 +201,9 @@ export default function AppointmentsScreen() {
                 key={segment.key}
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
-                accessibilityLabel={`${segment.label}, ${countFor(segment.key)} appointments`}
+                accessibilityLabel={`${segment.label}, ${countFor(
+                  segment.key
+                )} appointments`}
                 onPress={() => setTab(segment.key)}
                 style={({ pressed }) => [
                   styles.tab,
@@ -152,6 +224,102 @@ export default function AppointmentsScreen() {
           })}
         </View>
       </ScrollView>
+
+      {/* Family Member Filter Bar */}
+      {familyMembers.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.familyScroll}
+          contentContainerStyle={styles.familyContent}
+        >
+          <Pressable
+            onPress={() => setSelectedMemberId("all")}
+            style={[
+              styles.familyChip,
+              selectedMemberId === "all" && styles.familyChipActive,
+            ]}
+          >
+            <Ionicons
+              name="people"
+              size={14}
+              color={selectedMemberId === "all" ? Palette.white : Palette.primary}
+            />
+            <Text
+              style={[
+                styles.familyChipText,
+                selectedMemberId === "all" && styles.familyChipTextActive,
+              ]}
+            >
+              All Family ({appointments.length})
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setSelectedMemberId("self")}
+            style={[
+              styles.familyChip,
+              selectedMemberId === "self" && styles.familyChipActive,
+            ]}
+          >
+            <Ionicons
+              name="person"
+              size={14}
+              color={
+                selectedMemberId === "self"
+                  ? Palette.white
+                  : Palette.textSecondary
+              }
+            />
+            <Text
+              style={[
+                styles.familyChipText,
+                selectedMemberId === "self" && styles.familyChipTextActive,
+              ]}
+            >
+              Myself (
+              {
+                appointments.filter(
+                  (a) => !a.familyMemberId || a.familyRelationship === "Self"
+                ).length
+              }
+              )
+            </Text>
+          </Pressable>
+
+          {familyMembers.map((m) => {
+            const isSelected = selectedMemberId === m._id;
+            const count = appointments.filter(
+              (a) => a.familyMemberId === m._id
+            ).length;
+            return (
+              <Pressable
+                key={m._id}
+                onPress={() => setSelectedMemberId(m._id)}
+                style={[
+                  styles.familyChip,
+                  isSelected && styles.familyChipActive,
+                ]}
+              >
+                <Ionicons
+                  name="heart"
+                  size={13}
+                  color={isSelected ? Palette.white : "#EC4899"}
+                />
+                <Text
+                  style={[
+                    styles.familyChipText,
+                    isSelected && styles.familyChipTextActive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {m.name} ({m.relationship}) [{count}]
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
 
       {loading ? (
         <AppointmentListSkeleton count={4} />
@@ -221,8 +389,8 @@ export default function AppointmentsScreen() {
             typeof reviewApt.hospitalId === "object" && reviewApt.hospitalId
               ? String((reviewApt.hospitalId as { _id?: string })._id || "")
               : typeof reviewApt.hospitalId === "string"
-                ? reviewApt.hospitalId
-                : undefined
+              ? reviewApt.hospitalId
+              : undefined
           }
           hospitalName={reviewApt.hospitalName}
           onClose={() => setReviewApt(null)}
@@ -281,7 +449,7 @@ const styles = StyleSheet.create({
   },
   tabsContent: {
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.sm,
+    paddingBottom: Spacing.xs,
   },
   tabs: {
     flexDirection: "row",
@@ -313,6 +481,38 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   tabTextActive: {
+    color: Palette.white,
+  },
+  familyScroll: {
+    flexGrow: 0,
+    marginTop: 4,
+  },
+  familyContent: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.xs,
+    gap: Spacing.xs,
+  },
+  familyChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    borderWidth: 1,
+    borderColor: "rgba(191, 219, 254, 0.70)",
+    borderRadius: Radius.pill,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  familyChipActive: {
+    backgroundColor: Palette.primary,
+    borderColor: Palette.primary,
+  },
+  familyChipText: {
+    ...Typography.caption,
+    fontWeight: "600",
+    color: Palette.textSecondary,
+  },
+  familyChipTextActive: {
     color: Palette.white,
   },
   stateContainer: {

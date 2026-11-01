@@ -319,9 +319,32 @@
 
 ---
 
-## 10. Summary of Overall Verification
+## 10. Detailed Test Cases (Phase 9 Family Account Management Suite)
 
-- **Total Backend Unit & Integration Tests**: 141/141 PASS (0 FAILURES)
+1. **`Enforces mandatory name and relationship when adding a family member`**:
+   - Asserts missing name or relationship yields HTTP 400 with descriptive error.
+2. **`Rejects adding family members to another user account`**:
+   - Confirms HTTP 403 Forbidden when `requesterId !== targetUserId`.
+3. **`Prevents duplicate active family member with the same name and relationship`**:
+   - Verifies case-insensitive duplicate check rejects adding duplicate active family member.
+4. **`Successfully adds family member with demographics and medical details`**:
+   - Asserts successful creation (HTTP 201) with full demographic fields (`bloodGroup`, `allergies`, `chronicConditions`, `gender`, `dob`).
+5. **`Filters out archived members by default unless includeArchived=true`**:
+   - Confirms default query excludes archived members, while `includeArchived=true` includes all historical profiles.
+6. **`Safely archives family member when historical appointments exist`**:
+   - Validates that when appointments or documents exist, `deleteFamilyMember` preserves patient history with `isArchived: true`.
+7. **`Hard deletes family member when zero appointments or documents exist`**:
+   - Asserts clean array removal when no clinical or appointment history exists.
+8. **`Rejects appointment booking with unauthorized familyMemberId from another account`**:
+   - Verifies security check prevents arbitrary `familyMemberId` injection.
+9. **`verifyFamilyMemberOwnership allows 'self' and null without restriction`**:
+   - Validates baseline pass-through for self-bookings and general lookups.
+
+---
+
+## 11. Summary of Overall Verification
+
+- **Total Backend Unit & Integration Tests**: 150/150 PASS (0 FAILURES)
 - **Patient Mobile App**: TypeScript clean (`npm run typecheck`, 0 errors), Expo web export PASS (183 static routes exported)
 - **HealPointDoctorWeb**: Vite build PASS (0 errors), deployed to `https://heal-point-doctor-web.vercel.app`
 - **HealPointHospitalAdminWeb**: Vite build PASS (0 errors), deployed to `https://heal-point-hospital-admin.vercel.app`

@@ -11,10 +11,17 @@ import {
   getPatientMedicalHistory,
   getUserAppointments,
 } from "./appointments";
+import {
+  getStorageItem,
+  setStorageItem,
+  getStorageItemSync,
+  setStorageItemSync,
+} from "@/lib/storage";
 import type { Appointment, FamilyMember, FamilyRelationship } from "@/types";
 
-// In-memory session cache for family members (prevents storing multi-KB medical arrays in hardware SecureStore)
+// In-memory session cache for family members (backed by persistent cross-platform storage)
 const inMemoryMembersCache = new Map<string, FamilyMember[]>();
+const STORAGE_PREFIX = "healpoint_family_members_";
 
 export interface CreateFamilyMemberPayload {
   name: string;
@@ -42,7 +49,24 @@ export interface UpdateFamilyMemberPayload {
 }
 
 async function loadLocalMembers(userId: string): Promise<FamilyMember[]> {
-  return inMemoryMembersCache.get(userId) || [];
+  const mem = inMemoryMembersCache.get(userId);
+  if (mem && mem.length > 0) return mem;
+
+  try {
+    const raw =
+      getStorageItemSync(`${STORAGE_PREFIX}${userId}`) ||
+      (await getStorageItem(`${STORAGE_PREFIX}${userId}`));
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        inMemoryMembersCache.set(userId, parsed);
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.warn("[family] Failed to read cached family members", err);
+  }
+  return [];
 }
 
 async function saveLocalMembers(
@@ -50,6 +74,13 @@ async function saveLocalMembers(
   members: FamilyMember[],
 ): Promise<void> {
   inMemoryMembersCache.set(userId, members);
+  try {
+    const json = JSON.stringify(members);
+    setStorageItemSync(`${STORAGE_PREFIX}${userId}`, json);
+    await setStorageItem(`${STORAGE_PREFIX}${userId}`, json);
+  } catch (err) {
+    console.warn("[family] Failed to cache family members", err);
+  }
 }
 
 /**
@@ -186,9 +217,19 @@ export async function updateFamilyMember(
 
   // Attempt remote update
   try {
-    await api.patch(`/user/family-members/${userId}/${memberId}`, payload, {
+    const res = await api.patch<{
+      success: boolean;
+      familyMember?: FamilyMember;
+      data?: FamilyMember;
+    }>(`/user/family-members/${userId}/${memberId}`, payload, {
       auth: true,
     });
+    if (res?.success && (res.familyMember || res.data)) {
+      const serverMember = res.familyMember || res.data!;
+      existing[index] = serverMember;
+      await saveLocalMembers(userId, existing);
+      return serverMember;
+    }
   } catch {
     // Continue with local update
   }
