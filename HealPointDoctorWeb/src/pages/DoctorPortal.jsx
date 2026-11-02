@@ -83,6 +83,7 @@ import {
 } from "../services/socket";
 import { jsPDF } from "jspdf";
 import OnlineConsultations from "../components/OnlineConsultations";
+import DoctorTasksView from "../components/DoctorTasksView";
 
 /* ---------- Shared Print / PDF report helpers (no new files) ---------- */
 const writePdfLines = (doc, lines) => {
@@ -353,6 +354,7 @@ const menuItems = [
   ["upcoming", "Upcoming Appointments", <FaClock />],
   ["appointments", "All Appointments", <FaCalendarDay />],
   ["queue", "Patient Queue (OPD)", <FaUserCheck />],
+  ["tasks", "Assigned Tasks", <FaTasks />],
   ["patients", "Patients Directory", <FaUserInjured />],
   ["medical-history", "Patient History / EMR", <FaHistory />],
   ["online-consultations", "Online Consultations", <FaVideo />],
@@ -1310,6 +1312,9 @@ export default function DoctorPortal() {
               }
             />
           )}
+        {activeView === "tasks" && (
+          <DoctorTasksView doctor={doctor} />
+        )}
         {activeView === "queue" && (
           <PatientQueueView
             doctorId={doctorId}

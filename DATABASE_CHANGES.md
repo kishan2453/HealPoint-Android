@@ -1,132 +1,94 @@
-# Database Changes & Schema Upgrades
-**HealPoint Multi-Hospital Healthcare Platform · Part 18**
+# HealPoint Database Changes – Part 19
 
----
+## New MongoDB Collections Added
 
-## 1. New MongoDB Collections & Schemas
+### 1. `workflows` (`models/workflowModel.js`)
+- `hospitalId`: ObjectId (ref: "Hospital", null for platform workflows)
+- `name`: String, required
+- `description`: String
+- `trigger`: String (`appointment_booked`, `appointment_cancelled`, `doctor_approved`, `support_ticket_created`, `leave_approved`, `subscription_expiry_warning`, `task_overdue`, `resource_maintenance_due`)
+- `status`: String (`active`, `inactive`, `draft`)
+- `conditions`: Array of `{ field, operator, value }`
+- `actions`: Array of `{ type, params, order }`
+- `retryPolicy`: `{ maxRetries, retryIntervalMinutes }`
+- `executionCount`: Number
+- `lastExecutedAt`: Date
+- Indexes: `{ hospitalId: 1, trigger: 1, status: 1 }`
 
-### 1.1 `waitlists` (`models/waitlistModel.js`)
-- `userId`: `ObjectId` (ref `User`, required)
-- `patientName`: `String`
-- `patientPhone`: `String`
-- `doctorId`: `ObjectId` (ref `Doctor`, required)
-- `doctorName`: `String`
-- `hospitalId`: `ObjectId` (ref `Hospital`, required)
-- `hospitalName`: `String`
-- `department`: `String`
-- `preferredDate`: `String`
-- `preferredTimeSlot`: `String` (default `"any"`)
-- `status`: `String` (`"active"`, `"notified"`, `"booked"`, `"expired"`, `"cancelled"`)
-- `notifiedSlot`: `String`
-- `notifiedAt`: `Date`
-- `notificationExpiresAt`: `Date`
-- `priority`: `Number` (default 1)
-- `notes`: `String`
-- **Indexes**:
-  - `{ doctorId: 1, preferredDate: 1, status: 1 }`
-  - `{ userId: 1, status: 1 }`
-  - `{ hospitalId: 1, preferredDate: 1 }`
+### 2. `workflowexecutions` (`models/workflowExecutionModel.js`)
+- `workflowId`: ObjectId (ref: "Workflow")
+- `workflowName`: String
+- `hospitalId`: ObjectId
+- `trigger`: String
+- `triggerData`: Object
+- `idempotencyKey`: String
+- `status`: String (`success`, `failed`, `running`, `retrying`)
+- `stepsExecuted`: Array of step details
+- `durationMs`: Number
+- `executedAt`: Date
+- Indexes: `{ workflowId: 1, executedAt: -1 }`, `{ hospitalId: 1, executedAt: -1 }`
 
-### 1.2 `resources` (`models/resourceModel.js`)
-- `hospitalId`: `ObjectId` (ref `Hospital`, required)
-- `hospitalName`: `String`
-- `name`: `String` (required)
-- `identifier`: `String` (required, unique per hospital)
-- `category`: `String` (`"room"`, `"bed"`, `"equipment"`, `"facility"`, `"vehicle"`)
-- `department`: `String`
-- `status`: `String` (`"available"`, `"occupied"`, `"under_maintenance"`, `"reserved"`, `"retired"`)
-- `capacity`: `Number`
-- `assignedTo`: `ObjectId` (ref `User`)
-- `assignedName`: `String`
-- `lastMaintenanceDate`, `nextMaintenanceDate`: `Date`
-- **Indexes**:
-  - `{ hospitalId: 1, category: 1, status: 1 }`
-  - `{ hospitalId: 1, department: 1 }`
-  - `{ hospitalId: 1, identifier: 1 }` (unique)
+### 3. `tasks` (`models/taskModel.js`)
+- `hospitalId`: ObjectId
+- `title`: String
+- `description`: String
+- `department`: String
+- `priority`: String (`low`, `medium`, `high`, `urgent`)
+- `status`: String (`New`, `Assigned`, `In Progress`, `Under Review`, `Completed`, `Cancelled`)
+- `assignedTo`: `{ id, name, role }`
+- `assignedBy`: `{ id, name, role }`
+- `dueDate`: Date
+- `completedAt`: Date
+- `comments`: Array of `{ authorId, authorName, authorRole, text, createdAt }`
+- Indexes: `{ hospitalId: 1, status: 1, dueDate: 1 }`, `{ "assignedTo.id": 1, status: 1 }`, `{ department: 1, status: 1 }`
 
-### 1.3 `staff` (`models/staffModel.js`)
-- `hospitalId`: `ObjectId` (ref `Hospital`, required)
-- `name`: `String`
-- `email`: `String`
-- `phone`: `String`
-- `employeeId`: `String` (unique per hospital)
-- `role`: `String` (`"doctor"`, `"nurse"`, `"technician"`, `"pharmacist"`, `"receptionist"`, `"admin_staff"`, `"support"`)
-- `department`: `String`
-- `doctorId`: `ObjectId` (ref `Doctor`)
-- `status`: `String` (`"active"`, `"on_leave"`, `"inactive"`)
-- `shiftPreference`: `String`
-- **Indexes**:
-  - `{ hospitalId: 1, department: 1, status: 1 }`
-  - `{ hospitalId: 1, employeeId: 1 }` (unique)
+### 4. `businessrules` (`models/businessRuleModel.js`)
+- `hospitalId`: ObjectId
+- `category`: String
+- `ruleCode`: String (unique)
+- `name`: String
+- `config`: Mixed
+- `isActive`: Boolean
+- `version`: Number
+- `history`: Array of historical snapshots
+- Indexes: `{ hospitalId: 1, ruleCode: 1 }` (unique)
 
-### 1.4 `shifts` (`models/shiftModel.js`)
-- `hospitalId`: `ObjectId` (ref `Hospital`, required)
-- `name`: `String` (e.g. `"Morning General"`)
-- `startTime`: `String`
-- `endTime`: `String`
-- `department`: `String`
-- `colorCode`: `String`
-- `maxStaff`: `Number`
+### 5. `reportconfigs` (`models/reportConfigModel.js`)
+- `hospitalId`: ObjectId
+- `name`: String
+- `reportType`: String
+- `dateRangePreset`: String
+- `filters`: Object
+- `selectedColumns`: Array of Strings
+- `exportFormat`: String (`csv`, `json`, `pdf`)
 
-### 1.5 `rosters` (`models/rosterModel.js`)
-- `hospitalId`: `ObjectId`
-- `staffId`: `ObjectId` (ref `Staff`)
-- `shiftId`: `ObjectId` (ref `Shift`)
-- `shiftName`: `String`
-- `date`: `String` (`YYYY-MM-DD`)
-- `startTime`, `endTime`: `String`
-- `status`: `String` (`"scheduled"`, `"in_progress"`, `"completed"`, `"absent"`, `"swapped"`)
-- **Indexes**:
-  - `{ hospitalId: 1, staffId: 1, date: 1 }`
-  - `{ hospitalId: 1, date: 1, department: 1 }`
+### 6. `internalalerts` (`models/internalAlertModel.js`)
+- `hospitalId`: ObjectId
+- `title`: String
+- `message`: String
+- `severity`: String (`info`, `warning`, `high`, `critical`)
+- `category`: String
+- `source`: String
+- `isRead`: Boolean
+- `isResolved`: Boolean
+- `resolutionNotes`: String
+- Indexes: `{ hospitalId: 1, isResolved: 1, severity: 1, createdAt: -1 }`
 
-### 1.6 `leaves` (`models/leaveModel.js`)
-- `hospitalId`: `ObjectId`
-- `staffId`: `ObjectId`
-- `doctorId`: `ObjectId`
-- `leaveType`: `String` (`"casual"`, `"sick"`, `"emergency"`, `"vacation"`, `"maternity"`)
-- `startDate`, `endDate`: `String`
-- `reason`: `String`
-- `status`: `String` (`"pending"`, `"approved"`, `"rejected"`)
-- **Indexes**:
-  - `{ hospitalId: 1, status: 1 }`
-  - `{ staffId: 1, startDate: 1 }`
+### 7. `importhistories` (`models/importHistoryModel.js`)
+- `hospitalId`: ObjectId
+- `entityType`: String (`staff`, `resources`, `tasks`)
+- `fileName`: String
+- `totalRows`: Number
+- `importedCount`: Number
+- `failedCount`: Number
+- `errors`: Array of error items
+- `importedRecordIds`: Array of ObjectIds
+- `status`: String (`completed`, `partially_failed`, `failed`, `rolled_back`)
 
-### 1.7 `hospitalsubscriptionplans` (`models/hospitalSubscriptionPlanModel.js`)
-- `name`: `String`
-- `code`: `String` (unique, lowercase)
-- `monthlyPriceSimulated`: `Number`
-- `yearlyPriceSimulated`: `Number`
-- `maxDoctors`: `Number`
-- `maxAppointmentsPerMonth`: `Number`
-- `features`: `[String]`
-- `hasQueueManagement`, `hasResourceManagement`, `hasStaffRoster`, `hasAdvancedAnalytics`: `Boolean`
-
-### 1.8 `hospitalsubscriptions` (`models/hospitalSubscriptionModel.js`)
-- `hospitalId`: `ObjectId` (unique)
-- `planId`: `ObjectId`
-- `planCode`: `String`
-- `planName`: `String`
-- `status`: `String` (`"active"`, `"trial"`, `"past_due"`, `"cancelled"`)
-- `billingCycle`: `String`
-- `simulatedFee`: `Number`
-- `expiryDate`: `Date`
-- `limits`: `{ maxDoctors, maxAppointmentsPerMonth, allowedFeatures }`
-
-### 1.9 `simulatedinvoices` (`models/simulatedInvoiceModel.js`)
-- `invoiceNumber`: `String` (unique, e.g. `INV-HOSP-2026-0001`)
-- `hospitalId`: `ObjectId`
-- `hospitalName`: `String`
-- `planName`: `String`
-- `amount`: `Number`
-- `status`: `String` (`"paid_simulated"`, `"pending_simulated"`)
-- `issueDate`: `Date`
-- `dueDate`: `Date`
-
----
-
-## 2. Updated Models
-- `models/doctorModel.js`:
-  - Added `maxAppointmentsPerDay` (Number, default 30)
-  - Added `queuePaused` (Boolean, default false)
-  - Added `queuePauseReason` (String, default "")
+### 8. `systemconfigs` (`models/systemConfigModel.js`)
+- `configKey`: String (unique)
+- `category`: String
+- `name`: String
+- `values`: Mixed
+- `isLocked`: Boolean (locks simulation policies)
+- `auditTrail`: Array of historical audit updates

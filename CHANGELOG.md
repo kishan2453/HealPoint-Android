@@ -1,35 +1,35 @@
-# Changelog – Anand HealPoint Multi-Hospital Platform
+# Changelog
 
----
+## [Part 19] - AI-Powered Hospital Operations & Workflow Automation
 
-## [Part 18] – 2026-11-02
 ### Added
-- **Feature 1 (Smart Scheduling & Waitlist Engine)**:
-  - Atomic double-booking prevention in `appointmentController.js`.
-  - Smart slot suggestion algorithm scanning subsequent days when preferred dates are full.
-  - Waitlist registration (`waitlistModel.js`) and auto-notification trigger when appointments are cancelled.
-  - Doctor customization of consultation duration, daily max patient limits, and break schedules.
-- **Feature 2 (Digital Queue & Token Management)**:
-  - Real-time token number, queue position, and dynamic wait time estimation.
-  - Doctor controls: call next patient, start consultation, complete consultation, mark no-show, pause/resume queue.
-  - Hospital queue load metrics in `checkInController.js`.
-- **Feature 3 (Complete Patient Journey Timeline)**:
-  - Dynamically aggregated multi-event timeline combining registration, appointments, clinical consultations, prescriptions, health records, and billing without duplicating database collections.
-  - Patient self-service timeline in `timeline.tsx` and authorized doctor clinical review drawer.
-- **Feature 4 (Hospital Resource & Capacity Management)**:
-  - Hospital room, bed, diagnostic equipment, and vehicle inventory management (`resourceModel.js`).
-  - Hospital Admin resource tracking with utilization rates, maintenance alerts, and assignment workflows in `ResourcesCapacity.jsx`.
-  - Super Admin global cross-facility capacity benchmarking in `GlobalResourceCapacity.jsx`.
-- **Feature 5 (Advanced Staff & Duty Roster Management)**:
-  - Staff directory, shift templates, and duty roster schedules (`staffModel.js`, `shiftModel.js`, `rosterModel.js`).
-  - Shift conflict detection preventing overlapping assignments for the same staff member on identical dates.
-  - Administrative leave request review and approval in `StaffRoster.jsx`.
-- **Feature 6 (Advanced Analytics & Demand Forecasting)**:
-  - Predictive appointment demand forecasting (`/api/v1/analytics/forecast`) with 7-day and 30-day projections using moving averages and seasonality weighting.
-  - Peak consultation hour identification and busy weekday heatmaps with ethical non-clinical estimation labels.
-- **Feature 7 (Hospital Subscription & Platform Plan Management)**:
-  - Configurable hospital SaaS tiers: Starter Clinic, Professional Hospital, and Enterprise Multi-Facility (`hospitalSubscriptionPlanModel.js`).
-  - Server-side usage limits (max doctors, max monthly appointments) with live usage percentage meter.
-  - Simulated billing invoices (`INV-HOSP-YYYY-XXXX`) with zero live payment risks in `HospitalSubscriptions.jsx`.
-- **Automated Testing Suite**:
-  - Added `tests/part18AdvancedFeatures.test.js` bringing total passing test suite count to 239 tests (0 failures).
+- **Booking Calendar Enhancement**:
+  - Maintained existing 7-day horizontal date cards.
+  - Added expandable full month interactive calendar date picker with month navigation.
+  - Eliminated duplicate "Book Appointment" title and subtitle overlap in `app/booking/[doctorId].tsx`.
+- **Centralized Workflow Automation Engine**:
+  - `Workflow` & `WorkflowExecution` MongoDB collections.
+  - Execution engine with condition evaluator, trigger handlers, loop recursion prevention, and action executors.
+  - Hospital Admin `WorkflowsAutomation.jsx` with trigger simulation.
+- **Advanced Task & Work Management**:
+  - `Task` collection with status workflow (`New`, `Assigned`, `In Progress`, `Under Review`, `Completed`, `Cancelled`).
+  - Hospital Admin `TaskManagement.jsx` with department workload analytics.
+  - Doctor Portal `DoctorTasksView.jsx` with status transitions and clinical comments.
+- **AI-Powered Administrative Operations Assistant**:
+  - Natural language query answering on authentic live MongoDB collections.
+  - Key operational metrics, actionable recommendations, and strict non-clinical disclaimers.
+- **Configurable Business Rule Engine**:
+  - Server-side policies for cancellation notice, rescheduling limits, advance booking window, queue grace period.
+  - Version history with rollback capability.
+- **Advanced Support & Complaints**:
+  - Complaint categorization, team routing (Tier 1/2, Clinical, Billing, Escalations), internal notes, and reopening.
+- **Advanced Report Builder**:
+  - Configurable reports for appointments, revenue, cancellations, waitlist with CSV export.
+- **Smart Alert & Notification Center**:
+  - Severity-graded operational alert stream with read tracking and resolution logging.
+- **Global Search & Command Center**:
+  - Instant permission-aware search across doctors, appointments, tasks, tickets, resources.
+- **Data Import & Export Tool**:
+  - CSV bulk import for synthetic staff, resources, tasks with row validation, duplicate check, and rollback.
+- **System Configuration Center**:
+  - Super Admin platform policy manager with simulation safety locks permanently disabling real emergency calls and live payments.

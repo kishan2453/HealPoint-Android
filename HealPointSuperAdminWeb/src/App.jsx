@@ -29,6 +29,7 @@ import Subscriptions from "./pages/subscriptions/Subscriptions";
 import SubscriptionPlans from "./pages/subscriptions/SubscriptionPlans";
 import HospitalSubscriptions from "./pages/HospitalSubscriptions";
 import GlobalResourceCapacity from "./pages/GlobalResourceCapacity";
+import SystemConfiguration from "./pages/SystemConfiguration";
 import PlatformAnalytics from "./pages/PlatformAnalytics";
 import EmergencyMonitoring from "./pages/EmergencyMonitoring";
 import SystemHealth from "./pages/SystemHealth";

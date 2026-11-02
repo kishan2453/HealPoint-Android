@@ -416,6 +416,55 @@ export default function BookingScreen() {
   const activePhone = (selectedMember?.phone || user?.phone || "").trim();
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [showFullCalendar, setShowFullCalendar] = useState<boolean>(false);
+  const [calendarViewDate, setCalendarViewDate] = useState<Date>(() => new Date());
+
+  const calendarDays = useMemo(() => {
+    const year = calendarViewDate.getFullYear();
+    const month = calendarViewDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const startingDayOfWeek = firstDay.getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    const matrix: Array<{ day: number; date: Date | null }> = [];
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      matrix.push({ day: 0, date: null });
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(year, month, d);
+      matrix.push({ day: d, date });
+    }
+    return matrix;
+  }, [calendarViewDate]);
+
+  const isCurrentMonth = useMemo(() => {
+    const now = new Date();
+    return (
+      calendarViewDate.getFullYear() === now.getFullYear() &&
+      calendarViewDate.getMonth() === now.getMonth()
+    );
+  }, [calendarViewDate]);
+
+  const handlePrevMonth = () => {
+    if (isCurrentMonth) return;
+    setCalendarViewDate(
+      (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
+    );
+  };
+
+  const handleNextMonth = () => {
+    setCalendarViewDate(
+      (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
+    );
+  };
+
+  const isDateInPast = (d: Date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(d);
+    target.setHours(0, 0, 0, 0);
+    return target < today;
+  };
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsError, setSlotsError] = useState("");
@@ -995,12 +1044,10 @@ export default function BookingScreen() {
             <Ionicons name="close" size={24} color={Palette.text} />
           </Pressable>
           <View style={styles.headerTitles}>
-            <Text style={styles.headerTitle}>Book Appointment</Text>
             <Text style={styles.headerTitle}>
               {source === "rebook" ? "Repeat Consultation" : "Book Appointment"}
             </Text>
             <Text style={styles.headerSubtitle}>
-              Reserve your visit with {stripDoctorTitle(doctor.name)}
               {source === "rebook"
                 ? `Re-booking care with ${stripDoctorTitle(doctor.name)}`
                 : `Reserve your visit with ${stripDoctorTitle(doctor.name)}`}
@@ -2212,6 +2259,144 @@ const styles = StyleSheet.create({
   dateTilePressed: {
     opacity: 0.88,
     transform: [{ scale: 0.96 }],
+  },
+  calendarToggleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: Palette.border,
+  },
+  calendarToggleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 7,
+    borderRadius: Radius.pill,
+    backgroundColor: "rgba(37, 99, 235, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(37, 99, 235, 0.2)",
+  },
+  calendarToggleBtnActive: {
+    backgroundColor: Palette.primary,
+    borderColor: Palette.primary,
+  },
+  calendarToggleText: {
+    ...Typography.caption,
+    color: Palette.primary,
+    fontWeight: "700",
+  },
+  calendarToggleTextActive: {
+    color: Palette.white,
+  },
+  calendarSelectedHint: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+  },
+  fullCalendarBox: {
+    marginTop: Spacing.sm,
+    padding: Spacing.sm,
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Palette.border,
+  },
+  calHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.sm,
+    paddingBottom: Spacing.sm,
+  },
+  calNavBtn: {
+    padding: 6,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.background,
+  },
+  calNavBtnDisabled: {
+    opacity: 0.3,
+  },
+  calMonthTitle: {
+    ...Typography.label,
+    color: Palette.text,
+    fontWeight: "700",
+  },
+  calWeekdaysRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: Palette.border,
+    marginBottom: 4,
+  },
+  calWeekdayText: {
+    ...Typography.caption,
+    color: Palette.textMuted,
+    width: 38,
+    textAlign: "center",
+    fontWeight: "700",
+    fontSize: 11,
+  },
+  calDaysGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-start",
+  },
+  calDayCellEmpty: {
+    width: "14.28%",
+    height: 38,
+  },
+  calDayCell: {
+    width: "14.28%",
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: Radius.sm,
+    marginVertical: 2,
+    position: "relative",
+  },
+  calDayCellSelected: {
+    backgroundColor: Palette.primary,
+  },
+  calDayCellDisabled: {
+    opacity: 0.3,
+  },
+  calDayCellLeave: {
+    backgroundColor: "rgba(232, 154, 60, 0.15)",
+  },
+  calDayCellToday: {
+    borderWidth: 1,
+    borderColor: Palette.primary,
+  },
+  calDayNumber: {
+    ...Typography.bodySmall,
+    color: Palette.text,
+    fontWeight: "600",
+  },
+  calDayNumberSelected: {
+    color: Palette.white,
+    fontWeight: "800",
+  },
+  calDayNumberDisabled: {
+    color: Palette.textMuted,
+  },
+  calDayNumberLeave: {
+    color: Palette.warning,
+  },
+  calDayNumberToday: {
+    color: Palette.primary,
+    fontWeight: "700",
+  },
+  calLeaveDot: {
+    position: "absolute",
+    bottom: 3,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Palette.warning,
   },
   dateWeekday: {
     ...Typography.caption,

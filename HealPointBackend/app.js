@@ -37,6 +37,17 @@ import patientJourneyRoutes from "./routes/patientJourneyRoutes.js";
 import resourceRoutes from "./routes/resourceRoutes.js";
 import staffRosterRoutes from "./routes/staffRosterRoutes.js";
 import hospitalSubscriptionRoutes from "./routes/hospitalSubscriptionRoutes.js";
+// [Part 19] Workflow Automation & Operations Imports
+import workflowRoutes from "./routes/workflowRoutes.js";
+import taskRoutes from "./routes/taskRoutes.js";
+import aiAssistantRoutes from "./routes/aiAssistantRoutes.js";
+import businessRuleRoutes from "./routes/businessRuleRoutes.js";
+import advancedSupportRoutes from "./routes/advancedSupportRoutes.js";
+import reportBuilderRoutes from "./routes/reportBuilderRoutes.js";
+import internalAlertRoutes from "./routes/internalAlertRoutes.js";
+import globalSearchRoutes from "./routes/globalSearchRoutes.js";
+import importExportRoutes from "./routes/importExportRoutes.js";
+import systemConfigRoutes from "./routes/systemConfigRoutes.js";
 
 import { startReminderScheduler } from "./services/reminderScheduler.js";
 import { getAvailableSlots, validateSlot } from "./controllers/appointmentController.js";
@@ -197,6 +208,17 @@ app.use("/api/v1/patient-journey", patientJourneyRoutes);
 app.use("/api/v1/resources", resourceRoutes);
 app.use("/api/v1/roster", staffRosterRoutes);
 app.use("/api/v1/hospital-subscriptions", hospitalSubscriptionRoutes);
+// [Part 19] AI-Powered Hospital Operations & Intelligent Workflow Automation
+app.use("/api/v1/workflows", workflowRoutes);
+app.use("/api/v1/tasks", taskRoutes);
+app.use("/api/v1/ai-assistant", aiAssistantRoutes);
+app.use("/api/v1/business-rules", businessRuleRoutes);
+app.use("/api/v1/advanced-support", advancedSupportRoutes);
+app.use("/api/v1/report-builder", reportBuilderRoutes);
+app.use("/api/v1/internal-alerts", internalAlertRoutes);
+app.use("/api/v1/global-search", globalSearchRoutes);
+app.use("/api/v1/import-export", importExportRoutes);
+app.use("/api/v1/system-config", systemConfigRoutes);
 
 
 // Start background appointment reminder scheduler
