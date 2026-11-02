@@ -138,9 +138,9 @@ export function EmergencySosModal({
             <View style={styles.iconCircle}>
               <Ionicons name="warning" size={32} color="#EF4444" />
             </View>
-            <Text style={styles.title}>Emergency Practice Simulation</Text>
+            <Text style={styles.title}>Emergency Assistance Request</Text>
             <Text style={styles.subtitle}>
-              Educational simulation only. No real emergency services are contacted.
+              For immediate life-threatening situations, dial 112 or 108 directly.
             </Text>
           </View>
 
@@ -149,7 +149,7 @@ export function EmergencySosModal({
             <View style={styles.countdownBox}>
               <Text style={styles.countdownNumber}>{countdown}</Text>
               <Text style={styles.countdownLabel}>
-                Simulating SOS in {countdown}s... Tap Cancel to abort
+                Sending request in {countdown}s... Tap Cancel to abort
               </Text>
             </View>
           ) : null}

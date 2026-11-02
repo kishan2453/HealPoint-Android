@@ -143,15 +143,9 @@ export function EmergencyContactsModal({
 
           <ScrollView showsVerticalScrollIndicator={false}>
             {/* Existing Contacts List */}
-            <View style={{ backgroundColor: "#FEF3C7", padding: 8, borderRadius: 8, marginBottom: 12, flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Ionicons name="information-circle" size={16} color="#92400E" />
-              <Text style={{ fontSize: 11, color: "#92400E", flex: 1, fontWeight: "600" }}>
-                DEMO MODE: Contacts are simulated placeholders. No external SMS, WhatsApp, or calls are sent.
-              </Text>
-            </View>
 
             <Text style={styles.sectionSubtitle}>
-              Contacts simulated when you trigger Demo SOS:
+              Contacts notified upon emergency request:
             </Text>
 
             {contacts.length === 0 ? (

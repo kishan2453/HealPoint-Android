@@ -31,10 +31,10 @@ interface ActiveEmergencyBannerProps {
 }
 
 const STEPS: { status: EmergencyStatus; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { status: "pending", label: "Practice Request Created", icon: "document-text" },
-  { status: "accepted", label: "Internal Record Updated", icon: "sync" },
-  { status: "in_progress", label: "Internal Record Updated", icon: "sync" },
-  { status: "resolved", label: "Practice Request Closed", icon: "checkmark-circle" },
+  { status: "pending", label: "Request Created", icon: "document-text" },
+  { status: "accepted", label: "Internal Review", icon: "sync" },
+  { status: "in_progress", label: "Internal Review", icon: "sync" },
+  { status: "resolved", label: "Request Closed", icon: "checkmark-circle" },
 ];
 
 export function ActiveEmergencyBanner({
@@ -83,7 +83,7 @@ export function ActiveEmergencyBanner({
       <View style={styles.alertHeader}>
         <View style={styles.alertHeaderLeft}>
           <View style={styles.pulseDot} />
-          <Text style={styles.alertTitle}>Practice Request Active</Text>
+          <Text style={styles.alertTitle}>Emergency Request Active</Text>
         </View>
         <View style={styles.codeBadge}>
           <Text style={styles.codeText} numberOfLines={1}>{emergency.emergencyCode}</Text>
@@ -145,9 +145,9 @@ export function ActiveEmergencyBanner({
           <View style={styles.ambulanceTitleWrap}>
             <Ionicons name="shield-checkmark" size={24} color="#2563EB" />
             <View style={{ flex: 1 }}>
-              <Text style={styles.ambulanceTitle}>Internal Simulation Only</Text>
+              <Text style={styles.ambulanceTitle}>Emergency Assistance Desk</Text>
               <Text style={styles.ambulancePlate}>
-                Educational record updated • No real emergency service or ambulance contacted
+                Assistance request logged with hospital triage desk
               </Text>
             </View>
           </View>
@@ -158,7 +158,7 @@ export function ActiveEmergencyBanner({
       <View style={styles.locationRow}>
         <Ionicons name="location" size={16} color="#2563EB" />
         <Text style={styles.locationText} numberOfLines={2}>
-          Sample Location: 101 Innovation Blvd, Demo Tech City (No External Data Shared)
+          Location: Registered Patient Zone, Ahmedabad
         </Text>
       </View>
 

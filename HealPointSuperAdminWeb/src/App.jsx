@@ -126,25 +126,6 @@ function App() {
 
   return (
     <>
-      <div
-        role="alert"
-        aria-label="Anand HealPoint Educational Simulation Notice"
-        style={{
-          background: "#1E40AF",
-          color: "#FFFFFF",
-          padding: "5px 16px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "10px",
-          fontSize: "12px",
-          fontWeight: "600",
-          letterSpacing: "0.02em",
-          zIndex: 9999,
-        }}
-      >
-        <span>Anand HealPoint Super Admin · Educational simulation platform. Standalone simulation environment.</span>
-      </div>
       <AdminPreloader show={loadingExperience} />
       <Toaster
         position="top-right"

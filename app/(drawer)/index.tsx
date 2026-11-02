@@ -309,7 +309,7 @@ const MORE_QUICK_ACTIONS: QuickAction[] = [
   {
     key: "emergency",
     label: "Emergency",
-    subLabel: "24/7 Helpline",
+    subLabel: "Hospital Directory",
     icon: "alert-circle",
     tint: "#DC2626",
     bgColor: "#FEF2F2",
@@ -1233,7 +1233,7 @@ export default function HomeScreen() {
         <View style={styles.emergencyTopContainer}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Emergency Help: Find nearby emergency-supporting hospitals, ambulance & 108 helpline"
+            accessibilityLabel="Emergency Help: Find emergency lines, hospital desks and contact directory"
             onPress={() => router.push("/emergency" as never)}
             style={({ pressed }) => [
               styles.emergencyTopCard,
@@ -1251,12 +1251,12 @@ export default function HomeScreen() {
                   </Text>
                   <View style={styles.emergencyTopBadge}>
                     <Text style={styles.emergencyTopBadgeText}>
-                      24/7 ACTIVE
+                      QUICK ACCESS
                     </Text>
                   </View>
                 </View>
                 <Text style={styles.emergencyTopSub}>
-                  Find nearby emergency-supporting hospitals
+                  Hospital emergency desks & assistance directory
                 </Text>
               </View>
             </View>

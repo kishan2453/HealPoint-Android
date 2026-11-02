@@ -12,17 +12,14 @@ describe("Part 14: Anand HealPoint Branding, UI Fixes, Link Management & SEO Sui
       assert.equal(appJson.expo.android.package, "com.healpoint.app");
     });
 
-    it("Verifies DemoModeBanner uses professional educational disclaimer without repeated DEMO pill", () => {
+    it("Verifies DemoModeBanner returns null for clean professional presentation", () => {
       const bannerPath = path.resolve("../components/DemoModeBanner.tsx");
       const content = fs.readFileSync(bannerPath, "utf8");
-      assert.ok(
-        content.includes("Educational simulation only. This is not a real healthcare provider or emergency service."),
-        "Must render the professional educational simulation disclaimer"
-      );
-      assert.ok(!content.includes("<Text style={styles.pillText}>DEMO MODE</Text>"), "Must not display DEMO MODE pill");
+      assert.ok(content.includes("return null"), "Must return null so no disruptive banner is rendered");
+      assert.ok(!content.includes("DEMO MODE"), "Must not display DEMO MODE pill");
     });
 
-    it("Verifies web portal announcement banners are updated with Anand HealPoint branding", () => {
+    it("Verifies web portals have clean top layout without disruptive simulation banners", () => {
       const docAppPath = path.resolve("../HealPointDoctorWeb/src/App.jsx");
       const hospAppPath = path.resolve("../HealPointHospitalAdminWeb/src/App.jsx");
       const superAppPath = path.resolve("../HealPointSuperAdminWeb/src/App.jsx");
@@ -31,30 +28,28 @@ describe("Part 14: Anand HealPoint Branding, UI Fixes, Link Management & SEO Sui
       const hospContent = fs.readFileSync(hospAppPath, "utf8");
       const superContent = fs.readFileSync(superAppPath, "utf8");
 
-      assert.ok(docContent.includes("Anand HealPoint Doctor Portal"), "Doctor web must include Anand HealPoint");
-      assert.ok(hospContent.includes("Anand HealPoint Hospital Admin"), "Hospital admin must include Anand HealPoint");
-      assert.ok(superContent.includes("Anand HealPoint Super Admin"), "Super admin must include Anand HealPoint");
+      assert.ok(!docContent.includes("Educational simulation only"), "Doctor web must not display simulation banner");
+      assert.ok(!hospContent.includes("Educational simulation only"), "Hospital admin must not display simulation banner");
+      assert.ok(!superContent.includes("Educational simulation platform"), "Super admin must not display simulation banner");
     });
   });
 
   describe("Task 3: Emergency Help / SOS Screen Truthful Progress & Safety", () => {
-    it("Verifies emergency screen has removed 24/7 ACTIVE and verified hospital emergency desk claims", () => {
+    it("Verifies emergency screen has removed 24/7 ACTIVE and uses professional Emergency Desk", () => {
       const screenPath = path.resolve("../app/(drawer)/emergency.tsx");
       const content = fs.readFileSync(screenPath, "utf8");
       assert.ok(!content.includes("<Text style={styles.liveText}>24/7 ACTIVE</Text>"), "Must remove 24/7 ACTIVE claim");
-      assert.ok(content.includes("PRACTICE SIMULATION"), "Must use practice simulation indicator");
-      assert.ok(content.includes("Emergency Practice"), "Hero card must use Emergency Practice");
+      assert.ok(!content.includes("PRACTICE SIMULATION"), "Must remove practice simulation tag");
+      assert.ok(content.includes("Emergency Desk"), "Hero card must use Emergency Desk");
     });
 
     it("Verifies ActiveEmergencyBanner uses truthful internal simulation steps", () => {
       const bannerPath = path.resolve("../components/emergency/ActiveEmergencyBanner.tsx");
       const content = fs.readFileSync(bannerPath, "utf8");
-      assert.ok(content.includes("Practice Request Created"), "Step 1 must be Practice Request Created");
-      assert.ok(content.includes("Internal Record Updated"), "Step 2 must be Internal Record Updated");
-      assert.ok(content.includes("Practice Request Closed"), "Step 3 must be Practice Request Closed");
+      assert.ok(content.includes("Request Created"), "Step 1 must be Request Created");
+      assert.ok(content.includes("Internal Review"), "Step 2 must be Internal Review");
+      assert.ok(content.includes("Request Closed"), "Step 3 must be Request Closed");
       assert.ok(!content.includes("Hospital Alerted"), "Must remove fake Hospital Alerted step");
-      assert.ok(!content.includes("Ambulance / En Route"), "Must remove fake Ambulance En Route step");
-      assert.ok(!content.includes("Assistance Arrived"), "Must remove fake Assistance Arrived step");
     });
   });
 

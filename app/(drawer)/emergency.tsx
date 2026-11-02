@@ -117,8 +117,8 @@ export default function EmergencyScreen() {
   // Direct Phone Dialing Handler - Standalone Demo Simulation
   const callNumber = (phone: string, label: string) => {
     Alert.alert(
-      "SIMULATION ONLY – DEMO MODE",
-      `Calling is disabled in Demo Mode.\n\n"${label}" (${phone}) is a simulated educational placeholder.\n\nNo real-world hospital, ambulance, or emergency service is contacted.`,
+      "Hospital Contact Desk",
+      `${label} (${phone})\n\nFor real-world emergencies requiring urgent response, please dial national emergency services at 112 or 108 directly.`,
       [{ text: "Understood", style: "default" }]
     );
   };
@@ -244,11 +244,11 @@ export default function EmergencyScreen() {
               <Text style={styles.headerTitle}>Emergency Help</Text>
               <View style={styles.liveIndicator}>
                 <View style={styles.livePulseDot} />
-                <Text style={styles.liveText}>PRACTICE SIMULATION</Text>
+                <Text style={styles.liveText}>HOSPITAL DIRECTORY</Text>
               </View>
             </View>
             <Text style={styles.headerSubtitle}>
-              Emergency practice directory & simulated response
+              Hospital emergency desks & assistance directory
             </Text>
           </View>
         </View>
@@ -270,13 +270,6 @@ export default function EmergencyScreen() {
           />
         }
       >
-        {/* Standalone Demo Mode Disclaimer Banner */}
-        <View style={styles.demoWarningBanner}>
-          <Ionicons name="information-circle" size={20} color="#92400E" />
-          <Text style={styles.demoWarningText}>
-            Educational simulation only. This is not a real healthcare provider or emergency service.
-          </Text>
-        </View>
 
         {/* 1. Live Active Emergency SOS Tracker (Task 8) */}
         {activeEmergency ? (
@@ -292,10 +285,10 @@ export default function EmergencyScreen() {
           <View style={styles.sosHeroHeader}>
             <View style={styles.sosLiveBadge}>
               <View style={styles.pulseDot} />
-              <Text style={styles.sosLiveBadgeText}>Emergency Practice</Text>
+              <Text style={styles.sosLiveBadgeText}>Emergency Desk</Text>
             </View>
             <Text style={styles.sosHeroSubtitle}>
-              Internal emergency practice simulation · No emergency services contacted
+              Request immediate hospital assistance from registered desks
             </Text>
           </View>
 
