@@ -7,6 +7,7 @@ import {
   getDoctorAnalytics,
   getPatientAnalytics,
   exportReport,
+  getDemandAndWorkloadForecast,
 } from "../controllers/analyticsController.js";
 import { authenticate } from "../middlewares/authMiddlewares.js";
 

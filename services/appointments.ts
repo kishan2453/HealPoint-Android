@@ -343,6 +343,57 @@ export async function getPatientHealthTimeline(
   const qs = query.toString();
 
   try {
+    // [Part 18] Prefer unified patient journey timeline
+    try {
+      const pjRes = await api.get<any>(
+        `/patient-journey/my-journey${qs ? `?${qs}` : ""}`,
+        { auth: true },
+      );
+      if (pjRes && pjRes.success && Array.isArray(pjRes.timeline)) {
+        const mappedEvents = pjRes.timeline.map((item: any) => ({
+          id: item.id || String(Math.random()),
+          type: item.type === "health_record" ? "record_uploaded" : item.type === "registration" ? "account_created" : item.type === "prescription" ? "prescription_issued" : item.type === "consultation" ? "consultation_completed" : item.type === "billing" ? "invoice_paid" : "appointment_scheduled",
+          title: item.title,
+          description: item.description,
+          timestamp: item.timestamp,
+          date: new Date(item.timestamp).toISOString().split("T")[0],
+          time: new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          status: item.status,
+          badgeVariant: item.status === "completed" ? "success" : item.status === "cancel" ? "error" : "primary",
+          icon: item.icon || "calendar",
+          doctorName: item.metadata?.doctorName,
+          doctorSpeciality: item.metadata?.speciality,
+          hospitalName: item.metadata?.hospitalName,
+          appointmentId: item.metadata?.appointmentId,
+          prescriptionId: item.metadata?.prescriptionId,
+          medicinesCount: item.metadata?.medicines?.length,
+          vitals: item.metadata?.vitals,
+          amount: item.metadata?.amount,
+          paymentStatus: item.metadata?.paymentStatus,
+        }));
+
+        return {
+          success: true,
+          summary: pjRes.summary || {
+            totalEvents: mappedEvents.length,
+            completedConsultations: 0,
+            prescriptionsIssued: 0,
+            documentsUploaded: 0,
+            upcomingAppointments: 0,
+          },
+          pagination: pjRes.pagination || {
+            page: params.page || 1,
+            limit: params.limit || 50,
+            totalPages: 1,
+            total: mappedEvents.length,
+          },
+          events: mappedEvents,
+        };
+      }
+    } catch (_pjErr) {
+      // Continue to appointment health-timeline fallback
+    }
+
     return await api.get<PatientTimelineResponse>(
       `/appointment/patient/health-timeline${qs ? `?${qs}` : ""}`,
       { auth: true },
@@ -785,4 +836,78 @@ export function getPrescriptionPdfUrl(
   const authToken = token || getAuthToken() || "";
   const queryParam = authToken ? `?token=${encodeURIComponent(authToken)}` : "";
   return `${API_URL}/prescription/${prescriptionOrAppointmentId}/pdf${queryParam}`;
+}
+
+
+// ==========================================
+// [Part 18] SMART SCHEDULING & WAITLIST APIS
+// ==========================================
+
+export async function getSmartSlotSuggestions(
+  doctorId: string,
+  date: string,
+): Promise<{
+  success: boolean;
+  targetDate: string;
+  availableSlots: string[];
+  totalSlots: number;
+  reason?: string;
+  alternativeSuggestions: Array<{
+    date: string;
+    dayName: string;
+    availableCount: number;
+    sampleSlots: string[];
+  }>;
+}> {
+  return api.get(
+    `/appointment/slots/smart-suggestions/${doctorId}?date=${encodeURIComponent(date)}`,
+  );
+}
+
+export async function registerAppointmentWaitlist(payload: {
+  doctorId: string;
+  preferredDate: string;
+  preferredTimeSlot?: string;
+  notes?: string;
+}): Promise<{ success: boolean; message: string; waitlist: any }> {
+  return api.post("/appointment/waitlist", payload, { auth: true });
+}
+
+export async function getUserWaitlist(): Promise<{
+  success: boolean;
+  count: number;
+  waitlist: any[];
+}> {
+  return api.get("/appointment/waitlist/my-waitlist", { auth: true });
+}
+
+export async function cancelWaitlist(
+  id: string,
+): Promise<{ success: boolean; message: string }> {
+  return api.delete(`/appointment/waitlist/${id}`, { auth: true });
+}
+
+export async function getPatientJourneyTimeline(params: {
+  category?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+} = {}): Promise<{
+  success: boolean;
+  patient: any;
+  summary: any;
+  pagination: any;
+  timeline: any[];
+}> {
+  const q = new URLSearchParams();
+  if (params.category && params.category !== "all") q.set("category", params.category);
+  if (params.startDate) q.set("startDate", params.startDate);
+  if (params.endDate) q.set("endDate", params.endDate);
+  if (params.page) q.set("page", String(params.page));
+  if (params.limit) q.set("limit", String(params.limit));
+
+  return api.get(`/patient-journey/my-journey${q.toString() ? `?${q.toString()}` : ""}`, {
+    auth: true,
+  });
 }

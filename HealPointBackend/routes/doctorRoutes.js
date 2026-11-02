@@ -11,6 +11,8 @@ import {
   getDoctorDashboardAndPanel,
   getDoctorQueue,
   handleDoctorQueueAction,
+  toggleDoctorQueuePause,
+  updateDoctorCapacityAndBreak,
   startDoctorConsultation,
   getDoctorReports,
   uploadDoctorReport,
@@ -69,6 +71,8 @@ router.patch("/panel/:id/notification-settings", authenticate, updateDoctorNotif
 // OPD Patient Queue
 router.get("/panel/:id/queue", authenticate, getDoctorQueue);
 router.patch("/panel/:id/queue/:appointmentId/action", authenticate, handleDoctorQueueAction);
+router.post("/panel/:id/queue/toggle-pause", authenticate, toggleDoctorQueuePause);
+router.put("/panel/:id/capacity-settings", authenticate, updateDoctorCapacityAndBreak);
 
 // Consultation Flow
 router.patch("/panel/:id/consultation/:appointmentId/start", authenticate, startDoctorConsultation);

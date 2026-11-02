@@ -526,6 +526,10 @@ export const getDoctorQueue = async (req, res) => {
       inConsultationCount: sections.inConsultation.length,
       completedCount: sections.completed.length,
       cancelledCount: sections.cancelled.length,
+      queuePaused: Boolean(doctor.queuePaused),
+      queuePauseReason: doctor.queuePauseReason || "",
+      maxAppointmentsPerDay: doctor.maxAppointmentsPerDay || 30,
+      slotDurationMinutes: doctor.slotDurationMinutes || 30,
     };
 
     res.status(200).json({
@@ -2181,5 +2185,86 @@ export const submitDoctorVerification = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
+// [Part 18] Queue Pause/Resume & Daily Capacity Management
+export const toggleDoctorQueuePause = async (req, res) => {
+  try {
+    const doctorId = req.params.id || req.user?.id;
+    const { paused, reason } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(doctorId)) {
+      return res.status(400).json({ success: false, message: "Invalid doctor ID" });
+    }
+
+    const doctor = await doctorModel.findById(doctorId);
+    if (!doctor) return res.status(404).json({ success: false, message: "Doctor not found" });
+
+    // Validate authorization
+    if (req.user && (req.user.role === "doctor" || req.user.role === "Doctor")) {
+      const authDoctorId = String(req.user.id || req.user._id);
+      if (String(doctor._id) !== authDoctorId) {
+        return res.status(403).json({ success: false, message: "Forbidden: Not your queue" });
+      }
+    }
+
+    doctor.queuePaused = paused !== undefined ? Boolean(paused) : !doctor.queuePaused;
+    if (reason !== undefined) doctor.queuePauseReason = reason;
+    await doctor.save();
+
+    if (process.env.FEATURE_LIVE_QUEUE === "true") {
+      broadcastQueueSync({
+        hospitalId: doctor.hospitalId,
+        doctorId: doctor._id,
+        action: doctor.queuePaused ? "pause_queue" : "resume_queue",
+        queuePaused: doctor.queuePaused,
+        queuePauseReason: doctor.queuePauseReason,
+        doctorName: doctor.name,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: doctor.queuePaused ? "Queue paused successfully" : "Queue resumed successfully",
+      queuePaused: doctor.queuePaused,
+      queuePauseReason: doctor.queuePauseReason,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const updateDoctorCapacityAndBreak = async (req, res) => {
+  try {
+    const doctorId = req.params.id || req.user?.id;
+    const { slotDurationMinutes, maxAppointmentsPerDay, breakTimes } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(doctorId)) {
+      return res.status(400).json({ success: false, message: "Invalid doctor ID" });
+    }
+
+    const doctor = await doctorModel.findById(doctorId);
+    if (!doctor) return res.status(404).json({ success: false, message: "Doctor not found" });
+
+    if (slotDurationMinutes !== undefined) doctor.slotDurationMinutes = Number(slotDurationMinutes);
+    if (maxAppointmentsPerDay !== undefined) doctor.maxAppointmentsPerDay = Number(maxAppointmentsPerDay);
+    if (Array.isArray(breakTimes)) doctor.breakTimes = breakTimes;
+
+    await doctor.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Doctor capacity, slot duration and break times updated successfully",
+      doctor: {
+        _id: doctor._id,
+        slotDurationMinutes: doctor.slotDurationMinutes,
+        maxAppointmentsPerDay: doctor.maxAppointmentsPerDay,
+        breakTimes: doctor.breakTimes,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 };

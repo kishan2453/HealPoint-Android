@@ -33,6 +33,11 @@ import clinicalReferralRoutes from "./routes/clinicalReferralRoutes.js";
 import clinicalHandoverRoutes from "./routes/clinicalHandoverRoutes.js";
 import communityRoutes from "./routes/communityRoutes.js";
 import serviceDeskRoutes from "./routes/serviceDeskRoutes.js";
+import patientJourneyRoutes from "./routes/patientJourneyRoutes.js";
+import resourceRoutes from "./routes/resourceRoutes.js";
+import staffRosterRoutes from "./routes/staffRosterRoutes.js";
+import hospitalSubscriptionRoutes from "./routes/hospitalSubscriptionRoutes.js";
+
 import { startReminderScheduler } from "./services/reminderScheduler.js";
 import { getAvailableSlots, validateSlot } from "./controllers/appointmentController.js";
 
@@ -187,6 +192,12 @@ app.use("/api/v1/community", communityRoutes);
 app.use("/api/v1/service-desk", serviceDeskRoutes);
 app.use("/service-desk", serviceDeskRoutes);
 app.use("/api/v1/support", serviceDeskRoutes);
+// [Part 18] Advanced Features Routes
+app.use("/api/v1/patient-journey", patientJourneyRoutes);
+app.use("/api/v1/resources", resourceRoutes);
+app.use("/api/v1/roster", staffRosterRoutes);
+app.use("/api/v1/hospital-subscriptions", hospitalSubscriptionRoutes);
+
 
 // Start background appointment reminder scheduler
 startReminderScheduler(5);

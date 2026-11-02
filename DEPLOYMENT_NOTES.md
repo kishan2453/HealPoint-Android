@@ -1,153 +1,38 @@
-# HealPoint — Part 15 Standalone Demo & Simulation Deployment Notes
-
-**Current Phase:** PART 15 (100% Standalone Educational Demo System)  
-**Status:** Live on Production Vercel (100% HTTP 200 OK)  
-**Security Posture:** ZERO External Healthcare Relays, Full Simulation Containment
+# HealPoint Deployment Notes – Part 18
+**Production Deployment & Verification Runbook**
 
 ---
 
-## 1. Production URLs & Health Status
-
-| Service | Target URL | Status | Health Verification |
-|---|---|---|---|
-| **Backend API** | `https://heal-point-backend.vercel.app/api/v1` | **LIVE (200 OK)** | `/health` returns `demoMode: true, isStandaloneDemo: true` |
-| **Patient Web** | `https://heal-point-mauve.vercel.app` | **LIVE (200 OK)** | Demo Mode Banner active on all routes |
-| **Doctor Web** | `https://heal-point-doctor-web.vercel.app` | **LIVE (200 OK)** | Demo Mode Announcement banner active |
-| **Hospital Admin** | `https://heal-point-hospital-admin.vercel.app` | **LIVE (200 OK)** | Demo Mode Announcement banner active |
-| **Super Admin** | `https://heal-point-super-admin.vercel.app` | **LIVE (200 OK)** | Demo Mode Announcement banner active |
-
----
-
-## 2. Standalone Demo Environment Flags (`HealPointBackend/.env`)
-```bash
-DEMO_MODE=true
-SOS_SIMULATION_ONLY=true
-REAL_EMERGENCY_SERVICES_ENABLED=false
-EXTERNAL_SOS_NOTIFICATIONS_ENABLED=false
-SOS_LOCATION_SHARING_ENABLED=false
-LIVE_PAYMENTS_ENABLED=false
-```
+## 1. Deployed Services
+1. **Backend API Service**:
+   - URL: `https://heal-point-backend.vercel.app`
+   - Healthcheck: `https://heal-point-backend.vercel.app/api/v1/health`
+2. **Patient Web / Mobile App**:
+   - URL: `https://heal-point-mauve.vercel.app`
+3. **Doctor Portal**:
+   - URL: `https://heal-point-doctor-web.vercel.app`
+4. **Hospital Admin Portal**:
+   - URL: `https://heal-point-hospital-admin.vercel.app`
+5. **Super Admin Portal**:
+   - URL: `https://heal-point-super-admin.vercel.app`
 
 ---
 
-## 3. Database Anonymization & Simulation Mapping
-- **Hospitals**: All mapped to 7 fictional demo facilities (`HealPoint Demo Hospital 01 (Central)` to `07 (Care Institute)`).
-- **Doctors**: All 79 mapped to `@doctor.healpoint.example.com` with synthetic phone series `+91 00000 12xxx`.
-- **Pre-Migration Backup**: Safe verified snapshot saved in `backups/pre-part-15-standalone-backup/` with rollback script `scripts/restore-db.cjs`.
+## 2. Deployment Steps
+All frontends compile cleanly into static assets using their respective production build scripts:
+- Root Patient App: `npm run build` $\to$ `dist/`
+- Doctor Portal: `cd HealPointDoctorWeb && npm run build` $\to$ `dist/`
+- Hospital Admin: `cd HealPointHospitalAdminWeb && npm run build` $\to$ `dist/`
+- Super Admin: `cd HealPointSuperAdminWeb && npm run build` $\to$ `dist/`
+- Backend: Vercel serverless functions powered by `HealPointBackend/app.js`
 
 ---
 
-# HealPoint 2.0 — Deployment & Infrastructure Notes
-
-**Phase:** Phase 1 (Live Queue Management)
-
----
-
-## 1. Environment Variables Configuration
-
-### Backend (`HealPointBackend/.env`)
-```bash
-# Existing variables
-PORT=8080
-NODE_ENV=production
-MONGO_URI=mongodb+srv://<username>:<password>@cluster0.mongodb.net/doctorapp?retryWrites=true&w=majority
-JWT_SECRET=your_super_secret_production_jwt_key_here
-RAZORPAY_KEY_ID=rzp_test_...
-RAZORPAY_KEY_SECRET=...
-
-# Phase 1 Feature Flag (Default: false)
-# Set to 'true' to activate real-time Socket.IO broadcasts & live queue recalculation
-FEATURE_LIVE_QUEUE=false
-
-# Multi-Instance Cluster Synchronization (Optional for single node / dev; Required for multi-instance clusters)
-# Option A: Connection URI
-REDIS_URL=redis://default:<password>@<redis-host>:6379
-
-# Option B: Individual fields
-REDIS_HOST=127.0.0.1
-REDIS_PORT=6379
-REDIS_PASSWORD=
-```
-
----
-
-## 2. Multi-Instance / Clustered Deployments
-
-1. **Single Node / Development**:
-   - If `REDIS_URL` or `REDIS_HOST` is omitted, `socketService.js` defaults to an in-memory adapter.
-   - Live queue updates and socket events work within that instance.
-2. **Multi-Instance / Production (Docker / Kubernetes / PM2 Cluster)**:
-   - Provide a valid Redis instance (Redis v6+ or AWS ElastiCache / Redis Cloud).
-   - `@socket.io/redis-adapter` automatically coordinates socket broadcasts across all backend pods/containers.
-   - Socket sticky sessions (`cookie: false` with WebSocket transport preference) are configured.
-
----
-
-## 3. Reverse Proxy & WebSocket Configuration (Nginx / Cloudflare)
-
-When deploying behind Nginx or an Application Load Balancer, ensure WebSocket upgrades are enabled:
-
-```nginx
-location /socket.io/ {
-    proxy_pass http://127.0.0.1:8080/socket.io/;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-    proxy_cache_bypass $http_upgrade;
-    proxy_read_timeout 86400s;
-    proxy_send_timeout 86400s;
-}
-```
-
----
-
-## 4. Production Hosting & Live Deployments Matrix
-
-All HealPoint 2.0 services and portals are linked to Vercel and EAS:
-
-| Service / Portal | Hosting Platform | Vercel Project ID / Slug | Production Live URL | Status |
-|---|---|---|---|---|
-| **Backend API Server** | Vercel Serverless + MongoDB Atlas | `prj_sMDbW8j2ckLwxsVm8EiyOOiPE4sW` (`heal-point-backend`) | `https://heal-point-backend.vercel.app` | **LIVE (200 OK, DB Connected)** |
-| **Patient Web Portal** | Vercel Static + PWA | `prj_5DKUjrv0rAF1h4eVFAUdvAUJp9ue` (`heal-point`) | `https://heal-point.vercel.app` | **LIVE (200 OK)** |
-| **Doctor Portal** | Vercel + Vite React | `prj_j3ersIK40oLua2chbdaQ3VcQ5dwM` (`heal-point-doctor-web`) | `https://heal-point-doctor-web.vercel.app` | **LIVE (200 OK)** |
-| **Hospital Admin Portal**| Vercel + Vite React | `prj_4eVpnXdjolM25NemsAb3m7y0H2If` (`heal-point-hospital-admin`) | `https://heal-point-hospital-admin.vercel.app` | **LIVE (200 OK)** |
-| **Super Admin Portal** | Vercel + Vite React | `prj_Q2P0ZqFbjMAskLDB5m3M76X5nl5V` (`heal-point-super-admin`) | `https://heal-point-super-admin.vercel.app` | **LIVE (200 OK)** |
-| **Android Patient App** | Expo Application Services (EAS) | `@kishan_2453/healpoint` | [Latest APK Artifact](https://expo.dev/artifacts/eas/0YWxIl8sr_PXrCZWfTWjqCphqg-0x7p0qI2zAQ6puAA.apk) | **BUILT (v1.0.0, code 5)** |
-
----
-
-## 5. Android Build & Release Specifications
-
-- **Expo SDK Version:** 54.0.0
-- **Expo Doctor Validation:** 18/18 checks passed (`npx expo-doctor`)
-- **Package Name:** `com.healpoint.app`
-- **Latest Finished APK Build ID:** `d59486c6-3b19-4753-8a4e-dc1996a9b301`
-- **Profile:** `apk-production` / `preview`
-- **Application Archive URL:** `https://expo.dev/artifacts/eas/0YWxIl8sr_PXrCZWfTWjqCphqg-0x7p0qI2zAQ6puAA.apk`
-- **Build Logs:** `https://expo.dev/accounts/kishan_2453/projects/healpoint/builds/d59486c6-3b19-4753-8a4e-dc1996a9b301`
-
-
-
----
-
-## 6. Phase 4: Health Wallet Deployment Notes
-
-### Feature Flag Configuration
-```bash
-# In production environment (Vercel Backend project settings)
-FEATURE_HEALTH_WALLET=false # Defaults to false; enable to activate advanced vault features
-```
-
-### Pre-Flight Verification Checklist
-- [x] Backend test suite passed: 70/70 passing in 1.15s
-- [x] TypeScript validation clean (`npm run typecheck` 0 errors)
-- [x] Expo Doctor passed: 18/18 checks clean
-- [x] Max file payload for uploads configured at 10MB in `app.js` express parser
-- [x] Zero breaking database modifications (additive schemas with sensible defaults)
-- [x] Live Vercel endpoints verified healthy:
-  - `https://heal-point-backend.vercel.app` (200 OK)
-  - `https://heal-point.vercel.app` (200 OK)
-  - `https://heal-point-doctor-web.vercel.app` (200 OK)
-  - `https://heal-point-hospital-admin.vercel.app` (200 OK)
-  - `https://heal-point-super-admin.vercel.app` (200 OK)
+## 3. Post-Deployment Verification Gate
+- [x] Backend responds HTTP `200 OK` on `/api/v1/health`.
+- [x] All 239 unit & integration tests pass with 0 failures.
+- [x] TypeScript compilation passes with 0 errors.
+- [x] Patient Web loads without runtime errors.
+- [x] Doctor Portal loads and renders queue and capacity settings.
+- [x] Hospital Admin Portal renders Resource & Capacity and Staff Roster management.
+- [x] Super Admin Portal renders Hospital SaaS plans and Global Resource analytics.

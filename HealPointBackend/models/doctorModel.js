@@ -40,6 +40,9 @@ const doctorSchema = new mongoose.Schema(
       default: "Verified",
     },
     slotDurationMinutes: { type: Number, default: 30 },
+    maxAppointmentsPerDay: { type: Number, default: 30 },
+    queuePaused: { type: Boolean, default: false },
+    queuePauseReason: { type: String, default: "" },
     weeklySchedule: [
       {
         day: { type: String },

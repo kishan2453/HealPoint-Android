@@ -210,12 +210,41 @@ export const generateDoctorSlotsForDate = async (doctor, targetDate) => {
     parsedDate.getFullYear() === now.getFullYear();
   const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
 
+  // Parse doctor break times
+  const breaksList = [];
+  if (Array.isArray(doctor.breakTimes)) {
+    breaksList.push(...doctor.breakTimes);
+  }
+  if (Array.isArray(doctor.weeklySchedule)) {
+    const dayConfig = doctor.weeklySchedule.find(
+      (w) => w.day && w.day.toLowerCase() === dayOfWeek.toLowerCase()
+    );
+    if (dayConfig && Array.isArray(dayConfig.breaks)) {
+      breaksList.push(...dayConfig.breaks);
+    }
+  }
+
+  const parsedBreaks = breaksList
+    .filter((b) => b && b.startTime && b.endTime)
+    .map((b) => ({
+      start: parseTimeToMinutes(b.startTime),
+      end: parseTimeToMinutes(b.endTime),
+      name: b.name || "Break",
+    }));
+
   // Filter valid slots
   const availableSlots = candidateSlots
     .filter(({ slotString, hour24, minute }) => {
+      const slotTotalMinutes = hour24 * 60 + minute;
+
+      // Doctor break times check
+      const isInBreak = parsedBreaks.some(
+        (b) => slotTotalMinutes >= b.start && slotTotalMinutes < b.end
+      );
+      if (isInBreak) return false;
+
       // 1. If today, slot must not be in past
       if (isToday) {
-        const slotTotalMinutes = hour24 * 60 + minute;
         if (slotTotalMinutes <= currentTotalMinutes + 5) {
           return false;
         }
@@ -273,4 +302,33 @@ export const getHourlyBookingCount = async (doctorId, slotDate, slotTime, exclud
     }
   }
   return count;
+};
+
+export const getSmartSlotSuggestionsHelper = async (doctor, targetDate) => {
+  const primaryResult = await generateDoctorSlotsForDate(doctor, targetDate);
+  const alternativeSuggestions = [];
+
+  const parsedBase = parseDateString(targetDate) || new Date();
+  for (let offset = 1; offset <= 5; offset++) {
+    const nextDate = new Date(parsedBase);
+    nextDate.setDate(nextDate.getDate() + offset);
+    const nextDateStr = normalizeDateDDMMYYYY(nextDate);
+    const nextResult = await generateDoctorSlotsForDate(doctor, nextDateStr);
+
+    if (nextResult.availableSlots && nextResult.availableSlots.length > 0) {
+      alternativeSuggestions.push({
+        date: nextDateStr,
+        dayName: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][nextDate.getDay()],
+        availableCount: nextResult.availableSlots.length,
+        sampleSlots: nextResult.availableSlots.slice(0, 4),
+      });
+      if (alternativeSuggestions.length >= 3) break;
+    }
+  }
+
+  return {
+    ...primaryResult,
+    targetDate,
+    alternativeSuggestions,
+  };
 };

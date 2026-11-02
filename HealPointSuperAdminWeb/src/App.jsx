@@ -27,6 +27,8 @@ import EarningsDashboard from "./pages/EarningsDashboard";
 import SupportManagement from "./pages/SupportManagement";
 import Subscriptions from "./pages/subscriptions/Subscriptions";
 import SubscriptionPlans from "./pages/subscriptions/SubscriptionPlans";
+import HospitalSubscriptions from "./pages/HospitalSubscriptions";
+import GlobalResourceCapacity from "./pages/GlobalResourceCapacity";
 import PlatformAnalytics from "./pages/PlatformAnalytics";
 import EmergencyMonitoring from "./pages/EmergencyMonitoring";
 import SystemHealth from "./pages/SystemHealth";
@@ -194,6 +196,22 @@ function App() {
           element={
             <ProtectedRoute requiredPermission="reports">
               <EarningsDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/hospital-subscriptions"
+          element={
+            <ProtectedRoute requiredPermission="subscriptions">
+              <HospitalSubscriptions />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/global-resources"
+          element={
+            <ProtectedRoute requiredPermission="hospitals">
+              <GlobalResourceCapacity />
             </ProtectedRoute>
           }
         />

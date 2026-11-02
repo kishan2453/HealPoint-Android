@@ -61,6 +61,18 @@ const NAV_GROUPS = [
         permission: "reports",
       },
       {
+        to: "/hospital-subscriptions",
+        label: "Hospital SaaS Plans",
+        icon: <FaCreditCard />,
+        permission: "subscriptions",
+      },
+      {
+        to: "/global-resources",
+        label: "Facility Resources",
+        icon: <FaHospital />,
+        permission: "hospitals",
+      },
+      {
         to: "/subscriptions",
         label: "Subscriptions",
         icon: <FaCreditCard />,

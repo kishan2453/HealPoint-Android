@@ -7252,3 +7252,140 @@ export interface EmergencyResponse {
   isExisting?: boolean;
 }
 
+
+
+// ==========================================
+// [Part 18] Advanced Features Domain Types
+// ==========================================
+
+export interface WaitlistEntry {
+  _id: string;
+  userId: string;
+  patientName: string;
+  patientPhone?: string;
+  doctorId: string | Doctor;
+  doctorName?: string;
+  hospitalId: string | Hospital;
+  hospitalName?: string;
+  department?: string;
+  preferredDate: string;
+  preferredTimeSlot?: string;
+  status: "active" | "notified" | "booked" | "expired" | "cancelled";
+  notifiedSlot?: string;
+  notifiedAt?: string;
+  priority?: number;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SmartSlotSuggestion {
+  targetDate: string;
+  availableSlots: string[];
+  totalSlots: number;
+  reason?: string;
+  alternativeSuggestions: Array<{
+    date: string;
+    dayName: string;
+    availableCount: number;
+    sampleSlots: string[];
+  }>;
+}
+
+export interface PatientJourneyEvent {
+  id: string;
+  type: "registration" | "appointment" | "consultation" | "prescription" | "health_record" | "billing";
+  category: "account" | "appointments" | "consultations" | "prescriptions" | "records" | "billing";
+  title: string;
+  description: string;
+  timestamp: string | Date;
+  status?: string;
+  badgeColor?: string;
+  icon?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface HospitalResource {
+  _id: string;
+  hospitalId: string;
+  hospitalName: string;
+  name: string;
+  identifier: string;
+  category: "room" | "bed" | "equipment" | "facility" | "vehicle";
+  department: string;
+  status: "available" | "occupied" | "under_maintenance" | "reserved" | "retired";
+  capacity: number;
+  assignedTo?: string;
+  assignedName?: string;
+  location?: string;
+  notes?: string;
+  lastMaintenanceDate?: string;
+  nextMaintenanceDate?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffMember {
+  _id: string;
+  hospitalId: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  employeeId: string;
+  role: "doctor" | "nurse" | "technician" | "pharmacist" | "receptionist" | "admin_staff" | "support";
+  department: string;
+  status: "active" | "on_leave" | "inactive";
+  skills?: string[];
+  shiftPreference?: string;
+  joiningDate?: string;
+}
+
+export interface RosterShift {
+  _id: string;
+  hospitalId: string;
+  staffId: string | StaffMember;
+  staffName: string;
+  staffRole?: string;
+  department: string;
+  shiftId: string;
+  shiftName: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  status: "scheduled" | "in_progress" | "completed" | "absent" | "swapped";
+  notes?: string;
+}
+
+export interface HospitalSubscription {
+  _id: string;
+  hospitalId: string;
+  hospitalName: string;
+  planCode: string;
+  planName: string;
+  status: "active" | "trial" | "past_due" | "cancelled";
+  billingCycle: "monthly" | "yearly";
+  startDate: string;
+  expiryDate: string;
+  simulatedFee: number;
+  limits: {
+    maxDoctors: number;
+    maxAppointmentsPerMonth: number;
+    allowedFeatures: string[];
+  };
+}
+
+export interface SimulatedInvoice {
+  _id: string;
+  invoiceNumber: string;
+  hospitalId: string;
+  hospitalName: string;
+  planName: string;
+  amount: number;
+  currency: string;
+  billingPeriod: string;
+  issueDate: string;
+  dueDate: string;
+  status: "paid_simulated" | "pending_simulated";
+  paymentMethod: string;
+  items?: Array<{ description: string; amount: number }>;
+}

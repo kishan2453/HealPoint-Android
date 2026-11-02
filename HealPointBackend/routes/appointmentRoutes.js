@@ -23,6 +23,12 @@ import {
   createMedicationReminder,
   deleteMedicationReminder,
   triggerAppointmentReminders,
+  getSmartSlotSuggestions,
+  registerWaitlist,
+  getUserWaitlist,
+  cancelWaitlist,
+  getDoctorWaitlist,
+  getHospitalWaitlistOverview,
 } from "../controllers/appointmentController.js";
 import { authenticate } from "../middlewares/authMiddlewares.js";
 
@@ -32,6 +38,15 @@ const router = express.Router();
 router.get("/get-available-slots/:doctorId", getAvailableSlots);
 router.get("/slots/availability/:doctorId", getAvailableSlots);
 router.post("/validate-slot/:doctorId", validateSlot);
+
+// [Part 18] Smart Slot Suggestions & Waitlist Routes
+router.get("/slots/smart-suggestions/:doctorId", getSmartSlotSuggestions);
+router.post("/waitlist", authenticate, registerWaitlist);
+router.get("/waitlist/my-waitlist", authenticate, getUserWaitlist);
+router.delete("/waitlist/:id", authenticate, cancelWaitlist);
+router.get("/waitlist/doctor/:doctorId", authenticate, getDoctorWaitlist);
+router.get("/waitlist/hospital/:hospitalId", authenticate, getHospitalWaitlistOverview);
+
 
 // Health Wallet & Medical History (MUST precede dynamic /:id route)
 router.get("/health-wallet", authenticate, getHealthWallet);

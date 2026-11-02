@@ -420,6 +420,9 @@ export default function BookingScreen() {
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsError, setSlotsError] = useState("");
   const [selectedSlot, setSelectedSlot] = useState("");
+  const [smartSuggestions, setSmartSuggestions] = useState<Array<{ date: string; dayName: string; availableCount: number; sampleSlots: string[] }>>([]);
+  const [waitlistJoining, setWaitlistJoining] = useState<boolean>(false);
+  const [waitlistMessage, setWaitlistMessage] = useState<string>("");
 
   const [consultationType, setConsultationType] = useState<ConsultationType>(
     requestedType ?? "clinic",
@@ -625,7 +628,20 @@ export default function BookingScreen() {
         if (!active) return;
         const slots = res.availableSlots || [];
         setAvailableSlots(slots);
-        if (slots.length > 0) setSelectedSlot(slots[0]);
+        if (slots.length > 0) {
+          setSelectedSlot(slots[0]);
+          setSmartSuggestions([]);
+        } else {
+          // Fetch Part 18 Smart Slot Suggestions
+          appointmentService
+            .getSmartSlotSuggestions(doctorId, dateStr)
+            .then((sRes) => {
+              if (active && sRes?.alternativeSuggestions) {
+                setSmartSuggestions(sRes.alternativeSuggestions);
+              }
+            })
+            .catch(() => {});
+        }
       })
       .catch((err) => {
         if (active) {
@@ -640,6 +656,25 @@ export default function BookingScreen() {
       active = false;
     };
   }, [doctorId, selectedDate]);
+
+
+  const handleJoinWaitlist = async () => {
+    if (!doctorId || waitlistJoining) return;
+    setWaitlistJoining(true);
+    setWaitlistMessage("");
+    try {
+      const res = await appointmentService.registerAppointmentWaitlist({
+        doctorId,
+        preferredDate: selectedDateStr,
+        preferredTimeSlot: "any",
+      });
+      setWaitlistMessage("✓ Successfully registered on the waitlist! You will be notified instantly when a slot opens.");
+    } catch (err: any) {
+      setWaitlistMessage(err?.response?.data?.message || err?.message || "Could not register on waitlist");
+    } finally {
+      setWaitlistJoining(false);
+    }
+  };
 
   const selectedDateStr = toDDMMYYYY(selectedDate);
   const isLeaveDate = Boolean(doctor?.leaveDates?.includes(selectedDateStr));
@@ -1221,11 +1256,77 @@ export default function BookingScreen() {
                 size={36}
                 color={Palette.textMuted}
               />
-              <Text style={styles.emptySlotsTitle}>No Available Slots</Text>
+              <Text style={styles.emptySlotsTitle}>No Available Slots for this Date</Text>
               <Text style={styles.emptySlotsText}>
-                All appointment slots are fully booked or unavailable for this
-                day. Please pick another date.
+                All appointment slots are fully booked. Choose an alternative suggested date or join the waitlist.
               </Text>
+
+              {smartSuggestions.length > 0 && (
+                <View style={{ width: "100%", marginTop: 12, marginBottom: 8 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: Palette.primary, marginBottom: 6 }}>
+                    Smart Slot Suggestions:
+                  </Text>
+                  {smartSuggestions.map((sug: { date: string; dayName: string; availableCount: number; sampleSlots: string[] }, idx: number) => (
+                    <Pressable
+                      key={idx}
+                      style={{
+                        backgroundColor: "#EFF6FF",
+                        borderColor: "#BFDBFE",
+                        borderWidth: 1,
+                        borderRadius: 8,
+                        padding: 10,
+                        marginBottom: 6,
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                      onPress={() => {
+                        const parts = sug.date.split("-");
+                        if (parts.length === 3) {
+                          const d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+                          setSelectedDate(d);
+                        }
+                      }}
+                    >
+                      <View>
+                        <Text style={{ fontWeight: "700", color: Palette.text, fontSize: 13 }}>
+                          {sug.dayName} ({sug.date})
+                        </Text>
+                        <Text style={{ fontSize: 11, color: Palette.textMuted }}>
+                          Sample: {sug.sampleSlots.join(", ")}
+                        </Text>
+                      </View>
+                      <Badge variant="primary" label={`${sug.availableCount} slots`} />
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+
+              <Pressable
+                style={{
+                  backgroundColor: Palette.primary,
+                  paddingVertical: 10,
+                  paddingHorizontal: 16,
+                  borderRadius: 8,
+                  marginTop: 8,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+                disabled={waitlistJoining}
+                onPress={handleJoinWaitlist}
+              >
+                <Ionicons name="time-outline" size={16} color="#FFFFFF" />
+                <Text style={{ color: "#FFFFFF", fontWeight: "600", fontSize: 13 }}>
+                  {waitlistJoining ? "Joining..." : "Join Priority Waitlist"}
+                </Text>
+              </Pressable>
+
+              {waitlistMessage ? (
+                <Text style={{ fontSize: 12, color: waitlistMessage.startsWith("✓") ? "#16A34A" : "#DC2626", marginTop: 8, textAlign: "center" }}>
+                  {waitlistMessage}
+                </Text>
+              ) : null}
             </View>
           ) : (
             <View style={styles.sessionsContainer}>

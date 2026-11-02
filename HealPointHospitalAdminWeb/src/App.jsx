@@ -66,6 +66,8 @@ import Departments from "./pages/Departments";
 import Appointments from "./pages/Appointments";
 import DoctorScheduling from "./pages/DoctorScheduling";
 import CheckInScannerView from "./pages/CheckInScannerView";
+import ResourcesCapacity from "./pages/ResourcesCapacity";
+import StaffRoster from "./pages/StaffRoster";
 import ComplianceGovernanceCenter from "./pages/ComplianceGovernanceCenter";
 import { HospitalEmergencyManager } from "./components/HospitalEmergencyManager";
 import { formatDoctorName } from "./services/doctorFormat";
@@ -108,6 +110,8 @@ const menuGroups = [
       ["online-consultations", "Online Consultations", FaVideo],
       ["availability", "Doctor Scheduling", FaCalendarAlt],
       ["departments", "Departments & Services", FaClinicMedical],
+      ["resources", "Resource & Capacity", FaLayerGroup],
+      ["roster", "Staff & Duty Roster", FaUserCheck],
     ],
   },
   {
@@ -744,6 +748,8 @@ function Portal() {
           />
         )}
         {view === "check-in" && <CheckInScannerView session={session()} />}
+        {view === "resources" && <ResourcesCapacity />}
+        {view === "roster" && <StaffRoster />}
         {![
           "dashboard",
           "reports",

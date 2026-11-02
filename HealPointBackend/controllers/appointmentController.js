@@ -5,6 +5,7 @@ import hospitalModel from "../models/hospitalModel.js";
 import userModel from "../models/userModel.js";
 import healthDocumentModel from "../models/healthDocumentModel.js";
 import subscriptionModel from "../models/subscriptionModel.js";
+import waitlistModel from "../models/waitlistModel.js";
 import { createRazorpayOrder, verifyPaymentSignature } from "../services/razorpayService.js";
 import { processAppointmentReminders } from "../services/reminderScheduler.js";
 import { dispatchNotification } from "../services/socketService.js";
@@ -13,6 +14,7 @@ import {
   getHourlyBookingCount,
   MAX_HOURLY_CAPACITY,
   normalizeDateDDMMYYYY,
+  getSmartSlotSuggestionsHelper,
 } from "../helpers/slotHelper.js";
 
 const isValidId = (id) => typeof id === "string" && /^[0-9a-fA-F]{24}$/.test(id);
@@ -43,6 +45,42 @@ export const bookAppointment = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "This doctor is currently not accepting appointments",
+      });
+    }
+
+
+    // [Part 18] Atomic Double-Booking Prevention: Exact slot verification
+    const existingBooking = await appointmentModel.findOne({
+      doctorId: doctor._id,
+      $or: [{ slotDate }, { slotDate: normalizeDateDDMMYYYY(slotDate) }],
+      slotTime,
+      status: { $nin: ["cancel", "cancelled", "missed"] },
+    });
+    if (existingBooking) {
+      const smartSuggestions = await getSmartSlotSuggestionsHelper(doctor, slotDate);
+      return res.status(409).json({
+        success: false,
+        code: "SLOT_ALREADY_BOOKED",
+        message: "This slot has just been booked by another patient. Please choose an alternative slot or register on the waitlist.",
+        alternativeSlots: smartSuggestions.availableSlots || [],
+        alternativeSuggestions: smartSuggestions.alternativeSuggestions || [],
+        canJoinWaitlist: true,
+      });
+    }
+
+    // [Part 18] Doctor Daily Capacity Check
+    const maxDaily = doctor.maxAppointmentsPerDay || 30;
+    const dailyBookingsCount = await appointmentModel.countDocuments({
+      doctorId: doctor._id,
+      $or: [{ slotDate }, { slotDate: normalizeDateDDMMYYYY(slotDate) }],
+      status: { $nin: ["cancel", "cancelled", "missed"] },
+    });
+    if (dailyBookingsCount >= maxDaily) {
+      return res.status(409).json({
+        success: false,
+        code: "DOCTOR_DAILY_CAPACITY_REACHED",
+        message: `Doctor has reached maximum capacity (${maxDaily} appointments) for this date. You may join the waitlist.`,
+        canJoinWaitlist: true,
       });
     }
 
@@ -462,6 +500,38 @@ export const cancelAppointment = async (req, res) => {
         refId: appointment._id.toString(),
         refModel: "Appointment",
       }).catch(() => {});
+
+
+      // [Part 18] Trigger Waitlist Notification upon Slot Release
+      try {
+        const topWaitlist = await waitlistModel.findOne({
+          doctorId: appointment.doctorId,
+          preferredDate: appointment.slotDate,
+          status: "active",
+        }).sort({ priority: -1, createdAt: 1 });
+
+        if (topWaitlist) {
+          topWaitlist.status = "notified";
+          topWaitlist.notifiedSlot = appointment.slotTime;
+          topWaitlist.notifiedAt = new Date();
+          topWaitlist.notificationExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
+          await topWaitlist.save();
+
+          dispatchNotification({
+            userId: topWaitlist.userId,
+            recipientRole: "patient",
+            title: "Waitlist Slot Available!",
+            message: `A slot on ${appointment.slotDate} at ${appointment.slotTime} just opened with Dr. ${topWaitlist.doctorName || "your doctor"}. Book now before it expires!`,
+            type: "appointment",
+            category: "appointment",
+            priority: "high",
+            refId: topWaitlist._id.toString(),
+            refModel: "Waitlist",
+          }).catch(() => {});
+        }
+      } catch (wErr) {
+        console.warn("[Waitlist Notification Warning]:", wErr.message);
+      }
 
       if (appointment.doctorId) {
         dispatchNotification({
@@ -1673,6 +1743,190 @@ export const updatePreparationChecklist = async (req, res) => {
       success: true,
       message: "Preparation updated successfully.",
       preparation: appointment.preparation,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
+// ==========================================
+// [Part 18] SMART SCHEDULING & WAITLIST ENGINE
+// ==========================================
+
+export const getSmartSlotSuggestions = async (req, res) => {
+  try {
+    const doctorId = req.params.doctorId || req.params.id;
+    if (!doctorId || !isValidId(doctorId)) {
+      return res.status(400).json({ success: false, message: "Valid Doctor ID is required" });
+    }
+    const doctor = await doctorModel.findById(doctorId);
+    if (!doctor) return res.status(404).json({ success: false, message: "Doctor not found" });
+
+    const rawDate = req.query.date || req.query.slotDate || normalizeDateDDMMYYYY(new Date());
+    const targetDate = String(rawDate).trim();
+
+    const suggestions = await getSmartSlotSuggestionsHelper(doctor, targetDate);
+    return res.status(200).json({
+      success: true,
+      doctorId,
+      targetDate,
+      ...suggestions,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const registerWaitlist = async (req, res) => {
+  try {
+    const { doctorId, preferredDate, preferredTimeSlot, notes } = req.body;
+    if (!doctorId || !isValidId(doctorId) || !preferredDate) {
+      return res.status(400).json({
+        success: false,
+        message: "doctorId and preferredDate are required",
+      });
+    }
+
+    const doctor = await doctorModel.findById(doctorId).populate("hospitalId");
+    if (!doctor) return res.status(404).json({ success: false, message: "Doctor not found" });
+
+    const user = await userModel.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    const existingWaitlist = await waitlistModel.findOne({
+      userId: req.user.id,
+      doctorId,
+      preferredDate,
+      status: { $in: ["active", "notified"] },
+    });
+
+    if (existingWaitlist) {
+      return res.status(400).json({
+        success: false,
+        message: "You are already on the waitlist for this doctor and date",
+        waitlist: existingWaitlist,
+      });
+    }
+
+    const newWaitlist = await waitlistModel.create({
+      userId: req.user.id,
+      patientName: user.name,
+      patientPhone: user.phone || "",
+      doctorId: doctor._id,
+      doctorName: doctor.name,
+      hospitalId: doctor.hospitalId?._id || doctor.hospitalId,
+      hospitalName: doctor.hospitalId?.name || doctor.hospitalName || "HealPoint Medical Center",
+      department: doctor.department || doctor.speciality || "General Medicine",
+      preferredDate,
+      preferredTimeSlot: preferredTimeSlot || "any",
+      notes: notes || "",
+      status: "active",
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Successfully joined appointment waitlist. You will be notified as soon as a slot opens.",
+      waitlist: newWaitlist,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getUserWaitlist = async (req, res) => {
+  try {
+    const entries = await waitlistModel
+      .find({ userId: req.user.id })
+      .populate("doctorId", "name speciality image rating fees")
+      .populate("hospitalId", "name location")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      count: entries.length,
+      waitlist: entries,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const cancelWaitlist = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id || !isValidId(id)) {
+      return res.status(400).json({ success: false, message: "Valid waitlist ID is required" });
+    }
+
+    const entry = await waitlistModel.findOne({ _id: id, userId: req.user.id });
+    if (!entry) return res.status(404).json({ success: false, message: "Waitlist entry not found" });
+
+    entry.status = "cancelled";
+    await entry.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Waitlist entry cancelled successfully",
+      waitlist: entry,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getDoctorWaitlist = async (req, res) => {
+  try {
+    const doctorId = req.params.doctorId || req.params.id || req.user?.id;
+    if (!doctorId || !isValidId(doctorId)) {
+      return res.status(400).json({ success: false, message: "Valid Doctor ID is required" });
+    }
+
+    const { date, status } = req.query;
+    const query = { doctorId };
+    if (date) query.preferredDate = date;
+    if (status && status !== "all") query.status = status;
+
+    const entries = await waitlistModel
+      .find(query)
+      .populate("userId", "name phone email")
+      .sort({ priority: -1, createdAt: 1 });
+
+    return res.status(200).json({
+      success: true,
+      count: entries.length,
+      waitlist: entries,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getHospitalWaitlistOverview = async (req, res) => {
+  try {
+    const hospitalId = req.params.hospitalId || req.user?.hospitalId;
+    if (!hospitalId || !isValidId(hospitalId)) {
+      return res.status(400).json({ success: false, message: "Valid Hospital ID is required" });
+    }
+
+    const entries = await waitlistModel
+      .find({ hospitalId })
+      .populate("doctorId", "name speciality department")
+      .populate("userId", "name phone")
+      .sort({ createdAt: -1 })
+      .limit(100);
+
+    const summary = {
+      total: entries.length,
+      active: entries.filter((e) => e.status === "active").length,
+      notified: entries.filter((e) => e.status === "notified").length,
+      booked: entries.filter((e) => e.status === "booked").length,
+    };
+
+    return res.status(200).json({
+      success: true,
+      summary,
+      waitlist: entries,
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
