@@ -138,9 +138,9 @@ export function EmergencySosModal({
             <View style={styles.iconCircle}>
               <Ionicons name="warning" size={32} color="#EF4444" />
             </View>
-            <Text style={styles.title}>EMERGENCY SOS</Text>
+            <Text style={styles.title}>EMERGENCY SOS SIMULATION</Text>
             <Text style={styles.subtitle}>
-              Alerting response teams & sharing your GPS location
+              SIMULATION ONLY – No real emergency services are contacted.
             </Text>
           </View>
 
@@ -149,7 +149,7 @@ export function EmergencySosModal({
             <View style={styles.countdownBox}>
               <Text style={styles.countdownNumber}>{countdown}</Text>
               <Text style={styles.countdownLabel}>
-                Broadcasting in {countdown}s... Tap Cancel to abort
+                Simulating SOS in {countdown}s... Tap Cancel to abort
               </Text>
             </View>
           ) : null}
@@ -241,7 +241,7 @@ export function EmergencySosModal({
               ) : (
                 <>
                   <Ionicons name="flash" size={18} color="#FFFFFF" />
-                  <Text style={styles.confirmButtonText}>BROADCAST SOS NOW</Text>
+                  <Text style={styles.confirmButtonText}>TRIGGER DEMO SOS (SIMULATION)</Text>
                 </>
               )}
             </Pressable>

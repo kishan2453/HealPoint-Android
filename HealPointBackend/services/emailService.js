@@ -144,6 +144,12 @@ export const sendAppointmentReminderEmail = async ({
     html,
   };
 
+  // Standalone Demo Mode: Bypass live SMTP entirely
+  if (process.env.DEMO_MODE !== "false") {
+    console.log(`[EmailService: DEMO MODE] Simulated reminder email (${reminderType}) to ${to} for appointment ${appointmentId}`);
+    return { success: true, messageId: `demo_sim_${Date.now()}`, simulated: true, isDemo: true };
+  }
+
   const client = getTransporter();
   if (client) {
     const info = await client.sendMail(mailOptions);

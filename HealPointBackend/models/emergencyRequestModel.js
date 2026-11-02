@@ -2,6 +2,16 @@ import mongoose from "mongoose";
 
 const emergencyRequestSchema = new mongoose.Schema(
   {
+    isDemo: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
+    isSimulation: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
     emergencyCode: {
       type: String,
       unique: true,

@@ -22,6 +22,7 @@ import { InstallAppModal } from "@/components/InstallAppModal";
 import { AuthProvider } from "@/hooks/use-auth";
 import { LanguageProvider } from "@/hooks/use-language";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { DemoModeBanner } from "@/components/DemoModeBanner";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { DoctorComparisonProvider } from "@/hooks/use-doctor-comparison";
 import { FavoritesProvider } from "@/hooks/use-favorites";
@@ -50,6 +51,7 @@ export default function RootLayout() {
       <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
         <AuthProvider>
           <LanguageProvider>
+            <DemoModeBanner />
             <OfflineBanner />
           <PushNotificationListener />
           <LocationProvider>

@@ -11,6 +11,39 @@ import "./PremiumWorkspace.css";
 export default function App() {
   return (
     <React.Fragment>
+      <div
+        role="alert"
+        aria-label="HealPoint Demo Mode Announcement"
+        style={{
+          background: "#0284C7",
+          color: "#FFFFFF",
+          padding: "6px 16px",
+          fontSize: "12px",
+          fontWeight: "600",
+          textAlign: "center",
+          letterSpacing: "0.4px",
+          zIndex: 9999,
+          position: "relative",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "8px",
+        }}
+      >
+        <span
+          style={{
+            background: "#F59E0B",
+            color: "#0F172A",
+            padding: "2px 6px",
+            borderRadius: "4px",
+            fontSize: "10px",
+            fontWeight: "800",
+          }}
+        >
+          DEMO MODE
+        </span>
+        <span>HealPoint Doctor Portal · Educational simulation only · Not a real healthcare provider</span>
+      </div>
       <ToastContainer
         position="top-right"
         autoClose={5000}

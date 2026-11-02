@@ -30,6 +30,14 @@ export function useEmergency() {
 
   // Fetch current GPS location
   const getCurrentLocation = useCallback(async (): Promise<EmergencyLocation | undefined> => {
+    // Standalone Demo Mode: Return simulated static demo coordinates to prevent real-world location tracking
+    return {
+      latitude: 23.0225,
+      longitude: 72.5714,
+      address: "HealPoint Demo Healthcare Hub, Ahmedabad (Simulated Coordinates)",
+      accuracy: 10,
+      sharedAt: new Date().toISOString(),
+    };
     try {
       if (Platform.OS === "web") {
         if (typeof navigator !== "undefined" && navigator.geolocation) {

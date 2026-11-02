@@ -152,7 +152,9 @@ export const createEmergencyRequest = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: "Emergency SOS activated. Response teams have been notified.",
+      message: "DEMO MODE: This is a simulated emergency request. No real hospital, ambulance or emergency service has been contacted.",
+      isDemo: true,
+      isSimulation: true,
       data: newEmergency,
     });
   } catch (error) {
@@ -473,7 +475,9 @@ export const dispatchAmbulance = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Ambulance dispatched successfully and patient notified.",
+      message: "DEMO MODE: Ambulance dispatch simulated. No real hospital or ambulance has been contacted.",
+      isDemo: true,
+      isSimulation: true,
       data: emergency,
     });
   } catch (error) {

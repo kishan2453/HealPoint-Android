@@ -50,3 +50,4 @@ easJson.build.preview.env.EXPO_PUBLIC_API_URL = "https://heal-point-backend.verc
 
 fs.writeFileSync(easJsonPath, JSON.stringify(easJson, null, 2) + "\n", "utf8");
 console.log("Updated eas.json production and preview env EXPO_PUBLIC_API_URL");
+

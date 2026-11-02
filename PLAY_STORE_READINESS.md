@@ -109,3 +109,4 @@ HealPoint facilitates scheduling, consultations, and digital records management 
 - **Privacy Policy**: `https://heal-point-mauve.vercel.app/privacy`
 - **Terms of Service**: `https://heal-point-mauve.vercel.app/terms`
 - **Developer / Support Contact**: `support@healpoint.app` / `+91 98100 00000`
+

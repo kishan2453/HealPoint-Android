@@ -114,36 +114,12 @@ export default function EmergencyScreen() {
     fetchHospitals();
   }, [fetchHospitals]);
 
-  // Direct Phone Dialing Handler
+  // Direct Phone Dialing Handler - Standalone Demo Simulation
   const callNumber = (phone: string, label: string) => {
-    const cleaned = phone.replace(/[^0-9+]/g, "");
-    if (!cleaned) {
-      Alert.alert(
-        "No Number",
-        `A valid phone number is not listed for ${label}.`,
-      );
-      return;
-    }
-
     Alert.alert(
-      "Place Emergency Call",
-      `Dial ${label} (${phone}) now?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Call Now",
-          style: "default",
-          onPress: () => {
-            Linking.openURL(`tel:${cleaned}`).catch(() => {
-              Alert.alert(
-                "Call Failed",
-                `Unable to open device phone dialer for ${phone}.`,
-              );
-            });
-          },
-        },
-      ],
-      { cancelable: true },
+      "SIMULATION ONLY – DEMO MODE",
+      `Calling is disabled in Demo Mode.\n\n"${label}" (${phone}) is a simulated educational placeholder.\n\nNo real-world hospital, ambulance, or emergency service is contacted.`,
+      [{ text: "Understood", style: "default" }]
     );
   };
 
@@ -294,6 +270,14 @@ export default function EmergencyScreen() {
           />
         }
       >
+        {/* Standalone Demo Mode Disclaimer Banner */}
+        <View style={styles.demoWarningBanner}>
+          <Ionicons name="information-circle" size={20} color="#92400E" />
+          <Text style={styles.demoWarningText}>
+            DEMO MODE: This is a simulated emergency request. No real hospital, ambulance or emergency service has been contacted.
+          </Text>
+        </View>
+
         {/* 1. Live Active Emergency SOS Tracker (Task 8) */}
         {activeEmergency ? (
           <ActiveEmergencyBanner
@@ -308,10 +292,10 @@ export default function EmergencyScreen() {
           <View style={styles.sosHeroHeader}>
             <View style={styles.sosLiveBadge}>
               <View style={styles.pulseDot} />
-              <Text style={styles.sosLiveBadgeText}>ONE-TAP SOS BROADCAST</Text>
+              <Text style={styles.sosLiveBadgeText}>ONE-TAP SOS SIMULATION (DEMO)</Text>
             </View>
             <Text style={styles.sosHeroSubtitle}>
-              Instantly transmits your medical identity & GPS coordinates to response desks
+              Simulates an emergency request in the demo environment · No real services contacted
             </Text>
           </View>
 
@@ -336,7 +320,7 @@ export default function EmergencyScreen() {
           <View style={styles.sosProtectionRow}>
             <View style={styles.protectionPill}>
               <Ionicons name="location" size={14} color="#2563EB" />
-              <Text style={styles.protectionPillText}>GPS Location Attached</Text>
+              <Text style={styles.protectionPillText}>Simulated GPS Attached</Text>
             </View>
             <View style={styles.protectionPill}>
               <Ionicons name="shield-checkmark" size={14} color="#059669" />
@@ -1155,6 +1139,24 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Palette.textMuted,
     marginTop: 1,
+  },
+  demoWarningBanner: {
+    backgroundColor: "#FEF3C7",
+    borderWidth: 1,
+    borderColor: "#F59E0B",
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  demoWarningText: {
+    flex: 1,
+    color: "#92400E",
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 18,
   },
   scrollContent: {
     padding: Spacing.lg,

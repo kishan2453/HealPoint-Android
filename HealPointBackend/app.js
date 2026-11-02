@@ -135,6 +135,10 @@ app.get(["/health", "/api/v1/health"], (req, res) => {
     database,
     databaseName: mongoose.connection.name || null,
     environment: process.env.NODE_ENV || "development",
+    demoMode: process.env.DEMO_MODE !== "false",
+    isStandaloneDemo: true,
+    sosSimulationOnly: true,
+    realEmergencyServicesEnabled: false,
     timestamp: new Date().toISOString(),
   });
 });

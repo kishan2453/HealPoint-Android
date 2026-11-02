@@ -1,5 +1,5 @@
-const fs = require('fs');
-let changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
+const fs = require("fs");
+let changelog = fs.readFileSync("CHANGELOG.md", "utf8");
 
 const phase13Entry = `
 ## [Phase 13] - Production Launch & Google Play Store Readiness
@@ -17,10 +17,10 @@ const phase13Entry = `
 - Razorpay HMAC SHA-256 payment signature verification and webhook idempotency.
 `;
 
-if (!changelog.includes('[Phase 13]')) {
-  changelog = changelog.replace('# Changelog', '# Changelog\n' + phase13Entry);
-  fs.writeFileSync('CHANGELOG.md', changelog, 'utf8');
-  console.log('Successfully added Phase 13 to CHANGELOG.md');
+if (!changelog.includes("[Phase 13]")) {
+  changelog = changelog.replace("# Changelog", "# Changelog\n" + phase13Entry);
+  fs.writeFileSync("CHANGELOG.md", changelog, "utf8");
+  console.log("Successfully added Phase 13 to CHANGELOG.md");
 } else {
-  console.log('Phase 13 already present in CHANGELOG.md');
+  console.log("Phase 13 already present in CHANGELOG.md");
 }

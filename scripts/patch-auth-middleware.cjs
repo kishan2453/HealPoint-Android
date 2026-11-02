@@ -33,3 +33,4 @@ export const enforceHospitalScope = (req, res, next) => {
 } else {
   console.log("enforceHospitalScope already present in authMiddlewares.js");
 }
+
