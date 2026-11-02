@@ -70,3 +70,4 @@ if (code.includes(oldAmbMsg)) {
 
 fs.writeFileSync('HealPointBackend/controllers/emergencyController.js', code, 'utf8');
 console.log('emergencyController.js successfully updated for 100% demo simulation');
+

@@ -73,3 +73,4 @@ if (!code.includes('demoWarningBanner:')) {
 
 fs.writeFileSync('app/(drawer)/emergency.tsx', code, 'utf8');
 console.log('emergency.tsx updated successfully');
+

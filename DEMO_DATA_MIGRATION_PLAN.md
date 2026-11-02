@@ -48,3 +48,4 @@ Every hospital record will have:
 1. **Approval Gate:** Run only after user review and confirmation.
 2. **Atomic In-Place Update:** Use MongoDB `$set` operators on existing documents without deleting or changing `_id`s, preserving all 333 appointments and related records.
 3. **Rollback Safety:** If any issue arises, the pre-migration backup (`backups/pre-part-15-standalone-backup/`) can be restored in seconds via a single script (`scripts/restore-db.cjs`).
+

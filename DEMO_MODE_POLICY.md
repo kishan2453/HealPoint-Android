@@ -42,3 +42,4 @@ Server-side business logic strictly respects the following feature flags:
 - `LIVE_PAYMENTS_ENABLED=false`
 
 If any request attempts to bypass these constraints, the backend rejects it or clamps it into simulated demo mode automatically.
+

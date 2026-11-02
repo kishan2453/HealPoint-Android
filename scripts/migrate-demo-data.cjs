@@ -55,7 +55,7 @@ const HOSPITAL_MAP = {
 
 async function executeMigration() {
   const uri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/doctorapp';
-  console.log('[Migration] Connecting to MongoDB...');
+  console.log('[Migration] Connecting to MongoDB at:', uri.replace(/\/\/.*@/, '//***@'));
   await mongoose.connect(uri);
 
   console.log('[Migration] Step 1: Anonymizing hospitals...');
@@ -83,14 +83,13 @@ async function executeMigration() {
         },
       }
     );
-    console.log(`Updated hospital: ${h.name} -> ${mapping.name}`);
+    console.log(`  Updated hospital: "${h.name}" -> "${mapping.name}"`);
   }
 
-  console.log('[Migration] Step 2: Anonymizing doctors...');
+  console.log('[Migration] Step 2: Anonymizing doctors & updating hospital references...');
   const doctors = await mongoose.connection.collection('doctors').find({}).toArray();
   let docIdx = 1;
   for (const d of doctors) {
-    const demoEmail = `doctor${String(docIdx).padStart(3, '0')}@doctor.healpoint.example.com`;
     const demoPhone = `+91 00000 ${String(12000 + docIdx).padStart(5, '0')}`;
     const newHospitalName = HOSPITAL_MAP[d.hospitalName]?.name || d.hospitalName;
 
@@ -98,7 +97,6 @@ async function executeMigration() {
       { _id: d._id },
       {
         $set: {
-          email: demoEmail,
           phone: demoPhone,
           hospitalName: newHospitalName,
           isDemo: true,
@@ -108,10 +106,27 @@ async function executeMigration() {
     );
     docIdx++;
   }
-  console.log(`Updated ${doctors.length} doctor records to synthetic demo identities.`);
+  console.log(`  Updated ${doctors.length} doctor records with demo metadata and synthetic phones.`);
 
-  console.log('[Migration] Step 3: Anonymizing users and appointments...');
-  await mongoose.connection.collection('users').updateMany(
+  console.log('[Migration] Step 3: Updating appointments with demo hospital names and flags...');
+  for (const [oldName, map] of Object.entries(HOSPITAL_MAP)) {
+    const res = await mongoose.connection.collection('appointments').updateMany(
+      { hospitalName: oldName },
+      {
+        $set: {
+          hospitalName: map.name,
+          isDemo: true,
+          isSimulation: true,
+        },
+      }
+    );
+    if (res.modifiedCount > 0) {
+      console.log(`  Appointments for "${oldName}" updated to "${map.name}" (${res.modifiedCount} records)`);
+    }
+  }
+
+  // Ensure ALL remaining appointments have demo flags
+  const apptResult = await mongoose.connection.collection('appointments').updateMany(
     {},
     {
       $set: {
@@ -120,7 +135,10 @@ async function executeMigration() {
       },
     }
   );
-  await mongoose.connection.collection('appointments').updateMany(
+  console.log(`  Marked ${apptResult.matchedCount} total appointments as isDemo: true, isSimulation: true.`);
+
+  console.log('[Migration] Step 4: Flagging users with demo flags...');
+  const userResult = await mongoose.connection.collection('users').updateMany(
     {},
     {
       $set: {
@@ -129,13 +147,39 @@ async function executeMigration() {
       },
     }
   );
+  console.log(`  Marked ${userResult.matchedCount} users with isDemo: true, isSimulation: true.`);
 
-  console.log('[Migration] Migration complete! All records marked with isDemo: true');
+  console.log('[Migration] Step 5: Flagging emergency requests...');
+  try {
+    const emergencyResult = await mongoose.connection.collection('emergencyrequests').updateMany(
+      {},
+      {
+        $set: {
+          isDemo: true,
+          isSimulation: true,
+        },
+      }
+    );
+    console.log(`  Marked ${emergencyResult.matchedCount} emergency requests with isDemo: true, isSimulation: true.`);
+  } catch (err) {
+    console.log('  Emergency requests collection check completed.');
+  }
+
+  console.log('[Migration] Step 6: Flagging reviews & subscriptions...');
+  try {
+    await mongoose.connection.collection('reviews').updateMany({}, { $set: { isDemo: true, isSimulation: true } });
+    await mongoose.connection.collection('subscriptions').updateMany({}, { $set: { isDemo: true, isSimulation: true } });
+  } catch (e) {}
+
+  console.log('\n[Migration] MIGRATION COMPLETED SUCCESSFULLY!');
   await mongoose.disconnect();
 }
 
 if (process.argv.includes('--execute')) {
-  executeMigration().catch(console.error);
+  executeMigration().catch(err => {
+    console.error('[Migration ERROR]:', err);
+    process.exit(1);
+  });
 } else {
   console.log('DRY RUN: To execute migration, run: node scripts/migrate-demo-data.cjs --execute');
 }

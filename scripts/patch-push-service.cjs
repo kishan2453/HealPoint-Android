@@ -17,3 +17,4 @@ if (code.includes(target) && !code.includes('EXTERNAL_SOS_NOTIFICATIONS_ENABLED'
 } else {
   console.log('Target not found or already patched in pushNotificationService.js');
 }
+

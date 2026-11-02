@@ -34,3 +34,4 @@ if (process.argv.includes('--execute')) {
 } else {
   console.log('To execute restore, run: node scripts/restore-db.cjs --execute');
 }
+

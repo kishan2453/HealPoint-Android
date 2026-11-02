@@ -14,3 +14,4 @@ code = code.replace('BROADCAST SOS NOW', 'TRIGGER DEMO SOS (SIMULATION)');
 
 fs.writeFileSync('components/emergency/EmergencySosModal.tsx', code, 'utf8');
 console.log('EmergencySosModal.tsx updated for simulation');
+

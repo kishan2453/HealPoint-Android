@@ -43,3 +43,4 @@ async function backupDatabase() {
 }
 
 backupDatabase().catch(console.error);
+

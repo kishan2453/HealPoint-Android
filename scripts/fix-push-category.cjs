@@ -22,3 +22,4 @@ if (code.includes(target)) {
   fs.writeFileSync('HealPointBackend/services/pushNotificationService.js', code, 'utf8');
   console.log('pushNotificationService.js fixed categoryName');
 }
+

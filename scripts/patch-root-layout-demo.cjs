@@ -15,3 +15,4 @@ if (!code.includes('DemoModeBanner')) {
 } else {
   console.log('DemoModeBanner already in app/_layout.tsx');
 }
+

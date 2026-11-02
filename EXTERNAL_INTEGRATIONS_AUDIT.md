@@ -39,3 +39,4 @@ LIVE_PAYMENTS_ENABLED=false
    > *"DEMO MODE: This is a simulated emergency request. No real hospital, ambulance or emergency service has been contacted."*
 2. **Location Anonymization:** Inbound GPS coordinates are sanitized. Real hardware coordinates are replaced with static simulated coordinates (`23.0225, 72.5714`).
 3. **Outbound Communications Blocked:** Email and external push for emergency events are completely halted. Internal DB notifications and Socket.IO local room broadcasts are maintained so all 4 portals (Patient, Doctor, Hospital Admin, Super Admin) function seamlessly in the demo environment.
+

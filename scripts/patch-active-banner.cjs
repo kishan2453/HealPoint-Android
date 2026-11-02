@@ -23,3 +23,4 @@ code = code.replace(
 
 fs.writeFileSync('components/emergency/ActiveEmergencyBanner.tsx', code, 'utf8');
 console.log('ActiveEmergencyBanner.tsx updated for simulation');
+
