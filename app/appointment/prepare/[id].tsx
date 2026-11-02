@@ -659,11 +659,12 @@ export default function AppointmentPreparationScreen() {
   }
 
   if (error || !data) {
+    const isNotFound = error?.toLowerCase().includes("not found") || error?.toLowerCase().includes("404") || error?.toLowerCase().includes("resource was not found");
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
         <View style={styles.topHeader}>
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => router.canGoBack() ? router.back() : router.replace("/(drawer)/appointments" as any)}
             style={styles.backButton}
             hitSlop={8}
           >
@@ -671,11 +672,42 @@ export default function AppointmentPreparationScreen() {
           </Pressable>
           <Text style={styles.headerTitle}>Pre-Consultation Center</Text>
         </View>
-        <ErrorState
-          title="Could Not Load Preparation"
-          message={error || "Appointment preparation is not available."}
-          onRetry={loadPreparation}
-        />
+        {isNotFound ? (
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: Spacing.xl }}>
+            <Ionicons name="clipboard-outline" size={56} color={Palette.primary} />
+            <Text style={{ fontSize: 18, fontWeight: "700", color: Palette.text, marginTop: Spacing.md, textAlign: "center" }}>
+              Preparation Instructions
+            </Text>
+            <Text style={{ fontSize: 14, color: Palette.textMuted, marginTop: Spacing.xs, textAlign: "center", lineHeight: 20 }}>
+              No preparation instructions are currently available for this booking. You can view your appointment details or return to your appointments.
+            </Text>
+            <View style={{ flexDirection: "row", gap: Spacing.sm, marginTop: Spacing.lg }}>
+              <Button
+                title="Refresh"
+                variant="outline"
+                onPress={() => {
+                  setLoading(true);
+                  loadPreparation();
+                }}
+                fullWidth={false}
+              />
+              <Button
+                title="My Appointments"
+                onPress={() => router.replace("/(drawer)/appointments" as any)}
+                fullWidth={false}
+              />
+            </View>
+          </View>
+        ) : (
+          <ErrorState
+            title="Could Not Load Preparation"
+            message={error || "Appointment preparation is temporarily unavailable."}
+            onRetry={() => {
+              setLoading(true);
+              loadPreparation();
+            }}
+          />
+        )}
       </SafeAreaView>
     );
   }

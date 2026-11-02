@@ -1,5 +1,8 @@
 import express from "express";
 import {
+  getAppointmentPreparation,
+  saveAppointmentQuestions,
+  updatePreparationChecklist,
   getPatientFollowUps,
   bookAppointment,
   createPaymentOrder,
@@ -60,6 +63,11 @@ router.get("/get-user-appointments/:id", authenticate, getUserAppointments);
 router.get("/get-user-appointments", authenticate, getUserAppointments);
 router.get("/my", authenticate, getUserAppointments);
 router.get("/get-user-appointment-details/:id", authenticate, getAppointmentDetails);
+// Pre-Consultation Preparation Center (Task 5)
+router.get("/preparation/:id", authenticate, getAppointmentPreparation);
+router.post("/preparation/:id/questions", authenticate, saveAppointmentQuestions);
+router.patch("/preparation/:id/checklist", authenticate, updatePreparationChecklist);
+
 router.get("/:id", authenticate, getAppointmentDetails);
 router.post("/cancel/:id", authenticate, cancelAppointment);
 router.post("/reschedule/:id", authenticate, rescheduleAppointment);

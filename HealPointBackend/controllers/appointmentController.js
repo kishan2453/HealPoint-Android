@@ -1408,3 +1408,273 @@ export const getPatientFollowUps = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+
+// ==========================================
+// PRE-CONSULTATION PREPARATION CONTROLLERS (Task 5)
+// ==========================================
+
+export const getAppointmentPreparation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ success: false, message: "Appointment ID is required" });
+    }
+
+    const query = isValidId(id) ? { _id: id } : { appointmentId: id };
+    const appointment = await appointmentModel
+      .findOne(query)
+      .populate("doctorId")
+      .populate("hospitalId")
+      .populate("userId", "name email phone gender dob");
+
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: "No preparation instructions are currently available for this booking.",
+      });
+    }
+
+    const doc = appointment.doctorId || {};
+    const hosp = appointment.hospitalId || {};
+    const usr = appointment.userId || {};
+
+    const prep = appointment.preparation || {
+      checklistCompleted: ["check_datetime"],
+      instructionsAcknowledged: false,
+      patientQuestions: [],
+      symptomsNotes: "",
+      privatePatientNotes: "",
+    };
+
+    const isToday = appointment.slotDate
+      ? appointment.slotDate === new Date().toISOString().slice(0, 10).split("-").reverse().join("-")
+      : false;
+
+    let smartNextAction = {
+      key: "PREPARE_DOCS",
+      label: "Upload Clinical Documents",
+      description: "Attach past medical summaries or diagnostic test reports.",
+      route: "/health/records",
+      variant: "outline",
+    };
+
+    if (appointment.paymentStatus !== "paid" && appointment.status !== "cancelled") {
+      smartNextAction = {
+        key: "PAY_NOW",
+        label: "Complete Payment",
+        description: "Confirm consultation fee to lock your slot.",
+        route: `/payment/${appointment._id}`,
+        variant: "primary",
+      };
+    } else if (appointment.consultationType === "online" && (appointment.status === "confirmed" || appointment.status === "in_progress")) {
+      smartNextAction = {
+        key: "JOIN_CONSULTATION",
+        label: "Join Online Consultation",
+        description: "Your doctor consultation room is ready.",
+        route: `/consultation/${appointment._id}`,
+        variant: "primary",
+      };
+    } else if (appointment.status === "confirmed" || appointment.status === "scheduled") {
+      smartNextAction = {
+        key: "CHECK_IN_READY",
+        label: "View Appointment Pass",
+        description: "Present QR digital pass at clinic reception.",
+        route: `/appointment/pass/${appointment._id}`,
+        variant: "primary",
+      };
+    }
+
+    const responseData = {
+      success: true,
+      isToday,
+      checkInEligible: true,
+      doctorAccepted: true,
+      smartNextAction,
+      appointment: {
+        _id: String(appointment._id),
+        appointmentId: appointment.appointmentId || `APT-${String(appointment._id).slice(-8).toUpperCase()}`,
+        slotDate: appointment.slotDate,
+        slotTime: appointment.slotTime,
+        status: appointment.status,
+        statusLabel: appointment.status ? appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1) : "Scheduled",
+        paymentStatus: appointment.paymentStatus || "unpaid",
+        consultationType: appointment.consultationType || "clinic",
+        meetingUrl: appointment.meetingUrl || "",
+        meetingStatus: appointment.meetingStatus || "not_created",
+        consultationStatus: appointment.consultationStatus || "waiting",
+        queueToken: appointment.queueToken || `Q-${String(appointment._id).slice(-3)}`,
+        checkedIn: Boolean(appointment.checkedIn),
+        hospitalId: hosp._id ? String(hosp._id) : undefined,
+        doctorId: doc._id ? String(doc._id) : undefined,
+      },
+      patient: {
+        name: usr.name || "Patient",
+        phone: usr.phone || "",
+        isFamilyMember: Boolean(appointment.patientRelationship && appointment.patientRelationship !== "Self"),
+        relationship: appointment.patientRelationship || "Self",
+        familyMemberId: appointment.familyMemberId || null,
+        gender: usr.gender || "Not specified",
+      },
+      doctor: {
+        _id: doc._id ? String(doc._id) : "",
+        name: doc.name || appointment.doctorName || "Doctor",
+        speciality: doc.speciality || "General Physician",
+        department: doc.department || "General OPD",
+        hospitalName: hosp.name || doc.hospitalName || "Hospital Profile",
+        image: doc.image || "",
+        phone: doc.phone || "",
+        email: doc.email || "",
+      },
+      hospital: {
+        _id: hosp._id ? String(hosp._id) : "",
+        name: hosp.name || appointment.hospitalName || "Hospital Profile",
+        address: hosp.address || hosp.location?.address || "Innovation Blvd, Tech City",
+        city: hosp.city || hosp.location?.city || "Ahmedabad",
+        phone: hosp.phone || "",
+        emergency: hosp.emergencyPhone || hosp.contact?.emergency || "",
+      },
+      preparation: {
+        checklistCompleted: prep.checklistCompleted || [],
+        instructionsAcknowledged: Boolean(prep.instructionsAcknowledged),
+        patientQuestions: prep.patientQuestions || [],
+        symptomsNotes: prep.symptomsNotes || "",
+        privatePatientNotes: prep.privatePatientNotes || "",
+      },
+      checklist: [
+        {
+          key: "check_datetime",
+          title: "Verify Consultation Slot & Timing",
+          description: "Confirm your appointment date and clinic arrival time.",
+          completed: (prep.checklistCompleted || []).includes("check_datetime"),
+          required: true,
+        },
+        {
+          key: "prepare_questions",
+          title: "Prepare Questions for Doctor",
+          description: "List symptoms, allergies, or questions you wish to discuss.",
+          completed: (prep.patientQuestions || []).length > 0 || (prep.checklistCompleted || []).includes("prepare_questions"),
+          required: false,
+        },
+        {
+          key: "upload_documents",
+          title: "Attach Prior Prescriptions or Lab Reports",
+          description: "Upload past medical tests for doctor review.",
+          completed: (prep.checklistCompleted || []).includes("upload_documents"),
+          required: false,
+        },
+        {
+          key: "read_instructions",
+          title: "Acknowledge Consultation Guidelines",
+          description: "Review clinic consultation guidelines and safety standards.",
+          completed: Boolean(prep.instructionsAcknowledged),
+          required: true,
+        },
+      ],
+      readiness: {
+        isReady: true,
+        score: Math.min(100, 40 + ((prep.checklistCompleted || []).length * 15)),
+        summary: "Pre-consultation profile loaded successfully.",
+      },
+      instructions: {
+        general: "Please arrive 10-15 minutes prior to your allocated slot for smooth token verification.",
+        video: "Ensure you are in a quiet, well-lit room with steady internet connectivity.",
+        items: [
+          "Keep existing prescriptions and medication boxes nearby.",
+          "Note down key symptom timeline and triggers.",
+          "Present your digital pass QR code at the hospital check-in counter.",
+        ],
+      },
+      documents: [],
+      previousHistory: [],
+    };
+
+    return res.status(200).json(responseData);
+  } catch (error) {
+    console.error("[getAppointmentPreparation Error]:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const saveAppointmentQuestions = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { questions, question, sharedWithDoctor = true } = req.body || {};
+
+    const query = isValidId(id) ? { _id: id } : { appointmentId: id };
+    const appointment = await appointmentModel.findOne(query);
+    if (!appointment) {
+      return res.status(404).json({ success: false, message: "Appointment not found" });
+    }
+
+    if (!appointment.preparation) {
+      appointment.preparation = {};
+    }
+
+    let existingQuestions = appointment.preparation.patientQuestions || [];
+
+    if (Array.isArray(questions)) {
+      existingQuestions = questions;
+    } else if (question && typeof question === "string" && question.trim()) {
+      existingQuestions.push({
+        question: question.trim(),
+        sharedWithDoctor: Boolean(sharedWithDoctor),
+        createdAt: new Date(),
+      });
+    }
+
+    appointment.preparation.patientQuestions = existingQuestions;
+    appointment.markModified("preparation");
+    await appointment.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Questions updated successfully.",
+      patientQuestions: existingQuestions,
+      preparation: appointment.preparation,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const updatePreparationChecklist = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { checklistCompleted, instructionsAcknowledged, symptomsNotes, privatePatientNotes } = req.body || {};
+
+    const query = isValidId(id) ? { _id: id } : { appointmentId: id };
+    const appointment = await appointmentModel.findOne(query);
+    if (!appointment) {
+      return res.status(404).json({ success: false, message: "Appointment not found" });
+    }
+
+    if (!appointment.preparation) {
+      appointment.preparation = {};
+    }
+
+    if (Array.isArray(checklistCompleted)) {
+      appointment.preparation.checklistCompleted = checklistCompleted;
+    }
+    if (typeof instructionsAcknowledged === "boolean") {
+      appointment.preparation.instructionsAcknowledged = instructionsAcknowledged;
+    }
+    if (typeof symptomsNotes === "string") {
+      appointment.preparation.symptomsNotes = symptomsNotes;
+    }
+    if (typeof privatePatientNotes === "string") {
+      appointment.preparation.privatePatientNotes = privatePatientNotes;
+    }
+
+    appointment.markModified("preparation");
+    await appointment.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Preparation updated successfully.",
+      preparation: appointment.preparation,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};

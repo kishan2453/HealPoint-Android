@@ -84,7 +84,7 @@ export function HealPointLogo({
           { color: brandBase },
         ]}
       >
-        Heal<Text style={{ color: brandPrimary }}>Point</Text>
+        Anand <Text style={{ color: brandPrimary }}>HealPoint</Text>
       </Text>
       {layout === "vertical" ? (
         <Text
@@ -102,7 +102,7 @@ export function HealPointLogo({
             { color: light ? "rgba(255,255,255,0.72)" : Palette.textMuted },
           ]}
         >
-          Care & Appointments
+          Healthcare System
         </Text>
       )}
     </View>

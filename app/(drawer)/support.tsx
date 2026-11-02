@@ -532,7 +532,7 @@ export default function SupportScreen() {
     <View style={styles.safe}>
       <DrawerHeader
         title={t("support.title", "Help & Support")}
-        subtitle={t("support.subtitle", "24×7 Healthcare assistance & guides")}
+        subtitle={t("support.subtitle", "Help, support requests and user guides.")}
       />
 
       {/* Tab Bar */}

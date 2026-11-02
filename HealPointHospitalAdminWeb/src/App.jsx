@@ -4885,36 +4885,22 @@ export default function App() {
     <>
       <div
         role="alert"
-        aria-label="HealPoint Demo Mode Announcement"
+        aria-label="Anand HealPoint Educational Simulation Notice"
         style={{
-          background: "#0284C7",
+          background: "#1E40AF",
           color: "#FFFFFF",
-          padding: "6px 16px",
-          fontSize: "12px",
-          fontWeight: "600",
-          textAlign: "center",
-          letterSpacing: "0.4px",
-          zIndex: 9999,
-          position: "relative",
+          padding: "5px 16px",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          gap: "8px",
+          gap: "10px",
+          fontSize: "12px",
+          fontWeight: "600",
+          letterSpacing: "0.02em",
+          zIndex: 9999,
         }}
       >
-        <span
-          style={{
-            background: "#F59E0B",
-            color: "#0F172A",
-            padding: "2px 6px",
-            borderRadius: "4px",
-            fontSize: "10px",
-            fontWeight: "800",
-          }}
-        >
-          DEMO MODE
-        </span>
-        <span>HealPoint Hospital Admin · Educational simulation only · Fictional healthcare organization</span>
+        <span>Anand HealPoint Hospital Admin · Educational simulation only. This is not a real healthcare provider or emergency service.</span>
       </div>
       <ToastContainer position="top-right" />
       <Routes>

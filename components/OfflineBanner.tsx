@@ -70,12 +70,12 @@ export function OfflineBanner() {
       </View>
       <View style={styles.textCol}>
         <Text style={[styles.title, highContrast && styles.highContrastText]}>
-          {t("offline.bannerTitle", "You are currently offline")}
+          {t("offline.bannerTitle", "You're offline")}
         </Text>
         <Text style={[styles.subtitle, highContrast && styles.highContrastSubtext]}>
           {t(
             "offline.bannerSubtitle",
-            "Viewing cached medical records. Internet required for bookings & payments.",
+            "You're offline. Available saved information is shown here. Reconnect to refresh information and synchronize changes.",
           )}
         </Text>
       </View>

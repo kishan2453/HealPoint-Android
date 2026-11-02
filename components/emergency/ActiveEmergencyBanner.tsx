@@ -31,10 +31,10 @@ interface ActiveEmergencyBannerProps {
 }
 
 const STEPS: { status: EmergencyStatus; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { status: "pending", label: "SOS Sent", icon: "radio" },
-  { status: "accepted", label: "Hospital Alerted", icon: "business" },
-  { status: "in_progress", label: "Ambulance / En Route", icon: "car-sport" },
-  { status: "resolved", label: "Assistance Arrived", icon: "checkmark-circle" },
+  { status: "pending", label: "Practice Request Created", icon: "document-text" },
+  { status: "accepted", label: "Internal Record Updated", icon: "sync" },
+  { status: "in_progress", label: "Internal Record Updated", icon: "sync" },
+  { status: "resolved", label: "Practice Request Closed", icon: "checkmark-circle" },
 ];
 
 export function ActiveEmergencyBanner({
@@ -83,10 +83,10 @@ export function ActiveEmergencyBanner({
       <View style={styles.alertHeader}>
         <View style={styles.alertHeaderLeft}>
           <View style={styles.pulseDot} />
-          <Text style={styles.alertTitle}>LIVE EMERGENCY SOS ACTIVE</Text>
+          <Text style={styles.alertTitle}>Practice Request Active</Text>
         </View>
         <View style={styles.codeBadge}>
-          <Text style={styles.codeText}>{emergency.emergencyCode}</Text>
+          <Text style={styles.codeText} numberOfLines={1}>{emergency.emergencyCode}</Text>
         </View>
       </View>
 
@@ -139,58 +139,28 @@ export function ActiveEmergencyBanner({
         })}
       </View>
 
-      {/* Ambulance Dispatch Details Card */}
-      {emergency.ambulance?.isDispatched ? (
-        <View style={styles.ambulanceCard}>
-          <View style={styles.ambulanceHeader}>
-            <View style={styles.ambulanceTitleWrap}>
-              <Ionicons name="car-sport" size={24} color="#2563EB" />
-              <View>
-                <Text style={styles.ambulanceTitle}>Ambulance Dispatched</Text>
-                <Text style={styles.ambulancePlate}>
-                  Vehicle: {emergency.ambulance.vehicleNumber}
-                </Text>
-              </View>
-            </View>
-            {emergency.ambulance.etaMinutes ? (
-              <View style={styles.etaBadge}>
-                <Text style={styles.etaNumber}>
-                  ~{emergency.ambulance.etaMinutes}
-                </Text>
-                <Text style={styles.etaUnit}>MINS ETA</Text>
-              </View>
-            ) : null}
-          </View>
-
-          <View style={styles.driverRow}>
-            <View style={styles.driverInfo}>
-              <Ionicons name="person" size={16} color={Palette.textMuted} />
-              <Text style={styles.driverName}>
-                Driver: {emergency.ambulance.driverName}
+      {/* Internal Simulation Status Card */}
+      <View style={styles.ambulanceCard}>
+        <View style={styles.ambulanceHeader}>
+          <View style={styles.ambulanceTitleWrap}>
+            <Ionicons name="shield-checkmark" size={24} color="#2563EB" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.ambulanceTitle}>Internal Simulation Only</Text>
+              <Text style={styles.ambulancePlate}>
+                Educational record updated • No real emergency service or ambulance contacted
               </Text>
             </View>
-            {emergency.ambulance.driverPhone ? (
-              <Pressable
-                style={styles.callDriverButton}
-                onPress={() => handleCallDriver(emergency.ambulance.driverPhone)}
-              >
-                <Ionicons name="call" size={14} color="#FFFFFF" />
-                <Text style={styles.callDriverButtonText}>Call Driver</Text>
-              </Pressable>
-            ) : null}
           </View>
         </View>
-      ) : null}
+      </View>
 
       {/* Location summary */}
-      {emergency.location?.address ? (
-        <View style={styles.locationRow}>
-          <Ionicons name="location" size={16} color="#DC2626" />
-          <Text style={styles.locationText} numberOfLines={2}>
-            Location: {emergency.location.address}
-          </Text>
-        </View>
-      ) : null}
+      <View style={styles.locationRow}>
+        <Ionicons name="location" size={16} color="#2563EB" />
+        <Text style={styles.locationText} numberOfLines={2}>
+          Sample Location: 101 Innovation Blvd, Demo Tech City (No External Data Shared)
+        </Text>
+      </View>
 
       {/* Cancel Emergency SOS Area */}
       {showCancelInput ? (

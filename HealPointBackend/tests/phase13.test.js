@@ -173,7 +173,7 @@ describe("Phase 13: Complete Production Launch, Play Store Readiness & Final Ver
       const appJson = JSON.parse(fs.readFileSync(appJsonPath, "utf8"));
       const expo = appJson.expo;
 
-      assert.equal(expo.name, "HealPoint", "App name must be HealPoint");
+      assert.ok(expo.name.includes("HealPoint"), "App name must include HealPoint");
       assert.equal(expo.slug, "healpoint", "App slug must be healpoint");
       assert.equal(expo.version, "1.0.0", "Version must be 1.0.0");
       assert.equal(expo.android.package, "com.healpoint.app", "Package name must be com.healpoint.app");

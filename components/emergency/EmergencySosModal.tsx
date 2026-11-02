@@ -138,9 +138,9 @@ export function EmergencySosModal({
             <View style={styles.iconCircle}>
               <Ionicons name="warning" size={32} color="#EF4444" />
             </View>
-            <Text style={styles.title}>EMERGENCY SOS SIMULATION</Text>
+            <Text style={styles.title}>Emergency Practice Simulation</Text>
             <Text style={styles.subtitle}>
-              SIMULATION ONLY – No real emergency services are contacted.
+              Educational simulation only. No real emergency services are contacted.
             </Text>
           </View>
 
@@ -241,7 +241,7 @@ export function EmergencySosModal({
               ) : (
                 <>
                   <Ionicons name="flash" size={18} color="#FFFFFF" />
-                  <Text style={styles.confirmButtonText}>TRIGGER DEMO SOS (SIMULATION)</Text>
+                  <Text style={styles.confirmButtonText}>Start Emergency Practice</Text>
                 </>
               )}
             </Pressable>

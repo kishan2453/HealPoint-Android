@@ -128,36 +128,22 @@ function App() {
     <>
       <div
         role="alert"
-        aria-label="HealPoint Demo Mode Announcement"
+        aria-label="Anand HealPoint Educational Simulation Notice"
         style={{
-          background: "#0284C7",
+          background: "#1E40AF",
           color: "#FFFFFF",
-          padding: "6px 16px",
-          fontSize: "12px",
-          fontWeight: "600",
-          textAlign: "center",
-          letterSpacing: "0.4px",
-          zIndex: 9999,
-          position: "relative",
+          padding: "5px 16px",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          gap: "8px",
+          gap: "10px",
+          fontSize: "12px",
+          fontWeight: "600",
+          letterSpacing: "0.02em",
+          zIndex: 9999,
         }}
       >
-        <span
-          style={{
-            background: "#F59E0B",
-            color: "#0F172A",
-            padding: "2px 6px",
-            borderRadius: "4px",
-            fontSize: "10px",
-            fontWeight: "800",
-          }}
-        >
-          DEMO MODE
-        </span>
-        <span>HealPoint Super Admin · Educational simulation platform · Not a real healthcare provider</span>
+        <span>Anand HealPoint Super Admin · Educational simulation platform. Standalone simulation environment.</span>
       </div>
       <AdminPreloader show={loadingExperience} />
       <Toaster

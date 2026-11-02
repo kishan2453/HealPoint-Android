@@ -1,23 +1,19 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   Alert,
-  Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Palette, Radius, Spacing } from "@/constants/theme";
+import { Palette, Spacing } from "@/constants/theme";
 
 export function DemoModeBanner() {
-  const [modalVisible, setModalVisible] = useState(false);
-
-  const showDemoNotice = () => {
+  const showNotice = () => {
     Alert.alert(
-      "HEALPOINT DEMO PLATFORM",
-      "HealPoint is an educational project and developer portfolio demonstration platform.\n\n• Not a real hospital, clinic, or healthcare service.\n• All doctor, hospital, and patient identities are synthetic.\n• Emergency SOS is strictly an internal simulation.\n• Payments are demo transactions with 0 real charges.",
+      "ANAND HEALPOINT — EDUCATIONAL SIMULATION",
+      "Anand HealPoint is an educational healthcare appointment simulation platform for student demonstration and portfolio evaluation.\n\n• Educational simulation only.\n• Not a real healthcare provider or emergency service.\n• All appointments, doctors, and hospitals are simulated.\n• Online payments operate in simulation sandbox with zero real charges.",
       [{ text: "Close", style: "default" }]
     );
   };
@@ -25,18 +21,15 @@ export function DemoModeBanner() {
   return (
     <Pressable
       style={styles.banner}
-      onPress={showDemoNotice}
+      onPress={showNotice}
       accessibilityRole="button"
-      accessibilityLabel="HealPoint Demo Platform Indicator. Tap for information."
+      accessibilityLabel="Educational simulation notice. Tap for information."
     >
       <View style={styles.content}>
-        <View style={styles.pill}>
-          <Text style={styles.pillText}>DEMO MODE</Text>
-        </View>
+        <Ionicons name="school-outline" size={14} color="#FFFFFF" />
         <Text style={styles.text} numberOfLines={1}>
-          Educational simulation only · Not a real healthcare service
+          Educational simulation only. This is not a real healthcare provider or emergency service.
         </Text>
-        <Ionicons name="information-circle-outline" size={16} color="#FFFFFF" />
       </View>
     </Pressable>
   );
@@ -44,35 +37,23 @@ export function DemoModeBanner() {
 
 const styles = StyleSheet.create({
   banner: {
-    backgroundColor: "#0284C7", // HealPoint Royal Blue
-    paddingVertical: 5,
+    backgroundColor: "#1E40AF", // Deep Royal Navy Blue
+    paddingVertical: 4,
     paddingHorizontal: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.15)",
+    borderBottomColor: "rgba(255,255,255,0.12)",
     zIndex: 9999,
   },
   content: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-  },
-  pill: {
-    backgroundColor: "#F59E0B",
-    borderRadius: Radius.pill,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-  },
-  pillText: {
-    color: "#0F172A",
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.5,
+    gap: 6,
   },
   text: {
-    color: "#FFFFFF",
     fontSize: 11,
+    color: "#FFFFFF",
     fontWeight: "600",
-    flexShrink: 1,
+    letterSpacing: 0.1,
   },
 });

@@ -65,7 +65,7 @@ describe("Part 15: 100% Standalone Educational Demo & Simulation Suite", () => {
         "Emergency phone calling must be disabled in mobile app"
       );
       assert.ok(
-        content.includes("DEMO MODE: This is a simulated emergency request"),
+        content.includes("Educational simulation only. This is not a real healthcare provider"),
         "Emergency screen must render top demo warning banner"
       );
     });
@@ -161,17 +161,17 @@ describe("Part 15: 100% Standalone Educational Demo & Simulation Suite", () => {
 
     it("Verifies Doctor Web includes DEMO MODE top banner", () => {
       const app = fs.readFileSync(path.resolve("../HealPointDoctorWeb/src/App.jsx"), "utf8");
-      assert.ok(app.includes("DEMO MODE"), "Doctor Web App.jsx must include DEMO MODE banner");
+      assert.ok(app.includes("Educational simulation only"), "Doctor Web App.jsx must include simulation banner");
     });
 
     it("Verifies Hospital Admin Web includes DEMO MODE top banner", () => {
       const app = fs.readFileSync(path.resolve("../HealPointHospitalAdminWeb/src/App.jsx"), "utf8");
-      assert.ok(app.includes("DEMO MODE"), "Hospital Admin App.jsx must include DEMO MODE banner");
+      assert.ok(app.includes("Educational simulation only"), "Hospital Admin App.jsx must include simulation banner");
     });
 
     it("Verifies Super Admin Web includes DEMO MODE top banner", () => {
       const app = fs.readFileSync(path.resolve("../HealPointSuperAdminWeb/src/App.jsx"), "utf8");
-      assert.ok(app.includes("DEMO MODE"), "Super Admin App.jsx must include DEMO MODE banner");
+      assert.ok(app.includes("Educational simulation platform"), "Super Admin App.jsx must include simulation banner");
     });
   });
 });

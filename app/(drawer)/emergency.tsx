@@ -244,11 +244,11 @@ export default function EmergencyScreen() {
               <Text style={styles.headerTitle}>Emergency Help</Text>
               <View style={styles.liveIndicator}>
                 <View style={styles.livePulseDot} />
-                <Text style={styles.liveText}>24/7 ACTIVE</Text>
+                <Text style={styles.liveText}>PRACTICE SIMULATION</Text>
               </View>
             </View>
             <Text style={styles.headerSubtitle}>
-              Verified hospital emergency desks & hotlines
+              Emergency practice directory & simulated response
             </Text>
           </View>
         </View>
@@ -274,7 +274,7 @@ export default function EmergencyScreen() {
         <View style={styles.demoWarningBanner}>
           <Ionicons name="information-circle" size={20} color="#92400E" />
           <Text style={styles.demoWarningText}>
-            DEMO MODE: This is a simulated emergency request. No real hospital, ambulance or emergency service has been contacted.
+            Educational simulation only. This is not a real healthcare provider or emergency service.
           </Text>
         </View>
 
@@ -292,10 +292,10 @@ export default function EmergencyScreen() {
           <View style={styles.sosHeroHeader}>
             <View style={styles.sosLiveBadge}>
               <View style={styles.pulseDot} />
-              <Text style={styles.sosLiveBadgeText}>ONE-TAP SOS SIMULATION (DEMO)</Text>
+              <Text style={styles.sosLiveBadgeText}>Emergency Practice</Text>
             </View>
             <Text style={styles.sosHeroSubtitle}>
-              Simulates an emergency request in the demo environment · No real services contacted
+              Internal emergency practice simulation · No emergency services contacted
             </Text>
           </View>
 

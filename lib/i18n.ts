@@ -84,7 +84,7 @@ export const translations: Record<Language, Record<string, string>> = {
 
     // Offline & Connectivity
     "offline.bannerTitle": "You are currently offline",
-    "offline.bannerSubtitle": "Viewing cached medical records. Internet required for bookings & payments.",
+    "offline.bannerSubtitle": "You're offline. Available saved information is shown here. Reconnect to refresh information and synchronize changes.",
     "offline.backOnline": "Internet connection restored. Live sync active.",
     "offline.actionBlocked": "Internet connection required to book appointments or process payments.",
 

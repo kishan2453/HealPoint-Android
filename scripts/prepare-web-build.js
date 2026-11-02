@@ -62,6 +62,14 @@ if (fs.existsSync(distDir)) {
   if (fs.existsSync(swSrc)) {
     fs.copyFileSync(swSrc, path.join(distDir, 'sw.js'));
   }
+  const sitemapSrc = path.join(publicDir, 'sitemap.xml');
+  if (fs.existsSync(sitemapSrc)) {
+    fs.copyFileSync(sitemapSrc, path.join(distDir, 'sitemap.xml'));
+  }
+  const robotsSrc = path.join(publicDir, 'robots.txt');
+  if (fs.existsSync(robotsSrc)) {
+    fs.copyFileSync(robotsSrc, path.join(distDir, 'robots.txt'));
+  }
 
   // Copy PWA icons
   const publicIconsDir = path.join(publicDir, 'icons');

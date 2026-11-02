@@ -225,11 +225,25 @@ export const getTickets = async (req, res) => {
 
     const query = {};
 
-    // Patient: only own tickets
+    // Patient: safe lookup across patientId, patientEmail, or patientPhone
     if (!isAdmin && !isHospitalAdmin) {
       const patientId = requestingUser.id || requestingUser._id;
-      if (patientId) {
-        query.patientId = new mongoose.Types.ObjectId(patientId);
+      const patientEmail = requestingUser.email;
+      const patientPhone = requestingUser.phone;
+      const orClauses = [];
+
+      if (patientId && mongoose.Types.ObjectId.isValid(patientId)) {
+        orClauses.push({ patientId: new mongoose.Types.ObjectId(patientId) });
+      }
+      if (patientEmail && typeof patientEmail === "string") {
+        orClauses.push({ patientEmail: patientEmail.toLowerCase().trim() });
+      }
+      if (patientPhone && typeof patientPhone === "string") {
+        orClauses.push({ patientPhone: patientPhone.trim() });
+      }
+
+      if (orClauses.length > 0) {
+        query.$or = orClauses;
       }
     }
 

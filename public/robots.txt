@@ -1,0 +1,16 @@
+User-agent: *
+Allow: /
+Allow: /doctors
+Allow: /hospitals
+Allow: /privacy
+Allow: /terms
+Allow: /support
+Disallow: /admin/
+Disallow: /super-admin/
+Disallow: /doctor/
+Disallow: /api/
+Disallow: /health/
+Disallow: /payments/
+
+Sitemap: https://heal-point-mauve.vercel.app/sitemap.xml
+Sitemap: https://www.anandhealpoint.com/sitemap.xml
