@@ -32,3 +32,4 @@ if (!content.includes('import { t } from "@/lib/i18n";')) {
 } else {
   console.log("drawer-menu.ts already translated");
 }
+

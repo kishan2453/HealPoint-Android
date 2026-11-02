@@ -56,8 +56,29 @@ export const authorizeRoles = (...roles) => {
   };
 };
 
+
+export const enforceHospitalScope = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ success: false, message: "Authentication required", code: "UNAUTHORIZED" });
+  }
+  const role = (req.user.role || "").toLowerCase();
+  if (role === "super_admin" || role === "admin" || req.user.isAdmin) {
+    return next();
+  }
+  if (role === "hospital_admin" || role === "doctor") {
+    const hospitalId = req.user.hospitalId || req.user.hospital;
+    if (!hospitalId) {
+      return res.status(403).json({ success: false, message: "Hospital association required", code: "FORBIDDEN" });
+    }
+    req.hospitalId = String(hospitalId);
+    return next();
+  }
+  return res.status(403).json({ success: false, message: "Access forbidden for this role", code: "FORBIDDEN" });
+};
+
 export default {
   authenticate,
   optionalAuth,
   authorizeRoles,
+  enforceHospitalScope,
 };

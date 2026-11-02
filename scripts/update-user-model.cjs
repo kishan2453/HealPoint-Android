@@ -23,3 +23,4 @@ if (!content.includes("languagePreference")) {
 } else {
   console.log("Already updated");
 }
+

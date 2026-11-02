@@ -26,3 +26,4 @@ if (!layout.includes("LanguageProvider")) {
 } else {
   console.log("LanguageProvider already in app/_layout.tsx");
 }
+

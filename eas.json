@@ -14,11 +14,14 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://192.168.1.36:8080/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://heal-point-backend.vercel.app/api/v1"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://heal-point-backend.vercel.app/api/v1"
+      }
     }
   },
   "submit": {

@@ -163,3 +163,4 @@ supportTicketSchema.index({ patientId: 1, status: 1, createdAt: -1 });
 supportTicketSchema.index({ hospitalId: 1, status: 1, createdAt: -1 });
 
 export default mongoose.models.SupportTicket || mongoose.model("SupportTicket", supportTicketSchema);
+

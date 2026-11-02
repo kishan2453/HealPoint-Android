@@ -101,3 +101,4 @@ if (!routes.includes("updateUserPreferences")) {
 } else {
   console.log("userRoutes.js already has updateUserPreferences");
 }
+

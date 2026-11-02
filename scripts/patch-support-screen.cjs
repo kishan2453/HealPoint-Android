@@ -31,3 +31,4 @@ if (!content.includes("const { t, highContrast } = useLanguage();")) {
 
 fs.writeFileSync(supportPath, content, "utf8");
 console.log("Updated app/(drawer)/support.tsx with useLanguage");
+

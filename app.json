@@ -5,7 +5,10 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": ["healpoint", "com.healpoint.app"],
+    "scheme": [
+      "healpoint",
+      "com.healpoint.app"
+    ],
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -30,7 +33,10 @@
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.INTERNET"
       ]
     },
     "web": {
@@ -56,6 +62,12 @@
         "expo-image-picker",
         {
           "photosPermission": "HealPoint uses your photo library so you can add a profile photo."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "HealPoint needs your location to dispatch emergency medical services to your exact location."
         }
       ]
     ],

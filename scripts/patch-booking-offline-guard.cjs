@@ -27,3 +27,4 @@ if (!content.includes("isDeviceOnline")) {
 } else {
   console.log("isDeviceOnline already present in booking");
 }
+

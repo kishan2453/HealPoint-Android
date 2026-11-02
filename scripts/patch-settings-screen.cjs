@@ -198,3 +198,4 @@ if (!content.includes("radioCircle:")) {
 
 fs.writeFileSync(settingsPath, content, "utf8");
 console.log("Updated app/settings/index.tsx with Language, Accessibility, and Font Scaling");
+

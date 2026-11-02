@@ -25,3 +25,4 @@ if (!changelog.includes("[Phase 12]")) {
 } else {
   console.log("Phase 12 already in CHANGELOG.md");
 }
+
