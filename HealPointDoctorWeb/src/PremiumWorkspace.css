@@ -2,17 +2,20 @@
   background: #f8fafc;
 }
 .dp-sidebar {
-  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 68%, #1e293b 100%);
-  box-shadow: 10px 0 34px rgba(37, 99, 235, 0.14);
+  background: #ffffff;
+  box-shadow: 2px 0 16px rgba(15, 23, 42, 0.04);
 }
 .dp-sidebar nav a {
-  color: #bfdbfe;
+  color: #172033;
 }
-.dp-sidebar nav a:hover,
-.dp-sidebar nav a.active {
+.dp-sidebar nav a:hover {
   color: #2563eb;
-  background: #fff;
-  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.16);
+  background: #eff6ff;
+}
+.dp-sidebar nav a.active {
+  color: #ffffff;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.26);
 }
 .dp-light-btn,
 .dp-actions button,
@@ -152,9 +155,9 @@
   min-width: 0;
   margin: 2px 0;
   padding: 10px 11px;
-  color: #bfdbfe;
-  font-size: 0.78rem;
-  font-weight: 700;
+  color: #172033;
+  font-size: 0.86rem;
+  font-weight: 600;
   transition:
     transform 0.2s ease,
     background 0.2s ease,
@@ -167,12 +170,14 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.dp-sidebar nav a:hover,
-.dp-sidebar nav a.active {
+.dp-sidebar nav a:hover {
   color: #2563eb;
-  background: #fff;
-  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.16);
-  transform: translateX(3px);
+  background: #eff6ff;
+}
+.dp-sidebar nav a.active {
+  color: #ffffff;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.26);
 }
 .dp-logout {
   margin-top: 12px;

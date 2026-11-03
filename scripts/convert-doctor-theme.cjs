@@ -74,3 +74,4 @@ cssFiles.forEach((fileName) => {
 });
 
 console.log("Done updating Doctor Portal theme colors to Royal Blue / Sky Blue / White!");
+

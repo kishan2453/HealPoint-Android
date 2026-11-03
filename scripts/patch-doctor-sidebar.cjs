@@ -116,3 +116,4 @@ const newAside = `<aside className={\`dp-sidebar\${sidebarCollapsed ? " is-colla
 content = content.slice(0, startIndex) + newAside + content.slice(endIndex + oldAsideEnd.length);
 fs.writeFileSync(filePath, content, 'utf8');
 console.log("Successfully patched Doctor Portal sidebar with structured collapsible sections!");
+

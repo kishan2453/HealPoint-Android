@@ -7,6 +7,7 @@ import ProtectedRoute from "./pages/ProtectedRoute";
 import DoctorPortal from "./pages/DoctorPortal";
 import LogoutConfirmation from "./components/LogoutConfirmation";
 import "./PremiumWorkspace.css";
+import "./DoctorSaaSMaster.css";
 
 export default function App() {
   return (

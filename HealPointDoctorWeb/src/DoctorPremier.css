@@ -17,21 +17,25 @@
 }
 
 .dp-brand strong {
-  color: #ffffff !important;
+  color: #172033 !important;
 }
 
 .dp-sidebar nav a {
-  color: rgba(239, 246, 255, 0.78) !important;
+  color: #172033 !important;
 }
 
-.dp-sidebar nav a:hover,
+.dp-sidebar nav a:hover {
+  background: #eff6ff !important;
+  color: #2563eb !important;
+}
+
 .dp-sidebar nav a.active {
-  background: #2563EB !important;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
   color: #ffffff !important;
 }
 
 .dp-nav-group-label {
-  color: rgba(191, 219, 254, 0.45) !important;
+  color: #64748b !important;
 }
 
 /* Real Online / Offline status control in the sidebar identity block. */
@@ -143,11 +147,11 @@
 .dp-nav-group-label {
   display: block;
   padding: 8px 12px 7px;
-  color: rgba(191, 219, 254, 0.42);
-  font-size: 0.62rem;
+  color: #64748b;
+  font-size: 0.72rem;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
 }
 
 .dp-nav-group + .dp-nav-group {
