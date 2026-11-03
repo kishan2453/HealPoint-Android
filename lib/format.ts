@@ -17,11 +17,50 @@ export const MONTHS_SHORT = [
   "Dec",
 ];
 
-/** Format a JS Date as the backend's `DD-MM-YYYY` slot format. */
-export function toDDMMYYYY(date: Date): string {
-  const d = String(date.getDate()).padStart(2, "0");
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  return `${d}-${m}-${date.getFullYear()}`;
+/** Safely normalize string, number, or Date input to a valid JS Date. */
+export function normalizeToDate(value: any): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    // DD-MM-YYYY or DD/MM/YYYY
+    const dmyMatch = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (dmyMatch) {
+      const d = parseInt(dmyMatch[1], 10);
+      const m = parseInt(dmyMatch[2], 10) - 1;
+      const y = parseInt(dmyMatch[3], 10);
+      const date = new Date(y, m, d);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+    // YYYY-MM-DD
+    const ymdMatch = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (ymdMatch) {
+      const y = parseInt(ymdMatch[1], 10);
+      const m = parseInt(ymdMatch[2], 10) - 1;
+      const d = parseInt(ymdMatch[3], 10);
+      const date = new Date(y, m, d);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+    const parsed = new Date(trimmed);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  if (typeof value === "number") {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
+/** Format a JS Date (or valid date string/number) as the backend's `DD-MM-YYYY` slot format. */
+export function toDDMMYYYY(date?: Date | string | number | null): string {
+  const dObj = normalizeToDate(date);
+  if (!dObj) return "";
+  const d = String(dObj.getDate()).padStart(2, "0");
+  const m = String(dObj.getMonth() + 1).padStart(2, "0");
+  return `${d}-${m}-${dObj.getFullYear()}`;
 }
 
 /** Human-friendly display from a `DD-MM-YYYY` string or ISO timestamp -> e.g. `19 Aug 2026`. */
@@ -93,12 +132,16 @@ export function formatSmartDateTime(
 }
 
 /** `24 Aug` style label for a date row in the date picker. */
-export function dateLabel(date: Date): string {
-  return `${date.getDate()} ${MONTHS_SHORT[date.getMonth()]}`;
+export function dateLabel(date?: Date | string | number | null): string {
+  const dObj = normalizeToDate(date);
+  if (!dObj) return "-";
+  return `${dObj.getDate()} ${MONTHS_SHORT[dObj.getMonth()]}`;
 }
 
-export function weekdayLabel(date: Date): string {
-  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][date.getDay()];
+export function weekdayLabel(date?: Date | string | number | null): string {
+  const dObj = normalizeToDate(date);
+  if (!dObj) return "-";
+  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dObj.getDay()];
 }
 
 export function formatINR(amount?: number | null): string {
@@ -112,8 +155,8 @@ export function formatISODate(
   fallback = "-",
 ): string {
   if (!value) return fallback;
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
+  const date = normalizeToDate(value);
+  if (!date) return String(value);
   return `${date.getDate()} ${MONTHS_SHORT[date.getMonth()]} ${date.getFullYear()}`;
 }
 

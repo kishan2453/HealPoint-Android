@@ -126,6 +126,9 @@ export function nextAvailableSlot(doctor: Doctor): NextSlot | null {
  * availability when a real future time slot exists.
  */
 export function isDoctorAvailable(doctor: Doctor): boolean {
+  const isInactive = (doctor as any).isActive === false;
+  const isExplicitlyUnavailable = (doctor as any).available === false;
+  if (isInactive || isExplicitlyUnavailable) return false;
   if (doctor.available === true || doctor.onlineStatus === 'online') return true;
   return nextAvailableSlot(doctor) !== null;
 }

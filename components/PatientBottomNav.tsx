@@ -39,21 +39,14 @@ export function PatientBottomNav({ activeTab }: PatientBottomNavProps) {
 
   // Map route to active tab
   const currentTab: PatientNavTab = useMemo(() => {
-    if (activeTab === "appointments") return "video";
+    if (activeTab === "appointments") return "appointments";
     if (activeTab === "health") return "home";
     if (activeTab) return activeTab;
     if (!pathname || pathname === "/" || pathname === "/(drawer)" || pathname === "/(drawer)/") {
       return "home";
     }
-    if (pathname.includes("consult-online") || pathname.includes("video") || pathname.includes("appointments")) {
+    if (pathname.includes("consult-online") || (pathname.includes("video") && !pathname.includes("doctors"))) {
       return "video";
-    }
-    if (
-      pathname.includes("ai-assistant") ||
-      pathname.includes("message") ||
-      pathname.includes("consultations")
-    ) {
-      return "messages";
     }
     if (
       pathname.includes("doctors") ||
@@ -61,6 +54,9 @@ export function PatientBottomNav({ activeTab }: PatientBottomNavProps) {
       pathname.includes("hospitals")
     ) {
       return "search";
+    }
+    if (pathname.includes("appointments")) {
+      return "appointments";
     }
     if (pathname.includes("profile") || pathname.includes("settings")) {
       return "profile";
@@ -93,6 +89,13 @@ export function PatientBottomNav({ activeTab }: PatientBottomNavProps) {
       route: "/(drawer)",
     },
     {
+      key: "search",
+      label: "Find Doctor",
+      icon: "search-outline",
+      activeIcon: "search",
+      route: "/(drawer)/doctors",
+    },
+    {
       key: "video",
       label: "Consult",
       icon: "videocam-outline",
@@ -100,19 +103,11 @@ export function PatientBottomNav({ activeTab }: PatientBottomNavProps) {
       route: "/(drawer)/consult-online",
     },
     {
-      key: "messages",
-      label: "Messages",
-      icon: "chatbubble-ellipses-outline",
-      activeIcon: "chatbubble-ellipses",
-      route: "/ai-assistant",
-      showBadge: unreadCount > 0,
-    },
-    {
-      key: "search",
-      label: "Search",
-      icon: "search-outline",
-      activeIcon: "search",
-      route: "/(drawer)/doctors",
+      key: "appointments",
+      label: "Appointments",
+      icon: "calendar-outline",
+      activeIcon: "calendar",
+      route: "/(drawer)/appointments",
     },
     {
       key: "profile",

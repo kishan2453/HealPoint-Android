@@ -109,6 +109,7 @@ export default function RootLayout() {
                     <Stack.Screen
                       name="booking/[doctorId]"
                       options={{
+                        headerShown: false,
                         presentation: "modal",
                         title: "Book appointment",
                       }}

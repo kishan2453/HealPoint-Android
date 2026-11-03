@@ -458,12 +458,25 @@ export default function BookingScreen() {
     );
   };
 
-  const isDateInPast = (d: Date) => {
+  const MAX_ADVANCE_BOOKING_DAYS = 90;
+
+  const isDateInPast = (d: Date | null) => {
+    if (!d || !(d instanceof Date) || isNaN(d.getTime())) return true;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const target = new Date(d);
     target.setHours(0, 0, 0, 0);
     return target < today;
+  };
+
+  const isDateBeyondAdvanceLimit = (d: Date | null) => {
+    if (!d || !(d instanceof Date) || isNaN(d.getTime())) return true;
+    const maxDate = new Date();
+    maxDate.setHours(0, 0, 0, 0);
+    maxDate.setDate(maxDate.getDate() + MAX_ADVANCE_BOOKING_DAYS);
+    const target = new Date(d);
+    target.setHours(0, 0, 0, 0);
+    return target > maxDate;
   };
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
@@ -1044,13 +1057,13 @@ export default function BookingScreen() {
             <Ionicons name="close" size={24} color={Palette.text} />
           </Pressable>
           <View style={styles.headerTitles}>
-            <Text style={styles.headerTitle}>
+            <Text style={styles.headerTitle} numberOfLines={1}>
               {source === "rebook" ? "Repeat Consultation" : "Book Appointment"}
             </Text>
-            <Text style={styles.headerSubtitle}>
+            <Text style={styles.headerSubtitle} numberOfLines={1}>
               {source === "rebook"
-                ? `Re-booking care with ${stripDoctorTitle(doctor.name)}`
-                : `Reserve your visit with ${stripDoctorTitle(doctor.name)}`}
+                ? `Re-booking care with Dr. ${stripDoctorTitle(doctor?.name || "Doctor")}`
+                : `Reserve your visit with Dr. ${stripDoctorTitle(doctor?.name || "Doctor")}`}
             </Text>
           </View>
         </View>
@@ -1263,7 +1276,149 @@ export default function BookingScreen() {
               );
             })}
           </ScrollView>
-        </Card>
+        
+          {/* Full Calendar View Toggle & Grid */}
+          <View style={styles.calendarToggleContainer}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={showFullCalendar ? "Hide Full Calendar" : "View Full Calendar"}
+              onPress={() => setShowFullCalendar((prev) => !prev)}
+              style={({ pressed }) => [
+                styles.calendarToggleBtn,
+                showFullCalendar && styles.calendarToggleBtnActive,
+                pressed && { opacity: 0.8 },
+              ]}
+            >
+              <Ionicons
+                name="calendar"
+                size={16}
+                color={showFullCalendar ? Palette.white : Palette.primary}
+              />
+              <Text
+                style={[
+                  styles.calendarToggleText,
+                  showFullCalendar && styles.calendarToggleTextActive,
+                ]}
+              >
+                {showFullCalendar ? "Hide Full Calendar" : "View Full Calendar"}
+              </Text>
+              <Ionicons
+                name={showFullCalendar ? "chevron-up" : "chevron-down"}
+                size={16}
+                color={showFullCalendar ? Palette.white : Palette.primary}
+              />
+            </Pressable>
+            {selectedDateStr ? (
+              <Text style={styles.calendarSelectedHint}>
+                Selected: <Text style={{ fontWeight: "700", color: Palette.primary }}>{formatDDMMYYYY(selectedDateStr)}</Text>
+              </Text>
+            ) : null}
+          </View>
+
+          {showFullCalendar ? (
+            <View style={styles.fullCalendarBox}>
+              <View style={styles.calHeaderRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Previous Month"
+                  onPress={handlePrevMonth}
+                  disabled={isCurrentMonth}
+                  style={({ pressed }) => [
+                    styles.calNavBtn,
+                    isCurrentMonth && styles.calNavBtnDisabled,
+                    pressed && !isCurrentMonth && { opacity: 0.7 },
+                  ]}
+                >
+                  <Ionicons
+                    name="chevron-back"
+                    size={18}
+                    color={isCurrentMonth ? Palette.border : Palette.text}
+                  />
+                </Pressable>
+                <Text style={styles.calMonthTitle}>
+                  {calendarViewDate.toLocaleString("en-US", {
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Next Month"
+                  onPress={handleNextMonth}
+                  style={({ pressed }) => [
+                    styles.calNavBtn,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Ionicons
+                    name="chevron-forward"
+                    size={18}
+                    color={Palette.text}
+                  />
+                </Pressable>
+              </View>
+
+              <View style={styles.calWeekdaysRow}>
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dayName) => (
+                  <Text key={dayName} style={styles.calWeekdayText}>
+                    {dayName}
+                  </Text>
+                ))}
+              </View>
+
+              <View style={styles.calDaysGrid}>
+                {calendarDays.map((cell, idx) => {
+                  if (!cell.date) {
+                    return (
+                      <View
+                        key={`empty-${idx}`}
+                        style={styles.calDayCellEmpty}
+                      />
+                    );
+                  }
+                  const cellDateStr = toDDMMYYYY(cell.date);
+                  const isSelected = cellDateStr === selectedDateStr;
+                  const isPast = isDateInPast(cell.date);
+                  const isBeyond = isDateBeyondAdvanceLimit(cell.date);
+                  const isOnLeave = Boolean(
+                    doctor?.leaveDates?.includes(cellDateStr),
+                  );
+                  const isToday = cellDateStr === toDDMMYYYY(new Date());
+                  const isDisabled = isPast || isBeyond || isOnLeave;
+
+                  return (
+                    <Pressable
+                      key={cellDateStr}
+                      disabled={isDisabled}
+                      onPress={() => setSelectedDate(cell.date!)}
+                      style={({ pressed }) => [
+                        styles.calDayCell,
+                        isSelected && styles.calDayCellSelected,
+                        (isPast || isBeyond) && styles.calDayCellDisabled,
+                        isOnLeave && styles.calDayCellLeave,
+                        isToday && !isSelected && styles.calDayCellToday,
+                        pressed && !isDisabled && { opacity: 0.8 },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.calDayNumber,
+                          isSelected && styles.calDayNumberSelected,
+                          (isPast || isBeyond) && styles.calDayNumberDisabled,
+                          isOnLeave && styles.calDayNumberLeave,
+                          isToday && !isSelected && styles.calDayNumberToday,
+                        ]}
+                      >
+                        {cell.day}
+                      </Text>
+                      {isOnLeave ? <View style={styles.calLeaveDot} /> : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+</Card>
 
         {/* ---------------- Step 2: Time Slot ---------------- */}
         <Card padded style={styles.stepCard}>

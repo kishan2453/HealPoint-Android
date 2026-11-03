@@ -23,6 +23,13 @@ export const formatHourLabel = (hour24) => {
 
 export const parseDateString = (str) => {
   if (!str) return null;
+  if (str instanceof Date) {
+    return isNaN(str.getTime()) ? null : str;
+  }
+  if (typeof str === "number") {
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? null : d;
+  }
   const s = String(str).trim();
   // DD-MM-YYYY or DD/MM/YYYY
   const dmyMatch = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
@@ -44,8 +51,17 @@ export const parseDateString = (str) => {
   return isNaN(d.getTime()) ? null : d;
 };
 
-export const normalizeDateDDMMYYYY = (dateObj) => {
-  if (!dateObj) return "";
+export const normalizeDateDDMMYYYY = (dateInput) => {
+  if (!dateInput) return "";
+  let dateObj = dateInput;
+  if (!(dateObj instanceof Date) || isNaN(dateObj.getTime())) {
+    dateObj = parseDateString(dateInput);
+  }
+  if (!dateObj || !(dateObj instanceof Date) || isNaN(dateObj.getTime())) {
+    const s = String(dateInput).trim();
+    if (/^\d{2}-\d{2}-\d{4}$/.test(s)) return s;
+    return "";
+  }
   const d = String(dateObj.getDate()).padStart(2, "0");
   const m = String(dateObj.getMonth() + 1).padStart(2, "0");
   const y = dateObj.getFullYear();

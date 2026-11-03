@@ -46,7 +46,7 @@ import {
   isDoctorAvailable,
   nextAvailableSlot,
 } from "@/lib/doctor";
-import { formatDoctorName, formatINR, formatISODate } from "@/lib/format";
+import { formatDDMMYYYY, formatDoctorName, formatINR, formatISODate } from "@/lib/format";
 import { getDoctorImage } from "@/lib/image";
 import { useDoctorComparison } from "@/hooks/use-doctor-comparison";
 import { toErrorMessage } from "@/services/api";
@@ -173,7 +173,7 @@ export default function DoctorDetailScreen() {
 
   const location = doctorLocationText(doctor);
   const accepting = isDoctorAvailable(doctor);
-  const available = doctor.available === true;
+  const available = isDoctorAvailable(doctor);
   const nextSlot = nextAvailableSlot(doctor);
   const languages = (doctor.languages || []).filter((value) =>
     Boolean(value && value.trim()),
@@ -909,6 +909,23 @@ export default function DoctorDetailScreen() {
         ) : null}
       </ScrollView>
 
+      {/* Unavailable Explanation Callout if not accepting appointments */}
+      {!available ? (
+        <View style={styles.unavailableNoticeBar}>
+          <Ionicons name="information-circle-outline" size={18} color="#DC2626" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.unavailableNoticeTitle}>Doctor Currently Unavailable</Text>
+            <Text style={styles.unavailableNoticeSub}>
+              {doctor.available === false
+                ? "This doctor is currently not accepting new appointments."
+                : nextSlot?.date
+                  ? `Next appointment slot opens on ${formatDDMMYYYY(nextSlot.date)} (${nextSlot.time || "Regular hours"})`
+                  : "Please check back later or consult another qualified specialist."}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
       {/* ---------------- Sticky Booking Bar ---------------- */}
       <View
         style={[
@@ -918,7 +935,7 @@ export default function DoctorDetailScreen() {
       >
         <View style={styles.bottomFee}>
           <Text style={styles.bottomFeeLabel}>Consultation Fee</Text>
-          <Text style={styles.bottomFeeValue}>{formatINR(doctor.fees)}</Text>
+          <Text style={styles.bottomFeeValue} numberOfLines={1}>{formatINR(doctor.fees)}</Text>
         </View>
         <View style={styles.bottomButtonContainer}>
           <Button
@@ -926,7 +943,7 @@ export default function DoctorDetailScreen() {
             icon="calendar"
             onPress={openBooking}
             disabled={!available}
-            fullWidth={false}
+            fullWidth
             style={styles.bottomButton}
           />
         </View>
@@ -1141,6 +1158,9 @@ const styles = StyleSheet.create({
     ...Shadows.card,
   },
   doctorFloatingCard: {
+    alignSelf: "center",
+    width: "92%",
+    maxWidth: 600,
     marginHorizontal: Spacing.lg,
     marginTop: -32,
     padding: Spacing.lg,
@@ -1206,6 +1226,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#2563EB",
   },
   tabContainer: {
+    alignSelf: "center",
+    width: "92%",
+    maxWidth: 600,
     marginHorizontal: Spacing.lg,
     marginTop: Spacing.xs,
   },
@@ -1320,6 +1343,9 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.border,
   },
   videoConsultCard: {
+    alignSelf: "center",
+    width: "92%",
+    maxWidth: 600,
     marginHorizontal: Spacing.lg,
     gap: Spacing.sm,
     borderRadius: Radius.lg,
@@ -1394,6 +1420,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sectionCard: {
+    alignSelf: "center",
+    width: "92%",
+    maxWidth: 600,
     marginHorizontal: Spacing.lg,
     gap: Spacing.md,
     borderRadius: Radius.lg,
@@ -1677,6 +1706,27 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Palette.primaryDark,
   },
+  unavailableNoticeBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FEF2F2",
+    borderTopWidth: 1,
+    borderTopColor: "#FECACA",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    zIndex: 9998,
+  },
+  unavailableNoticeTitle: {
+    ...Typography.bodySmall,
+    fontWeight: "700",
+    color: "#DC2626",
+  },
+  unavailableNoticeSub: {
+    ...Typography.caption,
+    color: "#991B1B",
+    marginTop: 2,
+  },
   bottomBar: {
     position: "absolute",
     bottom: 0,
@@ -1715,7 +1765,7 @@ const styles = StyleSheet.create({
   bottomButtonContainer: {
     flex: 1,
     maxWidth: 240,
-    alignItems: "flex-end",
+    alignItems: "stretch",
   },
   bottomButton: {
     width: "100%",

@@ -1217,25 +1217,36 @@ export default function HealthDocumentCenterScreen() {
                 {selectedDocDetails.doctorName ? (
                   <Card style={styles.connectionCard}>
                     <View style={styles.connectionRow}>
-                      <Ionicons name="person" size={20} color={Palette.primary} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.connectionTitle}>
-                          {selectedDocDetails.doctorName}
-                        </Text>
-                        <Text style={styles.connectionSub}>
-                          {selectedDocDetails.doctorSpecialty || "Consulting Specialist"}
-                        </Text>
+                      <View style={styles.connectionInfoWrap}>
+                        <View style={styles.connectionIconWrap}>
+                          <Ionicons name="person" size={18} color={Palette.primary} />
+                        </View>
+                        <View style={styles.connectionTextWrap}>
+                          <Text style={styles.connectionTitle} numberOfLines={2}>
+                            {formatDoctorName(selectedDocDetails.doctorName)}
+                          </Text>
+                          <Text style={styles.connectionSub} numberOfLines={1}>
+                            {selectedDocDetails.doctorSpecialty || "Consulting Specialist"}
+                          </Text>
+                        </View>
                       </View>
                       {selectedDocDetails.doctorId ? (
-                        <Button
-                          title="Doctor Profile"
-                          variant="outline"
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="View Doctor Profile"
                           onPress={() => {
                             const dId = selectedDocDetails.doctorId;
                             setSelectedDocDetails(null);
                             router.push(`/doctor/${dId}` as never);
                           }}
-                        />
+                          style={({ pressed }) => [
+                            styles.connectionActionBtn,
+                            pressed && styles.pressed,
+                          ]}
+                        >
+                          <Text style={styles.connectionActionBtnText}>Doctor Profile</Text>
+                          <Ionicons name="chevron-forward" size={14} color={Palette.primary} />
+                        </Pressable>
                       ) : null}
                     </View>
                   </Card>
@@ -1245,23 +1256,36 @@ export default function HealthDocumentCenterScreen() {
                 {selectedDocDetails.hospitalName ? (
                   <Card style={styles.connectionCard}>
                     <View style={styles.connectionRow}>
-                      <Ionicons name="business" size={20} color={Palette.primary} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.connectionTitle}>
-                          {selectedDocDetails.hospitalName}
-                        </Text>
-                        <Text style={styles.connectionSub}>Affiliated Hospital</Text>
+                      <View style={styles.connectionInfoWrap}>
+                        <View style={styles.connectionIconWrap}>
+                          <Ionicons name="business" size={18} color={Palette.primary} />
+                        </View>
+                        <View style={styles.connectionTextWrap}>
+                          <Text style={styles.connectionTitle} numberOfLines={2}>
+                            {selectedDocDetails.hospitalName}
+                          </Text>
+                          <Text style={styles.connectionSub} numberOfLines={1}>
+                            Affiliated Hospital
+                          </Text>
+                        </View>
                       </View>
                       {selectedDocDetails.hospitalId ? (
-                        <Button
-                          title="Hospital"
-                          variant="outline"
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="View Hospital Profile"
                           onPress={() => {
                             const hId = selectedDocDetails.hospitalId;
                             setSelectedDocDetails(null);
                             router.push(`/hospital/${hId}` as never);
                           }}
-                        />
+                          style={({ pressed }) => [
+                            styles.connectionActionBtn,
+                            pressed && styles.pressed,
+                          ]}
+                        >
+                          <Text style={styles.connectionActionBtnText}>Hospital</Text>
+                          <Ionicons name="chevron-forward" size={14} color={Palette.primary} />
+                        </Pressable>
                       ) : null}
                     </View>
                   </Card>
@@ -1271,22 +1295,33 @@ export default function HealthDocumentCenterScreen() {
                 {selectedDocDetails.appointmentId ? (
                   <Card style={styles.connectionCard}>
                     <View style={styles.connectionRow}>
-                      <Ionicons name="calendar" size={20} color={Palette.primary} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.connectionTitle}>Linked Appointment</Text>
-                        <Text style={styles.connectionSub}>
-                          Ref #{selectedDocDetails.displayAppointmentId || selectedDocDetails.appointmentId}
-                        </Text>
+                      <View style={styles.connectionInfoWrap}>
+                        <View style={styles.connectionIconWrap}>
+                          <Ionicons name="calendar" size={18} color={Palette.primary} />
+                        </View>
+                        <View style={styles.connectionTextWrap}>
+                          <Text style={styles.connectionTitle}>Linked Appointment</Text>
+                          <Text style={styles.connectionSub} numberOfLines={1}>
+                            Ref #{selectedDocDetails.displayAppointmentId || selectedDocDetails.appointmentId}
+                          </Text>
+                        </View>
                       </View>
-                      <Button
-                        title="View Visit"
-                        variant="outline"
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="View Linked Visit"
                         onPress={() => {
                           const aptId = selectedDocDetails.appointmentId;
                           setSelectedDocDetails(null);
                           router.push(`/appointment/${aptId}` as never);
                         }}
-                      />
+                        style={({ pressed }) => [
+                          styles.connectionActionBtn,
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <Text style={styles.connectionActionBtnText}>View Visit</Text>
+                        <Ionicons name="chevron-forward" size={14} color={Palette.primary} />
+                      </Pressable>
                     </View>
                   </Card>
                 ) : null}
@@ -1971,7 +2006,10 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.white,
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,
-    maxHeight: "88%",
+    maxHeight: "90%",
+    width: "100%",
+    maxWidth: 540,
+    alignSelf: "center",
     paddingBottom: Spacing.xl,
   },
   uploadModalContent: {
@@ -2040,13 +2078,37 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   connectionCard: {
-    padding: Spacing.sm,
-    borderRadius: Radius.md,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: "rgba(191, 219, 254, 0.6)",
+    backgroundColor: "#F8FAFC",
   },
   connectionRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: Spacing.sm,
+  },
+  connectionInfoWrap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    minWidth: 0,
+  },
+  connectionIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(37, 99, 235, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  connectionTextWrap: {
+    flex: 1,
+    minWidth: 0,
   },
   connectionTitle: {
     ...Typography.bodySmall,
@@ -2056,6 +2118,25 @@ const styles = StyleSheet.create({
   connectionSub: {
     ...Typography.caption,
     color: Palette.textMuted,
+    marginTop: 1,
+  },
+  connectionActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: Radius.pill,
+    backgroundColor: "rgba(37, 99, 235, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(37, 99, 235, 0.2)",
+    flexShrink: 0,
+  },
+  connectionActionBtnText: {
+    ...Typography.caption,
+    fontWeight: "700",
+    color: Palette.primary,
+    fontSize: 12,
   },
   sectionBlock: {
     backgroundColor: "rgba(248, 250, 252, 0.9)",
