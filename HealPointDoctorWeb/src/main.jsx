@@ -8,6 +8,7 @@ import "./UnifiedHealPoint.css";
 import "./DesignSystem.css";
 import "./DoctorPremier.css";
 import "./HealPointSaaS.css";
+import "./DoctorSaaSMaster.css";
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>

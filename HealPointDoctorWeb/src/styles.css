@@ -392,10 +392,10 @@ body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
   align-items: center;
   gap: 7px;
   padding: 8px 14px;
-  border: 1px solid #0d9488;
+  border: 1px solid #2563EB;
   border-radius: 9px;
   background: #ffffff;
-  color: #0d9488;
+  color: #2563EB;
   font-weight: 700;
   font-size: 0.86rem;
   cursor: pointer;

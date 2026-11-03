@@ -39,7 +39,7 @@
 }
 .dp-alert {
   color: #2563eb;
-  border-color: #99f6e4;
+  border-color: #BFDBFE;
   background: #ecfdf5;
 }
 .dp-form input:focus,
@@ -1625,14 +1625,14 @@
    ========================================================================== */
 
 .dp-quick-action-highlight {
-  background: linear-gradient(135deg, #0d9488 0%, #059669 100%) !important;
+  background: linear-gradient(135deg, #2563EB 0%, #059669 100%) !important;
   color: #ffffff !important;
   font-weight: 700;
-  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.28);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.28);
 }
 .dp-quick-action-highlight:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(13, 148, 136, 0.38);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.38);
 }
 
 /* ---------- 1. OPD Patient Queue Container & Header ---------- */
@@ -1699,7 +1699,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: linear-gradient(135deg, #0d9488 0%, #059669 100%);
+  background: linear-gradient(135deg, #2563EB 0%, #059669 100%);
   color: #ffffff;
   border: none;
   padding: 10px 18px;
@@ -1707,13 +1707,13 @@
   font-size: 0.88rem;
   font-weight: 750;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.32);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.32);
   transition: all 0.18s ease;
 }
 
 .dp-queue-call-next-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(13, 148, 136, 0.42);
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.42);
 }
 
 .dp-queue-call-next-btn:disabled {
@@ -1738,7 +1738,7 @@
 
 .dp-queue-refresh-btn:hover:not(:disabled) {
   background: #f1f5f9;
-  color: #0d9488;
+  color: #2563EB;
   border-color: #cbd5e1;
 }
 
@@ -1767,7 +1767,7 @@
 }
 
 .dp-queue-kpi-chip.active {
-  border-color: #0d9488;
+  border-color: #2563EB;
   background: #f0fdf4;
 }
 
@@ -2079,7 +2079,7 @@
   text-decoration: none;
 }
 .dp-queue-patient-info h4 a:hover {
-  color: #0d9488;
+  color: #2563EB;
 }
 
 .dp-queue-demographics {
@@ -2309,8 +2309,8 @@
 
 .dp-search-box input:focus {
   background: #ffffff;
-  border-color: #0d9488;
-  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .dp-search-clear {
@@ -2401,7 +2401,7 @@
   border-radius: 6px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  color: #0d9488;
+  color: #2563EB;
   font-size: 0.76rem;
   font-weight: 700;
   text-decoration: none;
@@ -2410,7 +2410,7 @@
 
 .dp-action-link:hover {
   background: #f0fdf4;
-  border-color: #0d9488;
+  border-color: #2563EB;
 }
 
 .dp-patients-cards-mobile {
@@ -2515,7 +2515,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #0d9488;
+  color: #2563EB;
   font-weight: 750;
   font-size: 0.88rem;
   text-decoration: none;
@@ -2641,12 +2641,12 @@
 }
 
 .dp-profile-tab:hover {
-  color: #0d9488;
+  color: #2563EB;
 }
 
 .dp-profile-tab.active {
-  color: #0d9488;
-  border-bottom-color: #0d9488;
+  color: #2563EB;
+  border-bottom-color: #2563EB;
 }
 
 /* Overview tab elements */
@@ -2760,7 +2760,7 @@
 .dp-rx-diag {
   font-size: 0.78rem;
   font-weight: 800;
-  color: #0d9488;
+  color: #2563EB;
 }
 
 .dp-rx-text {
@@ -2783,7 +2783,7 @@
 }
 
 .dp-rep-icon {
-  color: #0d9488;
+  color: #2563EB;
   font-size: 1.2rem;
 }
 
@@ -2942,8 +2942,8 @@
   width: 44px;
   height: 44px;
   border-radius: 10px;
-  background: #ccfbf1;
-  color: #0d9488;
+  background: #DBEAFE;
+  color: #2563EB;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3002,7 +3002,7 @@
   height: 18px;
   border-radius: 50%;
   border: 3px solid #ffffff;
-  background: #0d9488;
+  background: #2563EB;
   box-shadow: 0 0 0 2px #e2e8f0;
 }
 
@@ -3047,7 +3047,7 @@
   display: inline-block;
   margin-top: 6px;
   font-size: 0.78rem;
-  color: #0d9488;
+  color: #2563EB;
   font-weight: 700;
   text-decoration: none;
 }
@@ -3258,14 +3258,14 @@
 .dp-prescription-textarea:focus {
   outline: none;
   background: #ffffff;
-  border-color: #0d9488;
-  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .dp-input-highlight {
   font-weight: 700;
-  border-color: #99f6e4 !important;
-  background: #f0fdfa !important;
+  border-color: #BFDBFE !important;
+  background: #EFF6FF !important;
 }
 
 .dp-bmi-box {
@@ -3369,10 +3369,10 @@
   height: 50px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid #0d9488;
+  border: 2px solid #2563EB;
 }
 .dp-sc-avatar.dp-avatar-fallback {
-  background: linear-gradient(135deg, #0d9488, #0f766e);
+  background: linear-gradient(135deg, #2563EB, #1D4ED8);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -3597,10 +3597,10 @@
   height: 46px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid #0d9488;
+  border: 2px solid #2563EB;
 }
 .dp-epc-avatar.dp-avatar-fallback {
-  background: linear-gradient(135deg, #0d9488, #0f766e);
+  background: linear-gradient(135deg, #2563EB, #1D4ED8);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -3683,10 +3683,10 @@
   height: 58px;
   border-radius: 50%;
   object-fit: cover;
-  border: 3px solid #0d9488;
+  border: 3px solid #2563EB;
 }
 .dp-emr-avatar.dp-avatar-fallback {
-  background: linear-gradient(135deg, #0d9488, #0f766e);
+  background: linear-gradient(135deg, #2563EB, #1D4ED8);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -3789,7 +3789,7 @@
   color: #0f172a;
 }
 .dp-emr-tab-btn.active {
-  background: #0d9488;
+  background: #2563EB;
   color: #ffffff;
 }
 
@@ -3900,7 +3900,7 @@
   margin: 0 0 2px;
   font-size: 1.05rem;
   font-weight: 800;
-  color: #0d9488;
+  color: #2563EB;
 }
 .dp-chc-header p {
   margin: 0;
@@ -3950,9 +3950,9 @@
 
 /* Diagnoses & Medications Panel */
 .dp-diag-tag {
-  background: #f0fdfa;
-  color: #0f766e;
-  border: 1px solid #99f6e4;
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border: 1px solid #BFDBFE;
   padding: 3px 8px;
   border-radius: 6px;
   font-size: 0.82rem;
@@ -4105,8 +4105,8 @@
   font-size: 0.82rem;
 }
 .dp-vital-pill {
-  background: #f0fdfa;
-  color: #0d9488;
+  background: #EFF6FF;
+  color: #2563EB;
   padding: 2px 7px;
   border-radius: 6px;
   font-weight: 750;
@@ -4171,7 +4171,7 @@
   background: #0ea5e9;
 }
 .dp-tl-bullet.consultation {
-  background: #0d9488;
+  background: #2563EB;
 }
 .dp-tl-bullet.prescription {
   background: #8b5cf6;
@@ -4382,10 +4382,10 @@
 }
 
 .dp-category-pill.active {
-  background: #0d9488;
+  background: #2563EB;
   color: #ffffff;
-  border-color: #0d9488;
-  box-shadow: 0 2px 6px rgba(13, 148, 136, 0.25);
+  border-color: #2563EB;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
 }
 
 /* Tables */
@@ -4440,7 +4440,7 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #0d9488, #0f766e);
+  background: linear-gradient(135deg, #2563EB, #1D4ED8);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -4573,8 +4573,8 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 16px;
-  background: #f0fdfa;
-  border: 1px solid #ccfbf1;
+  background: #EFF6FF;
+  border: 1px solid #DBEAFE;
   padding: 16px 20px;
   border-radius: 14px;
 }
@@ -4584,13 +4584,13 @@
   align-items: center;
   gap: 12px;
   font-size: 0.9rem;
-  color: #0f766e;
+  color: #1D4ED8;
 }
 
 .dp-rx-selector-box select {
   padding: 8px 14px;
   border-radius: 8px;
-  border: 1px solid #5eead4;
+  border: 1px solid #93C5FD;
   background: #ffffff;
   color: #0f172a;
   font-weight: 600;
@@ -4600,7 +4600,7 @@
 /* Pad Header */
 .dp-rx-pad-header {
   background: #ffffff;
-  border: 2px solid #0d9488;
+  border: 2px solid #2563EB;
   border-radius: 16px 16px 0 0;
   padding: 24px 28px;
   display: flex;
@@ -4617,7 +4617,7 @@
   gap: 8px;
   font-size: 1.4rem;
   font-weight: 850;
-  color: #0d9488;
+  color: #2563EB;
   margin-bottom: 2px;
 }
 
@@ -4667,8 +4667,8 @@
 /* Patient Strip */
 .dp-rx-patient-strip {
   background: #f8fafc;
-  border-left: 2px solid #0d9488;
-  border-right: 2px solid #0d9488;
+  border-left: 2px solid #2563EB;
+  border-right: 2px solid #2563EB;
   padding: 14px 28px;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -4694,8 +4694,8 @@
 /* Adverse Reaction Warning */
 .dp-rx-warning-strip {
   background: #fef2f2;
-  border-left: 2px solid #0d9488;
-  border-right: 2px solid #0d9488;
+  border-left: 2px solid #2563EB;
+  border-right: 2px solid #2563EB;
   border-bottom: 1px solid #fecaca;
   padding: 10px 28px;
   display: flex;
@@ -4741,7 +4741,7 @@
 .dp-rx-symbol-badge {
   font-size: 1.6rem;
   font-weight: 900;
-  color: #0d9488;
+  color: #2563EB;
   font-family: serif;
 }
 
@@ -4749,17 +4749,17 @@
   width: 100%;
   padding: 10px 14px;
   border-radius: 8px;
-  border: 1.5px solid #0d9488;
+  border: 1.5px solid #2563EB;
   font-size: 0.95rem;
   font-weight: 600;
   color: #0f172a;
   outline: none;
-  background: #f0fdfa;
+  background: #EFF6FF;
 }
 
 .dp-rx-highlight-input:focus {
-  border-color: #0f766e;
-  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+  border-color: #1D4ED8;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
 /* Medicine Edit Table */
@@ -4804,7 +4804,7 @@
 
 .dp-rx-edit-table input:focus,
 .dp-rx-edit-table select:focus {
-  border-color: #0d9488;
+  border-color: #2563EB;
 }
 
 .dp-rx-chip-list {
@@ -5583,8 +5583,8 @@
 }
 
 .dp-chip-filter:hover {
-  border-color: #0d9488 !important;
-  color: #0d9488 !important;
+  border-color: #2563EB !important;
+  color: #2563EB !important;
 }
 
 .dp-chip-filter.active:hover {

@@ -6,14 +6,14 @@
 
 /* ---------- 1. DESIGN TOKENS ---------- */
 :root {
-  --hp-teal-50: #f0fdfa;
-  --hp-teal-100: #ccfbf1;
-  --hp-teal-200: #99f6e4;
-  --hp-teal-500: #14b8a6;
-  --hp-teal-600: #0d9488;
-  --hp-teal-700: #0f766e;
-  --hp-teal-800: #115e59;
-  --hp-teal-900: #134e4a;
+  --hp-sky-50: #EFF6FF;
+  --hp-sky-100: #DBEAFE;
+  --hp-sky-200: #BFDBFE;
+  --hp-sky-500: #60A5FA;
+  --hp-primary: #2563EB;
+  --hp-primary-dark: #1D4ED8;
+  --hp-primary-darker: #1E40AF;
+  --hp-teal-900: #172554;
 
   --hp-ink-900: #0f172a;
   --hp-ink-700: #334155;
@@ -52,7 +52,7 @@
     0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 28px rgba(15, 23, 42, 0.06);
   --hp-shadow-lg:
     0 2px 4px rgba(15, 23, 42, 0.05), 0 22px 48px rgba(15, 23, 42, 0.12);
-  --hp-shadow-teal: 0 10px 24px rgba(13, 148, 136, 0.22);
+  --hp-shadow-teal: 0 10px 24px rgba(37, 99, 235, 0.22);
 
   --hp-font:
     "Manrope", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -130,7 +130,7 @@ a {
 
 /* Selection */
 ::selection {
-  background: var(--hp-teal-100);
+  background: var(--hp-sky-100);
   color: var(--hp-teal-900);
 }
 
@@ -139,7 +139,7 @@ a {
   background:
     radial-gradient(
       1200px 500px at 120% -10%,
-      rgba(13, 148, 136, 0.06),
+      rgba(37, 99, 235, 0.06),
       transparent 60%
     ),
     radial-gradient(
@@ -163,10 +163,10 @@ a {
   background:
     radial-gradient(
       420px 260px at 0% 0%,
-      rgba(20, 184, 166, 0.2),
+      rgba(96, 165, 250, 0.2),
       transparent 62%
     ),
-    linear-gradient(180deg, #0e3d3a 0%, #0a2e2c 52%, #081f21 100%);
+    linear-gradient(180deg, #1D4ED8 0%, #0a2e2c 52%, #081f21 100%);
   color: #e6fffb;
   padding: 22px 14px 16px;
   position: sticky;
@@ -196,10 +196,10 @@ a {
   height: 42px;
   place-items: center;
   border-radius: 13px;
-  background: linear-gradient(135deg, var(--hp-teal-500), var(--hp-teal-700));
+  background: linear-gradient(135deg, var(--hp-sky-500), var(--hp-primary-dark));
   color: #fff;
   font-size: 19px;
-  box-shadow: 0 8px 20px rgba(20, 184, 166, 0.35);
+  box-shadow: 0 8px 20px rgba(96, 165, 250, 0.35);
 }
 
 .dp-brand strong {
@@ -212,7 +212,7 @@ a {
 .dp-brand small {
   display: block;
   margin-top: 2px;
-  color: rgba(204, 251, 241, 0.62);
+  color: rgba(239, 246, 255, 0.62);
   font-size: 0.66rem;
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -239,8 +239,8 @@ a {
   place-items: center;
   border-radius: 50%;
   object-fit: cover;
-  background: linear-gradient(135deg, var(--hp-teal-100), #e0f2f1);
-  color: var(--hp-teal-800);
+  background: linear-gradient(135deg, var(--hp-sky-100), #e0f2f1);
+  color: var(--hp-primary-darker);
   font-weight: 800;
   font-size: 0.85rem;
   border: 2px solid rgba(255, 255, 255, 0.14);
@@ -260,7 +260,7 @@ a {
   display: block;
   overflow: hidden;
   margin-top: 3px;
-  color: rgba(153, 246, 228, 0.66);
+  color: rgba(191, 219, 254, 0.66);
   font-size: 0.68rem;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -269,7 +269,7 @@ a {
 .dp-doctor-identity em {
   display: block;
   margin-top: 6px;
-  color: rgba(153, 246, 228, 0.7);
+  color: rgba(191, 219, 254, 0.7);
   font-size: 0.63rem;
   font-style: normal;
   letter-spacing: 0.02em;
@@ -314,7 +314,7 @@ a {
 
 .dp-sidebar nav a svg {
   font-size: 1rem;
-  color: rgba(153, 246, 228, 0.6);
+  color: rgba(191, 219, 254, 0.6);
   transition: color var(--hp-transition);
 }
 
@@ -324,7 +324,7 @@ a {
 }
 
 .dp-sidebar nav a:hover svg {
-  color: #99f6e4;
+  color: #BFDBFE;
 }
 
 .dp-sidebar nav a.active {
@@ -335,7 +335,7 @@ a {
 }
 
 .dp-sidebar nav a.active svg {
-  color: var(--hp-teal-700);
+  color: var(--hp-primary-dark);
 }
 
 .dp-sidebar nav a.active::before {
@@ -347,7 +347,7 @@ a {
   width: 4px;
   height: 22px;
   border-radius: 0 4px 4px 0;
-  background: var(--hp-teal-500);
+  background: var(--hp-sky-500);
 }
 
 .dp-logout {
@@ -405,8 +405,8 @@ a {
 }
 
 .dp-menu-toggle:hover {
-  border-color: var(--hp-teal-200);
-  color: var(--hp-teal-700);
+  border-color: var(--hp-sky-200);
+  color: var(--hp-primary-dark);
   box-shadow: var(--hp-shadow-sm);
 }
 
@@ -426,8 +426,8 @@ a {
 }
 
 .dp-global-search:focus-within {
-  border-color: var(--hp-teal-500);
-  box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.1);
+  border-color: var(--hp-sky-500);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
 }
 
 .dp-global-search input {
@@ -467,8 +467,8 @@ a {
 }
 
 .dp-topbar-actions > button:hover {
-  border-color: var(--hp-teal-200);
-  color: var(--hp-teal-700);
+  border-color: var(--hp-sky-200);
+  color: var(--hp-primary-dark);
   box-shadow: var(--hp-shadow-sm);
 }
 
@@ -502,8 +502,8 @@ a {
   place-items: center;
   border-radius: 50%;
   object-fit: cover;
-  background: var(--hp-teal-100);
-  color: var(--hp-teal-800);
+  background: var(--hp-sky-100);
+  color: var(--hp-primary-darker);
   font-size: 0.72rem;
   font-weight: 800;
 }
@@ -540,8 +540,8 @@ a {
   gap: 7px;
   padding: 5px 12px;
   border-radius: var(--hp-radius-pill);
-  background: var(--hp-teal-50);
-  color: var(--hp-teal-800);
+  background: var(--hp-sky-50);
+  color: var(--hp-primary-darker);
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.01em;
@@ -558,7 +558,7 @@ a {
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  background: var(--hp-teal-600);
+  background: var(--hp-primary);
   color: #fff;
 }
 
@@ -583,10 +583,10 @@ a {
   gap: 8px;
   min-height: 42px;
   padding: 0 18px;
-  border: 1px solid var(--hp-teal-200);
+  border: 1px solid var(--hp-sky-200);
   border-radius: 11px;
   background: var(--hp-surface);
-  color: var(--hp-teal-700);
+  color: var(--hp-primary-dark);
   font-size: 0.85rem;
   font-weight: 800;
   cursor: pointer;
@@ -594,8 +594,8 @@ a {
 }
 
 .dp-light-btn:hover {
-  background: var(--hp-teal-50);
-  border-color: var(--hp-teal-500);
+  background: var(--hp-sky-50);
+  border-color: var(--hp-sky-500);
   box-shadow: var(--hp-shadow-sm);
   transform: translateY(-1px);
 }
@@ -641,7 +641,7 @@ a {
   inset: 0 auto auto 0;
   width: 100%;
   height: 3px;
-  background: linear-gradient(90deg, var(--hp-teal-500), transparent);
+  background: linear-gradient(90deg, var(--hp-sky-500), transparent);
   opacity: 0.9;
 }
 
@@ -658,8 +658,8 @@ a {
   place-items: center;
   border-radius: 13px;
   font-size: 1.15rem;
-  color: var(--hp-teal-700);
-  background: var(--hp-teal-50);
+  color: var(--hp-primary-dark);
+  background: var(--hp-sky-50);
 }
 
 .dp-stats article div {
@@ -753,7 +753,7 @@ a {
   bottom: 3px;
   width: 4px;
   border-radius: 4px;
-  background: linear-gradient(180deg, var(--hp-teal-500), var(--hp-teal-700));
+  background: linear-gradient(180deg, var(--hp-sky-500), var(--hp-primary-dark));
 }
 
 /* Dashboard greeting block */
@@ -769,10 +769,10 @@ a {
   background:
     radial-gradient(
       500px 200px at 100% 0%,
-      rgba(13, 148, 136, 0.12),
+      rgba(37, 99, 235, 0.12),
       transparent 60%
     ),
-    linear-gradient(135deg, #ffffff, var(--hp-teal-50));
+    linear-gradient(135deg, #ffffff, var(--hp-sky-50));
   box-shadow: var(--hp-shadow-sm);
 }
 
@@ -823,14 +823,14 @@ a {
   max-width: 34px;
   min-height: 8px;
   border-radius: 8px 8px 4px 4px;
-  background: linear-gradient(180deg, var(--hp-teal-500), var(--hp-teal-700));
-  box-shadow: 0 6px 14px rgba(13, 148, 136, 0.28);
+  background: linear-gradient(180deg, var(--hp-sky-500), var(--hp-primary-dark));
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.28);
   transition: all var(--hp-transition);
 }
 
 .dp-chart-item:hover > span {
-  background: linear-gradient(180deg, var(--hp-teal-400), var(--hp-teal-600));
-  box-shadow: 0 10px 22px rgba(13, 148, 136, 0.4);
+  background: linear-gradient(180deg, var(--hp-sky-400), var(--hp-primary));
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.4);
 }
 
 .dp-chart-item small {
@@ -884,8 +884,8 @@ a {
   padding: 6px 12px;
   margin-bottom: 12px;
   border-radius: var(--hp-radius-pill);
-  background: var(--hp-teal-50);
-  color: var(--hp-teal-800);
+  background: var(--hp-sky-50);
+  color: var(--hp-primary-darker);
   font-size: 0.74rem;
   font-weight: 800;
 }
@@ -910,7 +910,7 @@ a {
 
 .dp-appointment-row:hover {
   background: var(--hp-surface);
-  border-color: var(--hp-teal-200);
+  border-color: var(--hp-sky-200);
   box-shadow: var(--hp-shadow-sm);
 }
 
@@ -920,13 +920,13 @@ a {
   flex: 0 0 44px;
   border-radius: 50%;
   object-fit: cover;
-  background: var(--hp-teal-100);
+  background: var(--hp-sky-100);
 }
 
 .dp-avatar-fallback {
   display: grid;
   place-items: center;
-  color: var(--hp-teal-800);
+  color: var(--hp-primary-darker);
   font-weight: 800;
   font-size: 1rem;
 }
@@ -1020,8 +1020,8 @@ a {
   background: var(--hp-danger-bg);
 }
 .dp-status.rescheduled {
-  color: var(--hp-teal-800);
-  background: var(--hp-teal-100);
+  color: var(--hp-primary-darker);
+  background: var(--hp-sky-100);
 }
 .dp-status.missed {
   color: var(--hp-ink-700);
@@ -1056,25 +1056,25 @@ a {
 
 .dp-actions a,
 .dp-report-btn {
-  border-color: var(--hp-teal-200);
+  border-color: var(--hp-sky-200);
   background: var(--hp-surface);
-  color: var(--hp-teal-700);
+  color: var(--hp-primary-dark);
 }
 
 .dp-actions button {
-  background: linear-gradient(135deg, var(--hp-teal-500), var(--hp-teal-700));
+  background: linear-gradient(135deg, var(--hp-sky-500), var(--hp-primary-dark));
   color: #fff;
-  box-shadow: 0 8px 18px rgba(13, 148, 136, 0.22);
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.22);
 }
 
 .dp-actions button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 12px 24px rgba(13, 148, 136, 0.32);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.32);
 }
 
 .dp-actions a:hover,
 .dp-report-btn:hover {
-  background: var(--hp-teal-50);
+  background: var(--hp-sky-50);
   box-shadow: var(--hp-shadow-sm);
   transform: translateY(-1px);
 }
@@ -1088,9 +1088,9 @@ a {
 }
 
 .dp-form button {
-  background: linear-gradient(135deg, var(--hp-teal-500), var(--hp-teal-700));
+  background: linear-gradient(135deg, var(--hp-sky-500), var(--hp-primary-dark));
   color: #fff;
-  box-shadow: 0 8px 18px rgba(13, 148, 136, 0.22);
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.22);
   padding: 0 20px;
   min-height: 42px;
 }
@@ -1152,9 +1152,9 @@ a {
 .dp-form input:focus,
 .dp-form select:focus,
 .dp-form textarea:focus {
-  border-color: var(--hp-teal-500);
+  border-color: var(--hp-sky-500);
   background: var(--hp-surface);
-  box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.1);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
 }
 
 .dp-upload {
@@ -1163,18 +1163,18 @@ a {
   justify-content: center;
   gap: 10px;
   min-height: 120px;
-  border: 1.5px dashed #5eead4;
+  border: 1.5px dashed #93C5FD;
   border-radius: var(--hp-radius);
-  background: var(--hp-teal-50);
-  color: var(--hp-teal-800);
+  background: var(--hp-sky-50);
+  color: var(--hp-primary-darker);
   font-weight: 800;
   cursor: pointer;
   transition: all var(--hp-transition);
 }
 
 .dp-upload:hover {
-  background: var(--hp-teal-100);
-  border-color: var(--hp-teal-500);
+  background: var(--hp-sky-100);
+  border-color: var(--hp-sky-500);
 }
 
 .dp-upload input {
@@ -1236,7 +1236,7 @@ a {
 
 .dp-patient-card:hover {
   transform: translateY(-3px);
-  border-color: var(--hp-teal-200);
+  border-color: var(--hp-sky-200);
   box-shadow: var(--hp-shadow);
 }
 
@@ -1255,7 +1255,7 @@ a {
 
 .dp-patient-card small {
   margin-top: 4px;
-  color: var(--hp-teal-700);
+  color: var(--hp-primary-dark);
   font-size: 0.72rem;
   font-weight: 800;
 }
@@ -1267,7 +1267,7 @@ a {
   padding: 18px;
   border: 1px solid var(--hp-border);
   border-radius: var(--hp-radius-lg);
-  background: linear-gradient(135deg, var(--hp-teal-50), var(--hp-surface));
+  background: linear-gradient(135deg, var(--hp-sky-50), var(--hp-surface));
   margin-bottom: 18px;
 }
 
@@ -1278,7 +1278,7 @@ a {
   border-radius: 50%;
   object-fit: cover;
   border: 3px solid #fff;
-  box-shadow: 0 8px 20px rgba(13, 148, 136, 0.2);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.2);
 }
 
 .dp-patient-profile-info h3 {
@@ -1321,7 +1321,7 @@ a {
 
 .dp-empty svg {
   font-size: 2rem;
-  color: var(--hp-teal-500);
+  color: var(--hp-sky-500);
   opacity: 0.7;
 }
 
@@ -1345,8 +1345,8 @@ a {
   display: grid;
   min-height: 100vh;
   place-items: center;
-  background: linear-gradient(135deg, var(--hp-bg), var(--hp-teal-50));
-  color: var(--hp-teal-700);
+  background: linear-gradient(135deg, var(--hp-bg), var(--hp-sky-50));
+  color: var(--hp-primary-dark);
   font-weight: 800;
   font-size: 0.95rem;
   letter-spacing: 0.02em;
@@ -1395,9 +1395,9 @@ a {
 }
 
 .dp-report-btn {
-  border-color: var(--hp-teal-200);
+  border-color: var(--hp-sky-200);
   background: var(--hp-surface);
-  color: var(--hp-teal-700);
+  color: var(--hp-primary-dark);
   min-height: 40px;
   padding: 0 16px;
 }
@@ -1420,8 +1420,8 @@ a {
 .Toastify__progress-bar {
   background: linear-gradient(
     90deg,
-    var(--hp-teal-500),
-    var(--hp-teal-700)
+    var(--hp-sky-500),
+    var(--hp-primary-dark)
   ) !important;
 }
 
@@ -1443,12 +1443,12 @@ a {
   position: relative;
   width: min(420px, 100%);
   padding: 30px 28px 26px;
-  border: 1px solid rgba(13, 148, 136, 0.14);
+  border: 1px solid rgba(37, 99, 235, 0.14);
   border-radius: 22px;
   background:
     radial-gradient(
       420px 200px at 100% 0%,
-      rgba(13, 148, 136, 0.1),
+      rgba(37, 99, 235, 0.1),
       transparent 60%
     ),
     #ffffff;
@@ -1499,10 +1499,10 @@ a {
   margin: 0 auto 16px;
   place-items: center;
   border-radius: 18px;
-  background: linear-gradient(135deg, var(--hp-teal-500), var(--hp-teal-700));
+  background: linear-gradient(135deg, var(--hp-sky-500), var(--hp-primary-dark));
   color: #fff;
   font-size: 1.5rem;
-  box-shadow: 0 14px 30px rgba(13, 148, 136, 0.32);
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.32);
 }
 
 .portal-logout-dialog h3 {
@@ -1553,21 +1553,21 @@ a {
 
 .portal-logout-actions button.confirm {
   border: 1px solid transparent;
-  background: linear-gradient(135deg, var(--hp-teal-500), var(--hp-teal-700));
+  background: linear-gradient(135deg, var(--hp-sky-500), var(--hp-primary-dark));
   color: #fff;
-  box-shadow: 0 10px 22px rgba(13, 148, 136, 0.28);
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.28);
 }
 
 .portal-logout-actions button.confirm:hover {
   transform: translateY(-1px);
-  box-shadow: 0 14px 28px rgba(13, 148, 136, 0.36);
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.36);
 }
 
 .portal-logout-actions button:focus-visible,
 .dp-actions button:focus-visible,
 .dp-form button:focus-visible,
 .dp-logout:focus-visible {
-  outline: 3px solid rgba(13, 148, 136, 0.35);
+  outline: 3px solid rgba(37, 99, 235, 0.35);
   outline-offset: 2px;
 }
 

@@ -41,7 +41,7 @@
   --hp-shadow-sm: 0 1px 2px rgba(18, 33, 30, 0.05);
   --hp-shadow: 0 1px 3px rgba(18, 33, 30, 0.06), 0 8px 24px rgba(18, 33, 30, 0.06);
   --hp-shadow-lg: 0 2px 4px rgba(18, 33, 30, 0.06), 0 16px 40px rgba(18, 33, 30, 0.12);
-  --hp-shadow-primary: 0 8px 20px rgba(13, 148, 136, 0.18);
+  --hp-shadow-primary: 0 8px 20px rgba(37, 99, 235, 0.18);
   --hp-font:
     "Manrope", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --hp-transition: 0.2s ease;
@@ -487,10 +487,10 @@ body,
   align-items: center;
   gap: 7px;
   padding: 8px 14px;
-  border: 1px solid var(--hp-teal-200, #99f6e4);
+  border: 1px solid var(--hp-sky-200, #BFDBFE);
   border-radius: 10px;
-  background: var(--hp-teal-50, #f0fdfa);
-  color: var(--hp-teal-700, #0f766e) !important;
+  background: var(--hp-sky-50, #EFF6FF);
+  color: var(--hp-primary-dark, #1D4ED8) !important;
   font-size: 12.5px;
   font-weight: 700;
   text-decoration: none;
@@ -499,7 +499,7 @@ body,
 .dp-panel-jump:hover {
   transform: translateY(-1px);
   background: #ffffff;
-  box-shadow: 0 8px 18px rgba(20, 184, 166, 0.22);
+  box-shadow: 0 8px 18px rgba(96, 165, 250, 0.22);
 }
 .dp-panel-jump svg {
   font-size: 13px;
@@ -533,7 +533,7 @@ body,
   max-height: 90vh;
   overflow-y: auto;
   background: #ffffff;
-  border: 1px solid rgba(13, 148, 136, 0.15);
+  border: 1px solid rgba(37, 99, 235, 0.15);
   border-radius: 18px;
   box-shadow: 0 30px 80px rgba(8, 31, 33, 0.3);
   animation: hpSlideUp 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -632,7 +632,7 @@ body,
   font-size: 13px;
 }
 .hp-modal-btn.primary {
-  background: linear-gradient(135deg, #0d9488, #0f766e);
+  background: linear-gradient(135deg, #2563EB, #1D4ED8);
   color: #ffffff;
   border-color: transparent;
 }
@@ -671,7 +671,7 @@ body,
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.4px;
-  color: #0d9488;
+  color: #2563EB;
 }
 .hp-section p {
   margin: 0;
@@ -685,7 +685,7 @@ body,
   padding-left: 18px;
 }
 .hp-report-links a {
-  color: #0d9488;
+  color: #2563EB;
 }
 @keyframes hpFadeIn {
   from {

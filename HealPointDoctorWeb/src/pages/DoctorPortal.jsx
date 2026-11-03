@@ -74,6 +74,7 @@ import {
   FaEyeSlash,
   FaExternalLinkAlt,
   FaStarHalfAlt,
+  FaTasks,
 } from "react-icons/fa";
 import api from "../services/api";
 import {
@@ -109,7 +110,7 @@ const buildPdf = (title, lines, filename) => {
   const doc = new jsPDF();
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
-  doc.setTextColor(13, 148, 136);
+  doc.setTextColor(37, 99, 235);
   doc.text("HealPoint", 14, 18);
   doc.setFontSize(10);
   doc.setTextColor(90);
@@ -130,7 +131,7 @@ const openPrintWindow = (title, lines, meta = "") => {
   printWindow.document.write(`<!doctype html><html><head><title>${title}</title>
     <style>
       body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;padding:28px;}
-      .hp-brand{color:#0d9488;font-size:22px;font-weight:800;}
+      .hp-brand{color:#2563EB;font-size:22px;font-weight:800;}
       .hp-sub{color:#64748b;font-size:12px;margin-top:2px;}
       h1{font-size:17px;margin:22px 0 4px;}
       .hp-meta{color:#64748b;font-size:11px;margin-bottom:14px;}
@@ -182,16 +183,16 @@ const printPrescriptionSlip = (rx) => {
     .write(`<!doctype html><html><head><title>Prescription — ${pat.name || "Patient"}</title>
     <style>
       body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #0f172a; padding: 32px; margin: 0; line-height: 1.5; }
-      .header { display: flex; justify-content: space-between; border-bottom: 2px solid #0d9488; padding-bottom: 16px; margin-bottom: 20px; }
-      .brand { font-size: 24px; font-weight: 800; color: #0d9488; }
+      .header { display: flex; justify-content: space-between; border-bottom: 2px solid #2563EB; padding-bottom: 16px; margin-bottom: 20px; }
+      .brand { font-size: 24px; font-weight: 800; color: #2563EB; }
       .brand-sub { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
       .doc-info { text-align: right; }
       .doc-name { font-size: 18px; font-weight: 700; color: #0f172a; }
       .doc-sub { font-size: 13px; color: #475569; }
       .patient-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; font-size: 13px; margin-bottom: 24px; }
       .patient-box div strong { display: block; font-size: 11px; color: #64748b; text-transform: uppercase; }
-      .rx-symbol { font-size: 28px; font-weight: 800; color: #0d9488; margin-bottom: 10px; }
-      .diagnosis-box { margin-bottom: 20px; padding: 10px 14px; background: #f0fdfa; border-left: 4px solid #0d9488; border-radius: 4px; font-size: 14px; }
+      .rx-symbol { font-size: 28px; font-weight: 800; color: #2563EB; margin-bottom: 10px; }
+      .diagnosis-box { margin-bottom: 20px; padding: 10px 14px; background: #EFF6FF; border-left: 4px solid #2563EB; border-radius: 4px; font-size: 14px; }
       table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 13px; }
       th { background: #f1f5f9; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; color: #475569; border-bottom: 2px solid #cbd5e1; }
       .instructions-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; font-size: 13px; margin-bottom: 30px; }
@@ -371,6 +372,53 @@ const menuItems = [
 
 const emptyPanel = { dashboard: {}, doctor: {} };
 
+const navigationSections = [
+  {
+    title: "Workspace",
+    items: [
+      { key: "dashboard", label: "Dashboard", icon: <FaStethoscope /> },
+      { key: "today", label: "Today's Appointments", icon: <FaCalendarAlt /> },
+      { key: "upcoming", label: "Upcoming Appointments", icon: <FaClock /> },
+      { key: "appointments", label: "All Appointments", icon: <FaCalendarDay /> },
+      { key: "queue", label: "Patient Queue (OPD)", icon: <FaUserCheck /> },
+      { key: "tasks", label: "Assigned Tasks", icon: <FaTasks /> },
+    ],
+  },
+  {
+    title: "Patient Management",
+    items: [
+      { key: "patients", label: "Patients Directory", icon: <FaUserInjured /> },
+      { key: "medical-history", label: "Patient History / EMR", icon: <FaHistory /> },
+    ],
+  },
+  {
+    title: "Consultation & Care",
+    items: [
+      { key: "online-consultations", label: "Online Consultations", icon: <FaVideo /> },
+      { key: "prescriptions", label: "Prescriptions", icon: <FaNotesMedical /> },
+      { key: "upload-reports", label: "Medical Reports", icon: <FaUpload /> },
+    ],
+  },
+  {
+    title: "Operations",
+    items: [
+      { key: "availability", label: "Availability & Schedule", icon: <FaCalendarCheck /> },
+      { key: "earnings", label: "Earnings & Billing", icon: <FaMoneyBillWave /> },
+      { key: "reviews", label: "Patient Reviews", icon: <FaStar /> },
+    ],
+  },
+  {
+    title: "Account",
+    items: [
+      { key: "notifications", label: "Notifications", icon: <FaBell />, hasBadge: true },
+      { key: "profile", label: "My Profile", icon: <FaUserMd /> },
+      { key: "verification", label: "Verification", icon: <FaCertificate /> },
+      { key: "settings", label: "Settings", icon: <FaCog /> },
+      { key: "security", label: "Security", icon: <FaLock /> },
+    ],
+  },
+];
+
 const toDataUrl = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -538,6 +586,7 @@ export default function DoctorPortal() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
   const [activeEmergencyAlerts, setActiveEmergencyAlerts] = useState([]);
@@ -933,60 +982,102 @@ export default function DoctorPortal() {
     .toUpperCase();
 
   return (
-    <div className={`dp-shell${sidebarOpen ? " menu-open" : ""}`}>
-      <aside className="dp-sidebar">
+    <div className={`dp-shell${sidebarOpen ? " menu-open" : ""}${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
+      <aside className={`dp-sidebar${sidebarCollapsed ? " is-collapsed" : ""}`}>
         <div className="dp-brand">
-          <img
-            src="/logo.png"
-            alt="HealPoint"
-            width={38}
-            height={38}
-            style={{ borderRadius: 10, flexShrink: 0 }}
-          />
-          <div>
-            <strong>HealPoint</strong>
-            <small>Doctor Portal</small>
+          <div className="dp-brand-info">
+            <img
+              src="/logo.png"
+              alt="HealPoint"
+              width={38}
+              height={38}
+              style={{ borderRadius: 10, flexShrink: 0 }}
+            />
+            {!sidebarCollapsed && (
+              <div className="dp-brand-text">
+                <strong>HealPoint</strong>
+                <small>Doctor Portal</small>
+              </div>
+            )}
           </div>
+          <button
+            type="button"
+            className="dp-collapse-btn"
+            onClick={() => setSidebarCollapsed((prev) => !prev)}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label="Toggle sidebar collapse"
+          >
+            {sidebarCollapsed ? <FaChevronRight /> : <FaChevronLeft />}
+          </button>
         </div>
+
         <div className="dp-doctor-identity">
-          {doctorAvatar ? (
-            <img src={doctorAvatar} alt={formatDoctorTitle(doctor.name)} />
-          ) : (
-            <span>{doctorInitials}</span>
-          )}
-          <div>
-            <strong>{formatDoctorTitle(doctor.name)}</strong>
-            <small>
-              {doctor.speciality || doctor.department || "Specialist"}
-            </small>
-            <em>
-              <i /> Online
-            </em>
+          <div className="dp-identity-avatar-wrap">
+            {doctorAvatar ? (
+              <img src={doctorAvatar} alt={formatDoctorTitle(doctor.name)} className="dp-identity-avatar" />
+            ) : (
+              <span className="dp-identity-initials">{doctorInitials}</span>
+            )}
+            <span
+              className={`dp-status-dot-badge ${doctor.onlineStatus === "online" ? "is-online" : "is-offline"}`}
+              title={doctor.onlineStatus === "online" ? "Doctor Online" : "Doctor Offline"}
+            />
           </div>
+          {!sidebarCollapsed && (
+            <div className="dp-identity-details">
+              <strong className="dp-identity-name">{formatDoctorTitle(doctor.name)}</strong>
+              <small className="dp-identity-spec">
+                {doctor.speciality || doctor.department || "Specialist"}
+              </small>
+              <button
+                type="button"
+                className={`dp-online-toggle-btn ${doctor.onlineStatus === "online" ? "is-online" : "is-offline"}`}
+                onClick={toggleOnlineStatus}
+                title="Click to toggle Online/Offline availability"
+              >
+                <i />
+                <span>{doctor.onlineStatus === "online" ? "Online" : "Offline"}</span>
+              </button>
+            </div>
+          )}
         </div>
-        <nav>
-          {menuItems.map(([key, label, icon]) => (
-            <Link
-              key={key}
-              className={activeView === key ? "active" : ""}
-              to={`/${key}`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              {icon}
-              <span>{label}</span>
-              {key === "notifications" && unreadNotificationsCount > 0 && (
-                <span className="dp-sidebar-badge-count">
-                  {unreadNotificationsCount > 99
-                    ? "99+"
-                    : unreadNotificationsCount}
-                </span>
+
+        <nav className="dp-grouped-nav">
+          {navigationSections.map((group) => (
+            <div key={group.title} className="dp-nav-section">
+              {!sidebarCollapsed && (
+                <div className="dp-nav-group-title">{group.title}</div>
               )}
-            </Link>
+              <div className="dp-nav-group-items">
+                {group.items.map((item) => (
+                  <Link
+                    key={item.key}
+                    to={`/${item.key}`}
+                    className={`dp-nav-link ${activeView === item.key ? "active" : ""}`}
+                    title={sidebarCollapsed ? item.label : undefined}
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <span className="dp-nav-icon">{item.icon}</span>
+                    {!sidebarCollapsed && (
+                      <span className="dp-nav-label">{item.label}</span>
+                    )}
+                    {item.hasBadge && unreadNotificationsCount > 0 && (
+                      <span className="dp-nav-badge">
+                        {unreadNotificationsCount > 99 ? "99+" : unreadNotificationsCount}
+                      </span>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
-        <button type="button" className="dp-logout" onClick={logout}>
-          <FaSignOutAlt /> Logout
-        </button>
+
+        <div className="dp-sidebar-footer">
+          <button type="button" className="dp-logout" onClick={logout} title="Sign out of Doctor Portal">
+            <FaSignOutAlt /> {!sidebarCollapsed && <span>Logout</span>}
+          </button>
+        </div>
       </aside>
       {sidebarOpen && (
         <button
@@ -1531,7 +1622,7 @@ export default function DoctorPortal() {
               className="dp-primary-btn"
               onClick={() => navigate("/dashboard")}
               style={{
-                background: "#0d9488",
+                background: "#2563EB",
                 color: "#ffffff",
                 border: "none",
                 borderRadius: 8,
@@ -3903,7 +3994,7 @@ function PatientQueueView({ doctorId, doctor, onRefresh }) {
                         className="dp-queue-token-badge"
                         style={{
                           background:
-                            "linear-gradient(135deg, #0d9488 0%, #0f766e 100%)",
+                            "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
                           color: "#ffffff",
                           fontWeight: 800,
                           fontSize: "0.78rem",
@@ -6125,7 +6216,7 @@ function ConsultationWorkspaceView({
           <div className="dp-consult-card">
             <div className="dp-card-head">
               <h3>
-                <FaHeartbeat color="#0d9488" /> Patient Vitals Entry
+                <FaHeartbeat color="#2563EB" /> Patient Vitals Entry
               </h3>
               <span className="dp-card-hint">
                 Record vital measurements for this consultation
@@ -6690,7 +6781,7 @@ function MedicalHistoryEMRView({ doctorId, initialPatientId, doctor }) {
         <div className="dp-emr-hub-header">
           <div>
             <h2>
-              <FaHistory color="#0d9488" /> Electronic Medical Record (EMR) Hub
+              <FaHistory color="#2563EB" /> Electronic Medical Record (EMR) Hub
             </h2>
             <p>
               Select a patient from your clinical roster to access their
@@ -7017,7 +7108,7 @@ function MedicalHistoryEMRView({ doctorId, initialPatientId, doctor }) {
             {/* Latest Clinical Vitals Snapshot */}
             <div className="dp-overview-full-card">
               <h3>
-                <FaHeartbeat color="#0d9488" /> Latest Clinical Vitals Snapshot
+                <FaHeartbeat color="#2563EB" /> Latest Clinical Vitals Snapshot
               </h3>
               {overview.latestVitals ? (
                 <div className="dp-vitals-snapshot-strip">
@@ -7248,7 +7339,7 @@ function MedicalHistoryEMRView({ doctorId, initialPatientId, doctor }) {
                     {diagnoses.map((d, i) => (
                       <tr key={i}>
                         <td>
-                          <strong style={{ color: "#0d9488" }}>
+                          <strong style={{ color: "#2563EB" }}>
                             {d.diagnosis}
                           </strong>
                         </td>
@@ -7323,7 +7414,7 @@ function MedicalHistoryEMRView({ doctorId, initialPatientId, doctor }) {
                           <html>
                             <head><title>Prescription — ${patient.name}</title></head>
                             <body style="font-family: sans-serif; padding: 40px; max-width: 800px; margin: 0 auto;">
-                              <h2 style="color: #0d9488; margin-bottom: 4px;">HealPoint Healthcare</h2>
+                              <h2 style="color: #2563EB; margin-bottom: 4px;">HealPoint Healthcare</h2>
                               <p style="color: #64748b; margin-top: 0;">Official Digital Prescription</p>
                               <hr style="border: 1px solid #e2e8f0; margin: 20px 0;" />
                               <p><strong>Patient:</strong> ${patient.name} | <strong>Age/Gender:</strong> ${age || "N/A"} yrs / ${patient.gender || "N/A"}</p>
@@ -7464,7 +7555,7 @@ function MedicalHistoryEMRView({ doctorId, initialPatientId, doctor }) {
         {activeTab === "vitals" && (
           <div className="dp-vitals-history-panel">
             <h3>
-              <FaHeartbeat color="#0d9488" /> Historical Patient Vitals Log
+              <FaHeartbeat color="#2563EB" /> Historical Patient Vitals Log
             </h3>
             {vitalsHistory.length === 0 ? (
               <p className="dp-empty-text">
@@ -8032,7 +8123,7 @@ function PrescriptionsView({
       <div className="dp-rx-top-bar">
         <div>
           <h2>
-            <FaNotesMedical color="#0d9488" /> Digital Prescription Studio
+            <FaNotesMedical color="#2563EB" /> Digital Prescription Studio
           </h2>
           <p>
             Create, issue, and manage professional hospital-grade digital
@@ -8310,7 +8401,7 @@ function PrescriptionsView({
                                 });
                               }}
                             >
-                              <FaPrint color="#0d9488" />
+                              <FaPrint color="#2563EB" />
                             </button>
                             <button
                               type="button"
@@ -11347,8 +11438,8 @@ function EarningsView({
                   fontWeight: "600",
                   cursor: "pointer",
                   border:
-                    filter === fKey ? "1px solid #0d9488" : "1px solid #e2e8f0",
-                  background: filter === fKey ? "#0d9488" : "#fff",
+                    filter === fKey ? "1px solid #2563EB" : "1px solid #e2e8f0",
+                  background: filter === fKey ? "#2563EB" : "#fff",
                   color: filter === fKey ? "#fff" : "#475569",
                   transition: "all 0.2s",
                 }}
@@ -11421,7 +11512,7 @@ function EarningsView({
             <article
               className="dp-kpi-tile-animate"
               style={{
-                background: "linear-gradient(135deg, #0f766e, #0d9488)",
+                background: "linear-gradient(135deg, #1D4ED8, #2563EB)",
                 color: "#fff",
                 padding: "20px",
                 borderRadius: "14px",
@@ -11430,7 +11521,7 @@ function EarningsView({
             >
               <span
                 style={{
-                  color: "#ccfbf1",
+                  color: "#DBEAFE",
                   fontSize: "0.85rem",
                   textTransform: "uppercase",
                   fontWeight: "600",
@@ -11744,7 +11835,7 @@ function EarningsView({
               >
                 In-Clinic OPD Revenue
               </span>
-              <strong style={{ fontSize: "1.3rem", color: "#0d9488" }}>
+              <strong style={{ fontSize: "1.3rem", color: "#2563EB" }}>
                 ₹{(summary.clinicEarnings || 0).toLocaleString("en-IN")}
               </strong>
               <small
@@ -11813,7 +11904,7 @@ function EarningsView({
                 }}
               >
                 <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <FaCalendarAlt color="#0d9488" /> Monthly Revenue Trajectory
+                  <FaCalendarAlt color="#2563EB" /> Monthly Revenue Trajectory
                 </span>
                 <small style={{ color: "#64748b", fontWeight: "normal", fontSize: "0.8rem" }}>
                   Real aggregated database values
@@ -11888,7 +11979,7 @@ function EarningsView({
                                   width={barWidth}
                                   height={h}
                                   rx="4"
-                                  fill="url(#tealGradient)"
+                                  fill="url(#royalBlueGradient)"
                                 >
                                   <title>{`${m.month}: ₹${val.toLocaleString("en-IN")} (${m.count || 0} visits)`}</title>
                                 </rect>
@@ -11907,9 +11998,9 @@ function EarningsView({
                           })}
 
                           <defs>
-                            <linearGradient id="tealGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#0d9488" />
-                              <stop offset="100%" stopColor="#14b8a6" />
+                            <linearGradient id="royalBlueGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#2563EB" />
+                              <stop offset="100%" stopColor="#60A5FA" />
                             </linearGradient>
                           </defs>
                         </svg>
@@ -11947,7 +12038,7 @@ function EarningsView({
                               style={{
                                 width: `${pct}%`,
                                 height: "100%",
-                                background: "linear-gradient(90deg, #0d9488, #14b8a6)",
+                                background: "linear-gradient(90deg, #2563EB, #60A5FA)",
                                 borderRadius: "5px",
                                 transition: "width 0.4s ease",
                               }}
@@ -11999,7 +12090,7 @@ function EarningsView({
                       display: "flex",
                       alignItems: "center",
                       gap: "6px",
-                      color: "#0d9488",
+                      color: "#2563EB",
                       fontWeight: "700",
                     }}
                   >
@@ -12045,7 +12136,7 @@ function EarningsView({
                         <div
                           style={{
                             width: `${clinicPct}%`,
-                            background: "#0d9488",
+                            background: "#2563EB",
                             transition: "width 0.5s ease",
                           }}
                           title={`Clinic: ${clinicPct}%`}
@@ -12343,7 +12434,7 @@ function EarningsView({
                         display: "flex",
                         alignItems: "center",
                         gap: "6px",
-                        color: "#0d9488",
+                        color: "#2563EB",
                         fontWeight: "600",
                       }}
                     >
@@ -12377,7 +12468,7 @@ function EarningsView({
                     <div
                       style={{
                         width: `${analyticsData.consultationModes?.clinicPercentage || 50}%`,
-                        background: "#0d9488",
+                        background: "#2563EB",
                       }}
                     />
                     <div
@@ -13760,7 +13851,7 @@ function VerificationView({ doctor, doctorId, onSaved }) {
         }}
       >
         <h4 style={{ margin: "0 0 14px 0", color: "#0f172a", fontSize: "1rem" }}>
-          <FaCertificate color="#0d9488" style={{ marginRight: "6px" }} />
+          <FaCertificate color="#2563EB" style={{ marginRight: "6px" }} />
           Official Medical Registration Identifiers
         </h4>
         <form
@@ -13871,7 +13962,7 @@ function VerificationView({ doctor, doctorId, onSaved }) {
                   rel="noreferrer"
                   style={{
                     fontSize: "0.85rem",
-                    color: "#0d9488",
+                    color: "#2563EB",
                     fontWeight: "600",
                     display: "inline-flex",
                     alignItems: "center",
@@ -13936,7 +14027,7 @@ function VerificationView({ doctor, doctorId, onSaved }) {
                   rel="noreferrer"
                   style={{
                     fontSize: "0.85rem",
-                    color: "#0d9488",
+                    color: "#2563EB",
                     fontWeight: "600",
                     display: "inline-flex",
                     alignItems: "center",
@@ -13997,7 +14088,7 @@ function VerificationView({ doctor, doctorId, onSaved }) {
                   rel="noreferrer"
                   style={{
                     fontSize: "0.85rem",
-                    color: "#0d9488",
+                    color: "#2563EB",
                     fontWeight: "600",
                     display: "inline-flex",
                     alignItems: "center",
@@ -14060,7 +14151,7 @@ function VerificationView({ doctor, doctorId, onSaved }) {
                   rel="noreferrer"
                   style={{
                     fontSize: "0.85rem",
-                    color: "#0d9488",
+                    color: "#2563EB",
                     fontWeight: "600",
                     display: "inline-flex",
                     alignItems: "center",
@@ -14123,7 +14214,7 @@ function VerificationView({ doctor, doctorId, onSaved }) {
                   rel="noreferrer"
                   style={{
                     fontSize: "0.85rem",
-                    color: "#0d9488",
+                    color: "#2563EB",
                     fontWeight: "600",
                     display: "inline-flex",
                     alignItems: "center",
@@ -14168,7 +14259,7 @@ function VerificationView({ doctor, doctorId, onSaved }) {
           }}
         >
           <h4 style={{ margin: "0 0 16px 0", color: "#0f172a", fontSize: "1rem" }}>
-            <FaHistory color="#0d9488" style={{ marginRight: "6px" }} />
+            <FaHistory color="#2563EB" style={{ marginRight: "6px" }} />
             Credentialing Review Audit History
           </h4>
 
