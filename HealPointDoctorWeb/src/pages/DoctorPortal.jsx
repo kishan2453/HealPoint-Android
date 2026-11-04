@@ -14234,11 +14234,15 @@ function VerificationView({ doctor, doctorId, onSaved }) {
                 1. State Medical Council License Certificate
               </strong>
               <span
-                className={`dp-doc-status-chip ${doctor.medicalLicenseUrl ? "ready" : "missing"}`}
+                className={`dp-doc-status-chip ${doctor.medicalLicenseUrl || isProfileVerified ? "ready" : "missing"}`}
               >
                 {doctor.medicalLicenseUrl ? (
                   <>
                     <FaCheck /> Uploaded
+                  </>
+                ) : isProfileVerified ? (
+                  <>
+                    <FaCheck /> Verified on Record
                   </>
                 ) : (
                   <>
@@ -14300,11 +14304,15 @@ function VerificationView({ doctor, doctorId, onSaved }) {
                 2. MBBS / Primary Degree Certificate
               </strong>
               <span
-                className={`dp-doc-status-chip ${doctor.mbbsCertificateUrl ? "ready" : "missing"}`}
+                className={`dp-doc-status-chip ${doctor.mbbsCertificateUrl || isProfileVerified ? "ready" : "missing"}`}
               >
                 {doctor.mbbsCertificateUrl ? (
                   <>
                     <FaCheck /> Uploaded
+                  </>
+                ) : isProfileVerified ? (
+                  <>
+                    <FaCheck /> Verified on Record
                   </>
                 ) : (
                   <>
@@ -14363,11 +14371,15 @@ function VerificationView({ doctor, doctorId, onSaved }) {
                 3. MD / MS / Post-Grad Specialization
               </strong>
               <span
-                className={`dp-doc-status-chip ${doctor.mdMsCertificateUrl || doctor.specializationCertificateUrl ? "ready" : "missing"}`}
+                className={`dp-doc-status-chip ${doctor.mdMsCertificateUrl || doctor.specializationCertificateUrl || isProfileVerified ? "ready" : "missing"}`}
               >
                 {doctor.mdMsCertificateUrl || doctor.specializationCertificateUrl ? (
                   <>
                     <FaCheck /> Uploaded
+                  </>
+                ) : isProfileVerified ? (
+                  <>
+                    <FaCheck /> Verified on Record
                   </>
                 ) : (
                   <>Optional / Pending</>
@@ -14424,11 +14436,15 @@ function VerificationView({ doctor, doctorId, onSaved }) {
                 4. Government Identity Proof (Aadhaar / Passport)
               </strong>
               <span
-                className={`dp-doc-status-chip ${doctor.governmentIdUrl || doctor.aadhaarPanUrl ? "ready" : "missing"}`}
+                className={`dp-doc-status-chip ${doctor.governmentIdUrl || doctor.aadhaarPanUrl || isProfileVerified ? "ready" : "missing"}`}
               >
                 {doctor.governmentIdUrl || doctor.aadhaarPanUrl ? (
                   <>
                     <FaCheck /> Uploaded
+                  </>
+                ) : isProfileVerified ? (
+                  <>
+                    <FaCheck /> Verified on Record
                   </>
                 ) : (
                   <>

@@ -173,8 +173,8 @@ table {
 
 .table thead th,
 table thead th {
-  color: #FFFFFF !important;
-  background: var(--hp-primary) !important;
+  color: #475569 !important;
+  background: #f8fafc !important;
 }
 
 .verification-badge,
