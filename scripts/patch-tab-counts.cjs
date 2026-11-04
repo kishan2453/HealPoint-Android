@@ -37,3 +37,4 @@ if (isCrlf) {
 }
 fs.writeFileSync(filePath, content, 'utf8');
 console.log("Tab counts patch done.");
+

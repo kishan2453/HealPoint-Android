@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import {
@@ -586,10 +586,48 @@ export default function DoctorPortal() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+    const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [panelRefreshing, setPanelRefreshing] = useState(false);
   const [activeEmergencyAlerts, setActiveEmergencyAlerts] = useState([]);
+  const searchRef = useRef(null);
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    return localStorage.getItem("hp_doctor_sidebar_collapsed") === "true";
+  });
+
+  const toggleSidebarCollapse = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("hp_doctor_sidebar_collapsed", String(next));
+      return next;
+    });
+  };
+
+  const handleRefreshDashboard = async () => {
+    if (panelRefreshing || !doctorId) return;
+    setPanelRefreshing(true);
+    try {
+      await loadPanel();
+      await fetchUnreadCount();
+      toast.success("Dashboard data refreshed");
+    } catch (err) {
+      toast.error("Failed to refresh dashboard");
+    } finally {
+      setPanelRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (searchRef.current && !searchRef.current.contains(e.target)) {
+        setSearchFocused(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
 
   useEffect(() => {
     if (!profileMenuOpen) return;
@@ -1003,7 +1041,7 @@ export default function DoctorPortal() {
           <button
             type="button"
             className="dp-collapse-btn"
-            onClick={() => setSidebarCollapsed((prev) => !prev)}
+            onClick={toggleSidebarCollapse}
             title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-label="Toggle sidebar collapse"
           >
@@ -1099,15 +1137,137 @@ export default function DoctorPortal() {
           >
             {sidebarOpen ? <FaTimes /> : <FaBars />}
           </button>
-          <form className="dp-global-search" onSubmit={handleGlobalSearch}>
-            <FaSearch />
-            <input
-              placeholder="Search patients, appointments..."
-              aria-label="Search portal"
-              value={globalSearch}
-              onChange={(e) => setGlobalSearch(e.target.value)}
-            />
-          </form>
+          <div className="dp-global-search-container" ref={searchRef}>
+            <form className="dp-global-search" onSubmit={handleGlobalSearch}>
+              <FaSearch />
+              <input
+                placeholder="Search patients, appointments..."
+                aria-label="Search portal"
+                value={globalSearch}
+                onChange={(e) => {
+                  setGlobalSearch(e.target.value);
+                  setSearchFocused(true);
+                }}
+                onFocus={() => setSearchFocused(true)}
+              />
+              {globalSearch && (
+                <button
+                  type="button"
+                  className="dp-search-clear-btn"
+                  onClick={() => setGlobalSearch("")}
+                  title="Clear search"
+                >
+                  <FaTimes />
+                </button>
+              )}
+            </form>
+            {searchFocused && globalSearch.trim().length >= 2 && (() => {
+              const q = globalSearch.trim().toLowerCase();
+              const matchedPatients = (patients || []).filter(
+                (p) =>
+                  (p.name || "").toLowerCase().includes(q) ||
+                  (p.phone || "").includes(q) ||
+                  (p.email || "").toLowerCase().includes(q)
+              ).slice(0, 4);
+
+              const matchedAppts = (allAppointments || []).filter(
+                (a) =>
+                  (a._id || "").toLowerCase().includes(q) ||
+                  (a.appointmentId || "").toLowerCase().includes(q) ||
+                  (a.patient?.name || a.userId?.name || "").toLowerCase().includes(q)
+              ).slice(0, 4);
+
+              const totalMatches = matchedPatients.length + matchedAppts.length;
+
+              return (
+                <div className="dp-search-results-dropdown">
+                  {totalMatches === 0 ? (
+                    <div className="dp-search-empty-drop">
+                      <FaSearch style={{ color: "#94a3b8", fontSize: "1.2rem" }} />
+                      <p>No matching patients or appointments for "{globalSearch}"</p>
+                      <button
+                        type="button"
+                        className="dp-btn dp-btn-sm dp-btn-primary"
+                        onClick={() => {
+                          setSearchFocused(false);
+                          navigate(`/appointments?search=${encodeURIComponent(globalSearch.trim())}`);
+                        }}
+                      >
+                        Search All Appointments
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      {matchedPatients.length > 0 && (
+                        <div className="dp-search-drop-group">
+                          <div className="dp-search-drop-group-title">
+                            <FaUserInjured /> Matching Patients
+                          </div>
+                          {matchedPatients.map((p) => (
+                            <div
+                              key={p._id}
+                              className="dp-search-drop-item"
+                              onClick={() => {
+                                setSearchFocused(false);
+                                navigate(`/patients/${p._id}`);
+                              }}
+                            >
+                              <div className="dp-search-drop-avatar">
+                                {(p.name || "P").slice(0, 1).toUpperCase()}
+                              </div>
+                              <div className="dp-search-drop-info">
+                                <strong>{p.name}</strong>
+                                <small>{p.phone || p.email || "Patient record"}</small>
+                              </div>
+                              <FaArrowRight className="dp-search-drop-arrow" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {matchedAppts.length > 0 && (
+                        <div className="dp-search-drop-group">
+                          <div className="dp-search-drop-group-title">
+                            <FaCalendarDay /> Matching Appointments
+                          </div>
+                          {matchedAppts.map((a) => {
+                            const patName = a.patient?.name || a.userId?.name || "Patient";
+                            return (
+                              <div
+                                key={a._id}
+                                className="dp-search-drop-item"
+                                onClick={() => {
+                                  setSearchFocused(false);
+                                  navigate(`/appointments/${a._id}`);
+                                }}
+                              >
+                                <div className="dp-search-drop-badge">
+                                  #{a._id.slice(-5).toUpperCase()}
+                                </div>
+                                <div className="dp-search-drop-info">
+                                  <strong>{patName}</strong>
+                                  <small>{a.slotDate} · {a.slotTime} · {a.status}</small>
+                                </div>
+                                <FaArrowRight className="dp-search-drop-arrow" />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      <div
+                        className="dp-search-drop-footer"
+                        onClick={() => {
+                          setSearchFocused(false);
+                          navigate(`/appointments?search=${encodeURIComponent(globalSearch.trim())}`);
+                        }}
+                      >
+                        View all search results for "<strong>{globalSearch}</strong>" →
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
           <div className="dp-topbar-actions">
             <button
               type="button"
@@ -1352,10 +1512,14 @@ export default function DoctorPortal() {
               </button>
               <button
                 type="button"
-                onClick={loadPanel}
-                className="dp-light-btn"
+                onClick={handleRefreshDashboard}
+                disabled={panelRefreshing}
+                className="dp-header-refresh-btn"
+                title="Refresh live portal data"
+                aria-label="Refresh live portal data"
               >
-                <FaSyncAlt /> Refresh
+                <FaSyncAlt className={panelRefreshing ? "dp-spin" : ""} />
+                <span>{panelRefreshing ? "Refreshing..." : "Refresh"}</span>
               </button>
             </div>
           </div>
@@ -2490,6 +2654,12 @@ function AppointmentsView({
 }) {
   const [activeTab, setActiveTab] = useState(view);
   const [search, setSearch] = useState(initialSearch);
+
+  useEffect(() => {
+    if (initialSearch !== undefined) {
+      setSearch(initialSearch);
+    }
+  }, [initialSearch]);
   const [consultationType, setConsultationType] = useState("all");
   const [paymentStatus, setPaymentStatus] = useState("all");
   const [selectedDate, setSelectedDate] = useState("");
@@ -2608,9 +2778,10 @@ function AppointmentsView({
           <button
             type="button"
             className="dp-report-btn"
-            onClick={() => {
-              fetchAppointments();
+            onClick={async () => {
+              await fetchAppointments();
               if (onRefresh) onRefresh();
+              toast.success("Appointments updated");
             }}
             disabled={loadingList}
             title="Refresh appointments"
@@ -4469,6 +4640,12 @@ function PatientsManagementView({ doctorId, initialSearch = "" }) {
     totalPages: 1,
   });
   const [search, setSearch] = useState(initialSearch);
+
+  useEffect(() => {
+    if (initialSearch !== undefined) {
+      setSearch(initialSearch);
+    }
+  }, [initialSearch]);
   const [sortBy, setSortBy] = useState("recent");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -4561,6 +4738,21 @@ function PatientsManagementView({ doctorId, initialSearch = "" }) {
               <option value="name">Name (A-Z)</option>
             </select>
           </div>
+
+          <button
+            type="button"
+            className="dp-btn dp-btn-outline dp-btn-sm"
+            onClick={() => {
+              fetchPatients(1, search, sortBy);
+              toast.success("Patient directory refreshed");
+            }}
+            disabled={loading}
+            title="Reload patients from database"
+            style={{ height: "42px", display: "inline-flex", alignItems: "center", gap: 6, padding: "0 14px", fontWeight: 700 }}
+          >
+            <FaSyncAlt className={loading ? "dp-spin" : ""} />
+            <span>Refresh</span>
+          </button>
         </div>
       </div>
 
@@ -8222,18 +8414,33 @@ function PrescriptionsView({
               <FaChevronLeft /> Back to Prescriptions List
             </button>
           ) : (
-            <button
-              type="button"
-              className="dp-btn dp-btn-primary"
-              onClick={() => {
-                if (appointments.length > 0) {
-                  setSelectedAppointmentId(appointments[0]._id);
-                }
-                setViewMode("editor");
-              }}
-            >
-              <FaPlus /> Issue New Prescription
-            </button>
+            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+              <button
+                type="button"
+                className="dp-btn dp-btn-outline"
+                onClick={() => {
+                  fetchPrescriptionsList();
+                  toast.success("Prescriptions list refreshed");
+                }}
+                disabled={loadingList}
+                title="Refresh Prescriptions"
+                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+              >
+                <FaSyncAlt className={loadingList ? "dp-spin" : ""} /> Refresh
+              </button>
+              <button
+                type="button"
+                className="dp-btn dp-btn-primary"
+                onClick={() => {
+                  if (appointments.length > 0) {
+                    setSelectedAppointmentId(appointments[0]._id);
+                  }
+                  setViewMode("editor");
+                }}
+              >
+                <FaPlus /> Issue New Prescription
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -10284,8 +10491,11 @@ function AvailabilityView({ doctor, doctorId, onSaved }) {
               <button
                 type="button"
                 className="dp-light-btn"
-                style={{ padding: "6px 12px" }}
-                onClick={loadCalendar}
+                style={{ padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6 }}
+                onClick={async () => {
+                  await loadCalendar();
+                  toast.success("Calendar schedule refreshed");
+                }}
                 disabled={loading}
                 title="Refresh Calendar"
               >
@@ -13225,7 +13435,10 @@ function NotificationsView({ doctorId, doctor, onCountChange, navigate }) {
             <button
               type="button"
               className="dp-btn dp-btn-outline"
-              onClick={fetchNotifications}
+              onClick={async () => {
+                await fetchNotifications();
+                toast.success("Notifications refreshed");
+              }}
               title="Refresh notifications"
               disabled={loading}
             >

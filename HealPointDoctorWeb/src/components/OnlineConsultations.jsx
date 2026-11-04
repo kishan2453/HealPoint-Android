@@ -7,6 +7,7 @@ import {
   FaLink,
   FaTrash,
   FaVideo,
+  FaSyncAlt,
 } from "react-icons/fa";
 import api from "../services/api";
 import VideoConsultationRoom from "./VideoConsultationRoom";
@@ -196,14 +197,29 @@ const myConsultations = items.filter(
             {myConsultations.length} active · {items.length} total
           </span>
         </div>
-        <button
-          type="button"
-          className={`btn ${online ? "btn-light" : "btn-primary"}`}
-          disabled={busyId === "__toggle__"}
-          onClick={toggleOnline}
-        >
-          <FaVideo /> {online ? "Go Offline" : "Go Online"}
-        </button>
+        <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="btn btn-light"
+            onClick={async () => {
+              await load();
+              toast.success("Online consultations reloaded");
+            }}
+            disabled={loading}
+            title="Refresh consultations from server"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            <FaSyncAlt className={loading ? "dp-spin" : ""} /> Refresh
+          </button>
+          <button
+            type="button"
+            className={`btn ${online ? "btn-light" : "btn-primary"}`}
+            disabled={busyId === "__toggle__"}
+            onClick={toggleOnline}
+          >
+            <FaVideo /> {online ? "Go Offline" : "Go Online"}
+          </button>
+        </div>
       </div>
 
       {!myConsultations.length ? (
