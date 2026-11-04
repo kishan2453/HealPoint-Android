@@ -1146,3 +1146,107 @@ html, body {
     width: 100% !important;
   }
 }
+
+/* =============================================================================
+   8. MODERN SAAS TABLE HEADERS (CLEAN LIGHT THEME OVERRIDE)
+   ============================================================================= */
+table thead th,
+.table thead th,
+.dp-table thead th,
+.dp-data-table thead th {
+  background: #f8fafc !important;
+  color: #475569 !important;
+  font-size: 0.78rem !important;
+  font-weight: 750 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  border-bottom: 2px solid #e2e8f0 !important;
+  border-top: none !important;
+  padding: 12px 16px !important;
+}
+
+table tbody td,
+.dp-table tbody td,
+.dp-data-table tbody td {
+  padding: 14px 16px !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  color: #172033 !important;
+}
+
+table tbody tr:hover,
+.dp-table tbody tr:hover,
+.dp-data-table tbody tr:hover {
+  background-color: #f8fafc !important;
+}
+
+/* Fix circular avatar to never stretch into oval */
+.dp-patient-avatar-sm {
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  min-height: 40px !important;
+  max-height: 40px !important;
+  border-radius: 50% !important;
+  aspect-ratio: 1 / 1 !important;
+  flex: 0 0 40px !important;
+  background: linear-gradient(135deg, #2563eb, #60a5fa) !important;
+  color: #ffffff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-weight: 800 !important;
+  font-size: 0.9rem !important;
+}
+
+/* Panel header with action button */
+.dp-panel {
+  background: #ffffff !important;
+  border: 1.5px solid #e2e8f0 !important;
+  border-radius: 16px !important;
+  padding: 24px !important;
+  margin-bottom: 24px !important;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.04) !important;
+}
+
+.dp-panel-head {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  flex-wrap: wrap !important;
+  margin-bottom: 20px !important;
+}
+
+.dp-panel-head h2 {
+  margin: 0 !important;
+}
+
+.dp-panel-action {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+/* Verification document cards */
+.dp-verify-doc-card {
+  background: #ffffff !important;
+  border: 1.5px solid #e2e8f0 !important;
+  border-radius: 14px !important;
+  padding: 20px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  min-height: 160px !important;
+  gap: 14px !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04) !important;
+}
+
+.dp-verify-doc-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  margin-bottom: 8px !important;
+}
+

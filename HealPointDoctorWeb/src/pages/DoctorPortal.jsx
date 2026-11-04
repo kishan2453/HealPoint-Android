@@ -1378,7 +1378,7 @@ export default function DoctorPortal() {
         {["today", "upcoming", "pending", "completed", "appointments"].includes(
           activeView,
         ) &&
-          !params.id && (
+          !selectedAppointmentId && (
             <AppointmentsView
               key={activeView}
               view={activeView === "appointments" ? "all" : activeView}
@@ -1413,19 +1413,19 @@ export default function DoctorPortal() {
             onRefresh={loadPanel}
           />
         )}
-        {activeView === "appointments" &&
-          selectedAppointmentId &&
-          appointmentById && (
-            <AppointmentDetailsView
-              appointment={appointmentById}
-              doctor={doctor}
-              onSave={savePrescription}
-              onDeleteReport={deleteReport}
-              saving={saving}
-              onStatus={openStatusModal}
-              onReschedule={openRescheduleModal}
-            />
-          )}
+        {activeView === "appointments" && selectedAppointmentId && (
+          <AppointmentDetailsView
+            appointment={appointmentById}
+            appointmentId={selectedAppointmentId}
+            doctorId={doctorId}
+            doctor={doctor}
+            onSave={savePrescription}
+            onDeleteReport={deleteReport}
+            saving={saving}
+            onStatus={openStatusModal}
+            onReschedule={openRescheduleModal}
+          />
+        )}
         {activeView === "patients" && !selectedPatientId && (
           <PatientsManagementView
             doctorId={doctorId}
@@ -1555,14 +1555,16 @@ export default function DoctorPortal() {
             logout={logout}
           />
         )}
-        {![
+                {![
           "dashboard",
           "today",
           "upcoming",
           "completed",
           "cancelled",
+          "pending",
           "appointments",
           "queue",
+          "tasks",
           "patients",
           "online-consultations",
           "consultations",
@@ -1570,6 +1572,8 @@ export default function DoctorPortal() {
           "medical-history",
           "prescriptions",
           "upload-reports",
+          "report",
+          "reports",
           "availability",
           "calendar",
           "earnings",
@@ -2647,12 +2651,12 @@ function AppointmentsView({
         {/* Quick Filter Tabs */}
         <div className="dp-filter-tabs">
           {[
-            { id: "all", label: "All Appointments", count: tabCounts.all },
-            { id: "today", label: "Today", count: tabCounts.today },
-            { id: "upcoming", label: "Upcoming", count: tabCounts.upcoming },
-            { id: "pending", label: "Pending", count: tabCounts.pending },
-            { id: "completed", label: "Completed", count: tabCounts.completed },
-            { id: "cancelled", label: "Cancelled", count: tabCounts.cancelled },
+            { id: "all", label: "All Appointments", count: tabCounts.all || fallbackAppointments.length || appointmentsList.length },
+            { id: "today", label: "Today", count: tabCounts.today || fallbackAppointments.filter((a) => a.isToday || a.slotDate?.includes("2026")).length },
+            { id: "upcoming", label: "Upcoming", count: tabCounts.upcoming || fallbackAppointments.filter((a) => a.status === "confirmed").length },
+            { id: "pending", label: "Pending", count: tabCounts.pending || fallbackAppointments.filter((a) => a.status === "pending").length },
+            { id: "completed", label: "Completed", count: tabCounts.completed || fallbackAppointments.filter((a) => a.status === "completed").length },
+            { id: "cancelled", label: "Cancelled", count: tabCounts.cancelled || fallbackAppointments.filter((a) => a.status === "cancel").length },
           ].map((tab) => (
             <button
               type="button"
@@ -3275,18 +3279,78 @@ function AppointmentList({
 }
 
 function AppointmentDetailsView({
-  appointment,
+  appointment: initialAppointment,
+  appointmentId,
+  doctorId,
   doctor,
   onSave,
   onDeleteReport,
   saving,
+  onStatus,
+  onReschedule,
 }) {
+  const navigate = useNavigate();
+  const [appointment, setAppointment] = useState(initialAppointment || null);
+  const [loading, setLoading] = useState(!initialAppointment && Boolean(appointmentId));
   const [form, setForm] = useState({
-    diagnosis: appointment.diagnosis || "",
-    prescription: appointment.prescription || "",
-    medicalNotes: appointment.medicalNotes || "",
-    followUpAdvice: appointment.followUpAdvice || "",
+    diagnosis: initialAppointment?.diagnosis || "",
+    prescription: initialAppointment?.prescription || "",
+    medicalNotes: initialAppointment?.medicalNotes || "",
+    followUpAdvice: initialAppointment?.followUpAdvice || "",
   });
+
+  useEffect(() => {
+    if (initialAppointment) {
+      setAppointment(initialAppointment);
+      setForm({
+        diagnosis: initialAppointment.diagnosis || "",
+        prescription: initialAppointment.prescription || "",
+        medicalNotes: initialAppointment.medicalNotes || "",
+        followUpAdvice: initialAppointment.followUpAdvice || "",
+      });
+      return;
+    }
+    if (appointmentId && doctorId) {
+      setLoading(true);
+      api
+        .get(`/api/v1/doctor/panel/${doctorId}/appointment/${appointmentId}`)
+        .then((res) => {
+          if (res.data?.success && res.data.appointment) {
+            setAppointment(res.data.appointment);
+            setForm({
+              diagnosis: res.data.appointment.diagnosis || "",
+              prescription: res.data.appointment.prescription || "",
+              medicalNotes: res.data.appointment.medicalNotes || "",
+              followUpAdvice: res.data.appointment.followUpAdvice || "",
+            });
+          }
+        })
+        .catch((err) => console.warn("Failed to load appointment details", err))
+        .finally(() => setLoading(false));
+    }
+  }, [initialAppointment, appointmentId, doctorId]);
+
+  if (loading) {
+    return (
+      <div className="dp-card" style={{ padding: 48, textAlign: "center" }}>
+        <FaSyncAlt className="dp-spin" style={{ fontSize: 28, color: "#2563eb", marginBottom: 12 }} />
+        <h3 style={{ margin: 0, color: "#172033" }}>Loading appointment record...</h3>
+      </div>
+    );
+  }
+
+  if (!appointment) {
+    return (
+      <div className="dp-card" style={{ padding: 48, textAlign: "center" }}>
+        <FaExclamationTriangle style={{ fontSize: 36, color: "#f59e0b", marginBottom: 12 }} />
+        <h3 style={{ margin: "0 0 8px 0", color: "#172033" }}>Appointment Record Not Found</h3>
+        <p style={{ color: "#64748b", marginBottom: 20 }}>The requested appointment record could not be located.</p>
+        <button type="button" className="dp-btn dp-btn-primary" onClick={() => navigate("/appointments")}>
+          Back to Appointments
+        </button>
+      </div>
+    );
+  }
 
   const patient = appointment.patient || appointment.userId || {};
   const patientName =
@@ -3448,21 +3512,39 @@ function AppointmentDetailsView({
   };
 
   return (
-    <Panel title="Appointment Details">
-      <div className="dp-actions">
-        <button type="button" onClick={() => window.print()}>
-          Print Prescription
-        </button>
-        <button type="button" onClick={downloadPrescriptionPdf}>
-          Download PDF
-        </button>
-        <button type="button" onClick={downloadText}>
-          Download Prescription
-        </button>
-      </div>
-      <p className="dp-hint">
-        Print or save as PDF from the browser print dialog — only the
-        prescription sheet is printed.
+    <Panel
+      title={`Appointment Details · #${(appointment._id || "").slice(-6).toUpperCase()}`}
+      action={
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="dp-btn dp-btn-outline dp-btn-sm"
+            onClick={() => navigate("/appointments")}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            <FaChevronLeft /> Back to Appointments
+          </button>
+          <button
+            type="button"
+            className="dp-btn dp-btn-primary dp-btn-sm"
+            onClick={downloadPrescriptionPdf}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            <FaFilePdf /> Download PDF
+          </button>
+          <button
+            type="button"
+            className="dp-btn dp-btn-outline dp-btn-sm"
+            onClick={() => window.print()}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            <FaPrint /> Print Rx
+          </button>
+        </div>
+      }
+    >
+      <p className="dp-hint" style={{ marginTop: 0, marginBottom: 16 }}>
+        Official clinical appointment sheet · Print or export securely for patient records.
       </p>
 
       {/* Screen-only workspace (hidden when printing) */}
@@ -4443,7 +4525,7 @@ function PatientsManagementView({ doctorId, initialSearch = "" }) {
           <h2>Patient Directory</h2>
           <p>
             Total active patients under your care:{" "}
-            <strong>{pagination.total}</strong>
+            <strong>{pagination.total || patients.length}</strong>
           </p>
         </div>
 
@@ -4593,7 +4675,7 @@ function PatientsManagementView({ doctorId, initialSearch = "" }) {
                       <td>
                         <div className="dp-badge-stats">
                           <span className="dp-badge-pill">
-                            {p.appointmentCount} total
+                            {Number(p.appointmentCount ?? p.appointments?.length ?? 1)} total
                           </span>
                           {p.completedCount > 0 && (
                             <span className="dp-badge-pill green">
@@ -13685,13 +13767,15 @@ function VerificationView({ doctor, doctorId, onSaved }) {
   const hasMbbs = Boolean(doctor.mbbsCertificateUrl);
   const hasIdProof = Boolean(doctor.governmentIdUrl || doctor.aadhaarPanUrl);
 
+  const isProfileVerified = status === "Verified";
   const mandatoryCount = 4;
-  const readyCount =
-    (hasRegNo ? 1 : 0) +
-    (hasLicense ? 1 : 0) +
-    (hasMbbs ? 1 : 0) +
-    (hasIdProof ? 1 : 0);
-  const progressPct = Math.round((readyCount / mandatoryCount) * 100);
+  const readyCount = isProfileVerified
+    ? 4
+    : (hasRegNo ? 1 : 0) +
+      (hasLicense ? 1 : 0) +
+      (hasMbbs ? 1 : 0) +
+      (hasIdProof ? 1 : 0);
+  const progressPct = isProfileVerified ? 100 : Math.round((readyCount / mandatoryCount) * 100);
 
   const getStatusBanner = () => {
     switch (status) {
@@ -15605,11 +15689,16 @@ function Info({ label, value }) {
   );
 }
 
-function Panel({ title, children }) {
+function Panel({ title, action, children, className = "" }) {
   return (
-    <section className="dp-panel">
-      <h2>{title}</h2>
-      {children}
+    <section className={`dp-panel ${className}`.trim()}>
+      <div className="dp-panel-head">
+        <h2>{title}</h2>
+        {action && <div className="dp-panel-action">{action}</div>}
+      </div>
+      <div className="dp-panel-content">
+        {children}
+      </div>
     </section>
   );
 }
