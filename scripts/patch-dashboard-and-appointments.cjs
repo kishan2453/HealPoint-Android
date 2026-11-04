@@ -1169,3 +1169,4 @@ code = code.replace(
 if (isCrlf) code = code.replace(/\n/g, '\r\n');
 fs.writeFileSync(filePath, code, 'utf8');
 console.log('File DoctorPortal.jsx written successfully');
+

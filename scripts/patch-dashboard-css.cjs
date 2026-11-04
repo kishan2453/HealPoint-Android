@@ -263,3 +263,4 @@ const newCSS = `
 
 fs.writeFileSync(cssPath, css + newCSS, 'utf8');
 console.log('Appended Dashboard rebuild and scroll CSS to DoctorSaaSMaster.css');
+

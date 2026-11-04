@@ -1539,7 +1539,7 @@ export default function DoctorPortal() {
             navigate={navigate}
           />
         )}
-        {["today", "upcoming", "pending", "completed", "appointments"].includes(
+        {["today", "upcoming", "pending", "completed", "cancelled", "appointments"].includes(
           activeView,
         ) &&
           !selectedAppointmentId && (
@@ -2084,6 +2084,68 @@ function getAppointmentsForView(view, dashboard) {
   return dashboard.allAppointments || [];
 }
 
+function parseSlotDate(slotDate) {
+  if (!slotDate) return null;
+  if (slotDate instanceof Date) return isNaN(slotDate.getTime()) ? null : slotDate;
+  const s = String(slotDate).trim();
+  const parts = s.split(/[-/]/);
+  if (parts.length === 3) {
+    if (parts[0].length === 4) {
+      // YYYY-MM-DD
+      const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      d.setHours(0, 0, 0, 0);
+      return isNaN(d.getTime()) ? null : d;
+    } else {
+      // DD-MM-YYYY
+      const d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+      d.setHours(0, 0, 0, 0);
+      return isNaN(d.getTime()) ? null : d;
+    }
+  }
+  const d = new Date(s);
+  d.setHours(0, 0, 0, 0);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function classifyAppointment(apt, now = new Date()) {
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const aptDate = parseSlotDate(apt.slotDate);
+  
+  const status = (apt.status || "").toLowerCase();
+  const isCancelled = ["cancel", "cancelled", "missed"].includes(status);
+  const isCompleted = status === "completed";
+  const isPending = status === "pending";
+  const isConfirmed = status === "confirmed";
+
+  let dateCategory = "unknown";
+  if (aptDate) {
+    const diff = aptDate.getTime() - today.getTime();
+    if (diff === 0) dateCategory = "today";
+    else if (diff > 0) dateCategory = "upcoming";
+    else dateCategory = "past";
+  } else if (apt.isToday) {
+    dateCategory = "today";
+  }
+
+  // Today matches strictly when appointment date is current calendar date
+  const isTodayMatch = dateCategory === "today";
+  
+  // Upcoming matches future date AND active booking (or pending/confirmed with future date)
+  const isUpcomingMatch = dateCategory === "upcoming" && (isPending || isConfirmed || !isCancelled);
+
+  return {
+    aptDate,
+    dateCategory,
+    isTodayMatch,
+    isUpcomingMatch,
+    isCompleted,
+    isCancelled,
+    isPending,
+    isConfirmed,
+  };
+}
+
 function DashboardView({
   dashboard,
   appointments = [],
@@ -2095,8 +2157,6 @@ function DashboardView({
   navigate,
 }) {
   const totals = dashboard.totals || {};
-  const todayAppts = dashboard.todayAppointments || [];
-  const upcomingAppts = dashboard.upcomingAppointments || [];
   const notifications = (dashboard.notifications || []).slice(0, 5);
 
   const todayDate = new Date();
@@ -2109,6 +2169,15 @@ function DashboardView({
   const workingHours = daySchedule
     ? `${daySchedule.startTime || "09:00 AM"} - ${daySchedule.endTime || "05:00 PM"}`
     : doctor.availabilitySchedule || "09:00 AM - 05:00 PM";
+
+  // Strict date classification for appointments
+  const todayAppts = useMemo(() => {
+    return appointments.filter((a) => classifyAppointment(a, todayDate).isTodayMatch);
+  }, [appointments]);
+
+  const upcomingAppts = useMemo(() => {
+    return appointments.filter((a) => classifyAppointment(a, todayDate).isUpcomingMatch);
+  }, [appointments]);
 
   const weekly = Array.from({ length: 7 }, (_, index) => {
     const date = new Date();
@@ -2135,8 +2204,9 @@ function DashboardView({
     return [...map.values()].slice(0, 5);
   }, [appointments]);
 
-  // Analytics metrics
-  const completedCount = totals.completed || appointments.filter((a) => a.status === "completed").length;
+  // Real clinical metrics
+  const completedCount = appointments.filter((a) => classifyAppointment(a, todayDate).isCompleted).length;
+  const pendingCount = appointments.filter((a) => classifyAppointment(a, todayDate).isPending).length;
   const totalCount = appointments.length || 1;
   const completionRate = Math.round((completedCount / totalCount) * 100);
   const videoConsults = appointments.filter((a) => a.consultationType === "video").length;
@@ -2160,7 +2230,7 @@ function DashboardView({
             <FaArrowRight className="dp-kpi-arrow" />
           </div>
           <div>
-            <div className="dp-kpi-value">{totals.today || todayAppts.length || 0}</div>
+            <div className="dp-kpi-value">{todayAppts.length}</div>
             <div className="dp-kpi-label">Today's Appointments</div>
             <div className="dp-kpi-sub">Visits scheduled for today</div>
           </div>
@@ -2180,7 +2250,7 @@ function DashboardView({
             <FaArrowRight className="dp-kpi-arrow" />
           </div>
           <div>
-            <div className="dp-kpi-value">{totals.pending || appointments.filter((a) => a.status === "pending").length || 0}</div>
+            <div className="dp-kpi-value">{pendingCount}</div>
             <div className="dp-kpi-label">Pending Requests</div>
             <div className="dp-kpi-sub">Awaiting confirmation</div>
           </div>
@@ -2221,7 +2291,7 @@ function DashboardView({
           </div>
           <div>
             <div className="dp-kpi-value">
-              {totals.patients || totals.totalPatients || patientCount || recentPatients.length || 0}
+              {totals.patients || patientCount || recentPatients.length || 0}
             </div>
             <div className="dp-kpi-label">Total Patients</div>
             <div className="dp-kpi-sub">Assigned to your care</div>
@@ -2242,7 +2312,7 @@ function DashboardView({
             <FaArrowRight className="dp-kpi-arrow" />
           </div>
           <div>
-            <div className="dp-kpi-value">₹{totals.todayEarnings || dashboard.earnings?.today || 0}</div>
+            <div className="dp-kpi-value">₹{todayAppts.length > 0 ? (totals.todayEarnings || 0) : 0}</div>
             <div className="dp-kpi-label">Today's Earnings</div>
             <div className="dp-kpi-sub">
               Total Revenue: ₹{totals.revenue || totals.earnings || dashboard.earnings?.total || 0}
@@ -2352,9 +2422,9 @@ function DashboardView({
         </div>
       </section>
 
-      {/* 3. Operational Grid: Left Column (Schedule & Upcoming) + Right Column (Analytics & Patients) */}
+      {/* 3. Operational Grid */}
       <section className="dp-grid two">
-        {/* Left Column: Today's Clinical Schedule */}
+        {/* Today's Schedule Snapshot */}
         <Panel
           title="Today's Schedule & Availability"
           action={
@@ -2384,7 +2454,7 @@ function DashboardView({
             </div>
             <div className="dp-schedule-row">
               <span>Booked Visits Today</span>
-              <strong style={{ color: "#2563eb" }}>
+              <strong style={{ color: todayAppts.length > 0 ? "#2563eb" : "#64748b" }}>
                 {todayAppts.length} {todayAppts.length === 1 ? "appointment" : "appointments"}
               </strong>
             </div>
@@ -2427,7 +2497,7 @@ function DashboardView({
           )}
         </Panel>
 
-        {/* Right Column: Clinical Analytics & Breakdown */}
+        {/* Clinical Analytics & Breakdown */}
         <Panel
           title="Clinical Performance & Analytics"
           action={
@@ -2466,7 +2536,7 @@ function DashboardView({
           <MiniChart data={monthly} money />
         </Panel>
 
-        {/* Left Column: Upcoming Appointments Snapshot */}
+        {/* Upcoming Appointments Snapshot */}
         <Panel
           title="Upcoming Appointments"
           action={
@@ -2475,14 +2545,26 @@ function DashboardView({
             </Link>
           }
         >
-          {appointments.length === 0 ? (
-            <EmptyState
-              title="No upcoming appointments"
-              text="You do not have any pending or confirmed bookings for future dates."
-            />
+          {upcomingAppts.length === 0 ? (
+            <div className="dp-empty-appointment-state" style={{ margin: "4px 0" }}>
+              <div className="dp-empty-appointment-icon">
+                <FaCalendarAlt />
+              </div>
+              <div className="dp-empty-appointment-content">
+                <h4 style={{ margin: "0 0 4px" }}>No Upcoming Appointments</h4>
+                <p style={{ margin: "0 0 10px", fontSize: "0.85rem" }}>
+                  All previous bookings have concluded or been archived. New patient reservations will appear here.
+                </p>
+                <div className="dp-empty-appointment-actions">
+                  <Link to="/appointments" className="dp-btn dp-btn-primary dp-btn-sm" style={{ textDecoration: "none" }}>
+                    Browse All Appointments ({appointments.length})
+                  </Link>
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="dp-list">
-              {appointments.slice(0, 5).map((item) => {
+              {upcomingAppts.slice(0, 5).map((item) => {
                 const p = item.patient || item.userId || {};
                 return (
                   <article className="dp-appointment-row" key={item._id}>
@@ -2513,7 +2595,7 @@ function DashboardView({
           )}
         </Panel>
 
-        {/* Right Column: Recent Patients Dossier */}
+        {/* Recent Patients Dossier */}
         <Panel
           title="Recent Patients & Clinical Dossier"
           action={
@@ -2635,19 +2717,18 @@ function AppointmentsView({
     fetchAppointments();
   }, [doctorId]);
 
-  // Compute dynamic tab counts based on all loaded appointments
+  // Compute dynamic tab counts with strict date classification
   const tabCounts = useMemo(() => {
     const list = masterAppointments.length > 0 ? masterAppointments : fallbackAppointments;
     const now = new Date();
-    const todayStr = `${String(now.getDate()).padStart(2, "0")}-${String(now.getMonth() + 1).padStart(2, "0")}-${now.getFullYear()}`;
     
     return {
       all: list.length,
-      today: list.filter((a) => a.isToday || a.slotDate === todayStr || (a.slotDate && a.slotDate.includes(String(now.getFullYear())))).length,
-      upcoming: list.filter((a) => ["confirmed", "pending"].includes((a.status || "").toLowerCase())).length,
-      pending: list.filter((a) => (a.status || "").toLowerCase() === "pending").length,
-      completed: list.filter((a) => (a.status || "").toLowerCase() === "completed").length,
-      cancelled: list.filter((a) => ["cancel", "cancelled", "missed"].includes((a.status || "").toLowerCase())).length,
+      today: list.filter((a) => classifyAppointment(a, now).isTodayMatch).length,
+      upcoming: list.filter((a) => classifyAppointment(a, now).isUpcomingMatch).length,
+      pending: list.filter((a) => classifyAppointment(a, now).isPending).length,
+      completed: list.filter((a) => classifyAppointment(a, now).isCompleted).length,
+      cancelled: list.filter((a) => classifyAppointment(a, now).isCancelled).length,
     };
   }, [masterAppointments, fallbackAppointments]);
 
@@ -2655,22 +2736,21 @@ function AppointmentsView({
   const filteredAppointments = useMemo(() => {
     let list = masterAppointments.length > 0 ? masterAppointments : fallbackAppointments;
     const now = new Date();
-    const todayStr = `${String(now.getDate()).padStart(2, "0")}-${String(now.getMonth() + 1).padStart(2, "0")}-${now.getFullYear()}`;
 
     // Filter by Active Tab
     if (activeTab === "today") {
-      list = list.filter((a) => a.isToday || a.slotDate === todayStr || (a.slotDate && a.slotDate.includes(String(now.getFullYear()))));
+      list = list.filter((a) => classifyAppointment(a, now).isTodayMatch);
     } else if (activeTab === "upcoming") {
-      list = list.filter((a) => ["confirmed", "pending"].includes((a.status || "").toLowerCase()));
+      list = list.filter((a) => classifyAppointment(a, now).isUpcomingMatch);
     } else if (activeTab === "pending") {
-      list = list.filter((a) => (a.status || "").toLowerCase() === "pending");
+      list = list.filter((a) => classifyAppointment(a, now).isPending);
     } else if (activeTab === "completed") {
-      list = list.filter((a) => (a.status || "").toLowerCase() === "completed");
+      list = list.filter((a) => classifyAppointment(a, now).isCompleted);
     } else if (activeTab === "cancelled") {
-      list = list.filter((a) => ["cancel", "cancelled", "missed"].includes((a.status || "").toLowerCase()));
+      list = list.filter((a) => classifyAppointment(a, now).isCancelled);
     }
 
-    // Filter by Search
+    // Filter by Search (name, phone, email, ID)
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter((a) => {
@@ -2733,7 +2813,11 @@ function AppointmentsView({
 
   return (
     <Panel
-      title={title}
+      title={
+        title === "Appointments Command Center"
+          ? `Appointments Command Center (${tabCounts.all})`
+          : `${title} (${activeTab === "all" ? tabCounts.all : tabCounts[activeTab] || filteredAppointments.length})`
+      }
       action={
         <div className="dp-report-toolbar" style={{ margin: 0 }}>
           <button
@@ -2888,25 +2972,77 @@ function AppointmentsView({
             <p style={{ margin: 0, fontWeight: 700 }}>Loading appointments...</p>
           </div>
         ) : filteredAppointments.length === 0 ? (
-          <EmptyState
-            title={hasActiveFilters ? "No matching appointments" : "No appointments found"}
-            text={
-              hasActiveFilters
-                ? "No appointments match your active search or filters. Try adjusting your filters or search terms."
-                : "There are no appointments cataloged in this category."
-            }
-          />
+          <div className="dp-empty-appointment-state">
+            <div className="dp-empty-appointment-icon">
+              {activeTab === "today" ? (
+                <FaCalendarDay />
+              ) : activeTab === "upcoming" ? (
+                <FaCalendarAlt />
+              ) : activeTab === "completed" ? (
+                <FaCheckCircle />
+              ) : (
+                <FaSearch />
+              )}
+            </div>
+            <div className="dp-empty-appointment-content">
+              <h4>
+                {activeTab === "today"
+                  ? "No Appointments Scheduled for Today"
+                  : activeTab === "upcoming"
+                    ? "No Upcoming Appointments in Queue"
+                    : activeTab === "pending"
+                      ? "No Pending Appointment Requests"
+                      : activeTab === "completed"
+                        ? "No Completed Appointments Found"
+                        : hasActiveFilters
+                          ? "No Appointments Match Active Filters"
+                          : "No Appointments Cataloged"}
+              </h4>
+              <p>
+                {activeTab === "today"
+                  ? `You have zero visits scheduled for ${new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}. Any new OPD bookings or incoming patient arrivals will appear here immediately.`
+                  : activeTab === "upcoming"
+                    ? "All previous bookings have been concluded or archived. New reservations booked by patients through the portal will appear here automatically."
+                    : hasActiveFilters
+                      ? "No appointments match your active search keyword or filter settings. Please adjust your criteria or clear filters."
+                      : "No records found in this category."}
+              </p>
+              <div className="dp-empty-appointment-actions">
+                {hasActiveFilters ? (
+                  <button
+                    type="button"
+                    className="dp-btn dp-btn-outline dp-btn-sm"
+                    onClick={handleClearFilters}
+                  >
+                    Clear All Filters
+                  </button>
+                ) : activeTab !== "all" ? (
+                  <button
+                    type="button"
+                    className="dp-btn dp-btn-primary dp-btn-sm"
+                    onClick={() => {
+                      setActiveTab("all");
+                      setPage(1);
+                    }}
+                  >
+                    View All Appointments ({masterAppointments.length || fallbackAppointments.length})
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
         ) : (
           <>
-            {/* Desktop Table View */}
+            {/* Desktop Table View with dedicated Appointment ID column */}
             <table className="dp-data-table">
               <thead>
                 <tr>
                   <th>Patient</th>
-                  <th>Schedule</th>
-                  <th>Type</th>
+                  <th>Appointment ID</th>
+                  <th>Date & Time</th>
+                  <th>Consultation Type</th>
                   <th>Payment</th>
-                  <th>Status</th>
+                  <th>Appointment Status</th>
                   <th style={{ textAlign: "right" }}>Actions</th>
                 </tr>
               </thead>
@@ -2944,11 +3080,14 @@ function AppointmentsView({
                       </td>
 
                       <td>
+                        <span className="dp-id-chip">
+                          #{(item.appointmentId || item._id).slice(-6).toUpperCase()}
+                        </span>
+                      </td>
+
+                      <td>
                         <strong style={{ color: "#0f172a", display: "block" }}>{item.slotDate}</strong>
                         <span style={{ color: "#2563eb", fontWeight: 750 }}>{item.slotTime}</span>
-                        <span style={{ display: "block", color: "#94a3b8", fontSize: "0.72rem" }}>
-                          ID: {(item.appointmentId || item._id).slice(-6).toUpperCase()}
-                        </span>
                       </td>
 
                       <td>
@@ -3086,7 +3225,10 @@ function AppointmentsView({
                       )}
                       <div style={{ flex: 1 }}>
                         <strong style={{ color: "#0f172a", display: "block" }}>{patient.name || "Patient"}</strong>
-                        <small style={{ color: "#64748b" }}>{patient.phone || "No phone"}</small>
+                        <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 2 }}>
+                          <span className="dp-id-chip">#{(item.appointmentId || item._id).slice(-6).toUpperCase()}</span>
+                          <small style={{ color: "#64748b" }}>{patient.phone || "No phone"}</small>
+                        </div>
                       </div>
                       <span className={`dp-pill dp-pill-${item.status}`}>
                         {statusLabel[item.status] || item.status}
