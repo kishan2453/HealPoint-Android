@@ -1042,10 +1042,10 @@ export default function DoctorPortal() {
             type="button"
             className="dp-collapse-btn"
             onClick={toggleSidebarCollapse}
-            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            aria-label="Toggle sidebar collapse"
+            title={sidebarCollapsed ? "Expand sidebar navigation" : "Collapse sidebar navigation"}
+            aria-label={sidebarCollapsed ? "Expand sidebar navigation" : "Collapse sidebar navigation"}
           >
-            {sidebarCollapsed ? <FaChevronRight /> : <FaChevronLeft />}
+            {sidebarCollapsed ? <FaBars /> : <FaChevronLeft />}
           </button>
         </div>
 
@@ -2699,15 +2699,23 @@ function AppointmentsView({
   const [masterAppointments, setMasterAppointments] = useState([]);
 
   const fetchAppointments = async () => {
-    if (!doctorId) return;
+    if (!doctorId) return false;
     setLoadingList(true);
     try {
       const res = await api.get(`/api/v1/doctor/panel/${doctorId}/appointments`);
-      const list = res.data.appointments || [];
-      setMasterAppointments(list.length > 0 ? list : fallbackAppointments);
+      if (res.data?.success || Array.isArray(res.data?.appointments)) {
+        const list = res.data.appointments || [];
+        setMasterAppointments(list.length > 0 ? list : fallbackAppointments);
+        return true;
+      }
+      return false;
     } catch (err) {
       console.warn("Appointments list API error, using fallback dataset", err);
-      setMasterAppointments(fallbackAppointments);
+      if (fallbackAppointments.length > 0 && masterAppointments.length === 0) {
+        setMasterAppointments(fallbackAppointments);
+      }
+      toast.error(err.response?.data?.message || "Failed to load live appointments from server");
+      return false;
     } finally {
       setLoadingList(false);
     }
@@ -2824,9 +2832,11 @@ function AppointmentsView({
             type="button"
             className="dp-report-btn"
             onClick={async () => {
-              await fetchAppointments();
-              if (onRefresh) onRefresh();
-              toast.success("Appointments updated");
+              const ok = await fetchAppointments();
+              if (onRefresh) await onRefresh();
+              if (ok) {
+                toast.success("Appointments updated from live server");
+              }
             }}
             disabled={loadingList}
             title="Refresh appointments"

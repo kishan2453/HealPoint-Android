@@ -10,3 +10,4 @@ if (content.includes(target)) {
   console.error('Target not found');
   process.exit(1);
 }
+

@@ -76,3 +76,4 @@ const tmr = new Date();
 tmr.setDate(tmr.getDate() + 1);
 const tmrStr = `${String(tmr.getDate()).padStart(2, '0')}-${String(tmr.getMonth() + 1).padStart(2, '0')}-${tmr.getFullYear()}`;
 console.log('Tomorrow appointment:', classifyAppointment({ _id: '5', slotDate: tmrStr, status: 'confirmed' }));
+

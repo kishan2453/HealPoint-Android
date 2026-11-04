@@ -2143,3 +2143,120 @@ table tbody tr:hover,
   align-items: center !important;
   gap: 10px !important;
 }
+
+
+/* =============================================================================
+   13. COLLAPSE BUTTON PILL REPAIR & TABLE ACTION COLUMN EXPANSION
+   ============================================================================= */
+
+/* Brand container ensuring collapse button never gets compressed */
+.dp-brand {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  padding: 8px 6px 16px !important;
+  border-bottom: 1.5px solid #e2e8f0 !important;
+  margin-bottom: 14px !important;
+  flex-shrink: 0 !important;
+  min-height: 58px !important;
+}
+
+.dp-brand-info {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Proper, visible, solid sidebar collapse button */
+.dp-collapse-btn {
+  flex: 0 0 36px !important;
+  width: 36px !important;
+  min-width: 36px !important;
+  max-width: 36px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  border-radius: 9px !important;
+  background: #eff6ff !important;
+  border: 1.5px solid #2563eb !important;
+  color: #2563eb !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.12) !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.dp-collapse-btn:hover {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border-color: #1d4ed8 !important;
+  transform: scale(1.05) !important;
+  box-shadow: 0 3px 10px rgba(37, 99, 235, 0.25) !important;
+}
+
+.dp-collapse-btn svg {
+  width: 15px !important;
+  height: 15px !important;
+  min-width: 15px !important;
+  min-height: 15px !important;
+  display: block !important;
+  fill: currentColor !important;
+  color: inherit !important;
+}
+
+.dp-sidebar.is-collapsed .dp-brand {
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 12px !important;
+  padding: 6px 0 16px !important;
+}
+
+.dp-sidebar.is-collapsed .dp-brand-info {
+  justify-content: center !important;
+  flex: 0 0 auto !important;
+}
+
+.dp-sidebar.is-collapsed .dp-collapse-btn {
+  margin: 0 auto !important;
+}
+
+/* Guarantee Table Actions Column Full Visibility and No Squeeze */
+.dp-data-table th:last-child,
+.dp-data-table td:last-child,
+.dp-table th:last-child,
+.dp-table td:last-child {
+  min-width: 250px !important;
+  text-align: right !important;
+  white-space: nowrap !important;
+  padding-right: 18px !important;
+}
+
+.dp-table-actions {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  flex-wrap: nowrap !important;
+}
+
+.dp-table-actions .dp-btn {
+  white-space: nowrap !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  flex-shrink: 0 !important;
+}
+
+/* Ensure clean full page vertical scrolling */
+.dp-main {
+  padding-bottom: 150px !important;
+}

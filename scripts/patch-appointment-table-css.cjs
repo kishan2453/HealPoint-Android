@@ -83,3 +83,4 @@ const newCSS = `
 
 fs.writeFileSync(cssPath, css + newCSS, 'utf8');
 console.log('Appended Appointment empty states and ID chips CSS to DoctorSaaSMaster.css');
+

@@ -1275,3 +1275,4 @@ code = code.substring(0, startDash) + replacementCode + code.substring(endAppts)
 if (isCrlf) code = code.replace(/\n/g, '\r\n');
 fs.writeFileSync(filePath, code, 'utf8');
 console.log('Successfully upgraded DashboardView, AppointmentsView, and Date classification in DoctorPortal.jsx');
+
