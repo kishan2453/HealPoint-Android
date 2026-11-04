@@ -434,3 +434,4 @@ if (isCrlf) {
 }
 fs.writeFileSync(doctorPortalPath, dpContent, 'utf8');
 console.log("All DoctorPortal.jsx deep patches applied successfully.");
+

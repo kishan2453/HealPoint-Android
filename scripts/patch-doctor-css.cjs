@@ -392,3 +392,4 @@ css += additionalStyles;
 if (isCrlf) css = css.replace(/\n/g, '\r\n');
 fs.writeFileSync(cssPath, css, 'utf8');
 console.log("DoctorSaaSMaster.css enhancements applied successfully.");
+

@@ -243,3 +243,4 @@ const newCSS = `
 
 fs.writeFileSync(cssPath, css + newCSS, 'utf8');
 console.log('Successfully appended button and table CSS to DoctorSaaSMaster.css');
+

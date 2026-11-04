@@ -146,3 +146,4 @@ if (count > 0) {
   fs.writeFileSync(filePath, code, 'utf8');
   console.log('File written successfully');
 }
+

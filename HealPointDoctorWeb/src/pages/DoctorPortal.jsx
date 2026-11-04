@@ -2101,10 +2101,10 @@ function DashboardView({
 
   const todayDate = new Date();
   const weekday = dateToWeekday(
-    `${String(todayDate.getDate()).padStart(2, "0")}-${String(todayDate.getMonth() + 1).padStart(2, "0")}-${todayDate.getFullYear()}`,
+    `${String(todayDate.getDate()).padStart(2, "0")}-${String(todayDate.getMonth() + 1).padStart(2, "0")}-${todayDate.getFullYear()}`
   );
   const daySchedule = (doctor.weeklySchedule || []).find(
-    (item) => String(item.day).toLowerCase() === weekday.toLowerCase(),
+    (item) => String(item.day).toLowerCase() === weekday.toLowerCase()
   );
   const workingHours = daySchedule
     ? `${daySchedule.startTime || "09:00 AM"} - ${daySchedule.endTime || "05:00 PM"}`
@@ -2132,17 +2132,26 @@ function DashboardView({
         map.set(p._id, { ...p, lastAppointment: item });
       }
     });
-    return [...map.values()].slice(0, 4);
+    return [...map.values()].slice(0, 5);
   }, [appointments]);
 
+  // Analytics metrics
+  const completedCount = totals.completed || appointments.filter((a) => a.status === "completed").length;
+  const totalCount = appointments.length || 1;
+  const completionRate = Math.round((completedCount / totalCount) * 100);
+  const videoConsults = appointments.filter((a) => a.consultationType === "video").length;
+  const inClinicConsults = appointments.filter((a) => a.consultationType !== "video").length;
+
   return (
-    <>
-      {/* Responsive 5-KPI Section */}
+    <div className="dp-dashboard-root">
+      {/* 1. Primary Clinical & Financial KPI Grid */}
       <section className="dp-kpi-grid">
         <article
           className="dp-kpi-card dp-kpi-today"
           onClick={() => navigate("/today")}
-          title="View today's appointments"
+          title="View today's patient visits"
+          role="button"
+          tabIndex={0}
         >
           <div className="dp-kpi-header">
             <div className="dp-kpi-icon">
@@ -2151,7 +2160,7 @@ function DashboardView({
             <FaArrowRight className="dp-kpi-arrow" />
           </div>
           <div>
-            <div className="dp-kpi-value">{totals.today || 0}</div>
+            <div className="dp-kpi-value">{totals.today || todayAppts.length || 0}</div>
             <div className="dp-kpi-label">Today's Appointments</div>
             <div className="dp-kpi-sub">Visits scheduled for today</div>
           </div>
@@ -2159,8 +2168,10 @@ function DashboardView({
 
         <article
           className="dp-kpi-card dp-kpi-pending"
-          onClick={() => navigate("/pending")}
-          title="View pending appointments"
+          onClick={() => navigate("/appointments?search=pending")}
+          title="View pending appointment requests"
+          role="button"
+          tabIndex={0}
         >
           <div className="dp-kpi-header">
             <div className="dp-kpi-icon">
@@ -2169,7 +2180,7 @@ function DashboardView({
             <FaArrowRight className="dp-kpi-arrow" />
           </div>
           <div>
-            <div className="dp-kpi-value">{totals.pending || 0}</div>
+            <div className="dp-kpi-value">{totals.pending || appointments.filter((a) => a.status === "pending").length || 0}</div>
             <div className="dp-kpi-label">Pending Requests</div>
             <div className="dp-kpi-sub">Awaiting confirmation</div>
           </div>
@@ -2177,8 +2188,10 @@ function DashboardView({
 
         <article
           className="dp-kpi-card dp-kpi-completed"
-          onClick={() => navigate("/completed")}
-          title="View completed appointments"
+          onClick={() => navigate("/appointments?search=completed")}
+          title="View concluded appointments"
+          role="button"
+          tabIndex={0}
         >
           <div className="dp-kpi-header">
             <div className="dp-kpi-icon">
@@ -2187,7 +2200,7 @@ function DashboardView({
             <FaArrowRight className="dp-kpi-arrow" />
           </div>
           <div>
-            <div className="dp-kpi-value">{totals.completed || 0}</div>
+            <div className="dp-kpi-value">{completedCount}</div>
             <div className="dp-kpi-label">Completed Consults</div>
             <div className="dp-kpi-sub">Successfully concluded</div>
           </div>
@@ -2197,6 +2210,8 @@ function DashboardView({
           className="dp-kpi-card dp-kpi-patients"
           onClick={() => navigate("/patients")}
           title="View all patient records"
+          role="button"
+          tabIndex={0}
         >
           <div className="dp-kpi-header">
             <div className="dp-kpi-icon">
@@ -2206,7 +2221,7 @@ function DashboardView({
           </div>
           <div>
             <div className="dp-kpi-value">
-              {totals.totalPatients || patientCount || 0}
+              {totals.patients || totals.totalPatients || patientCount || recentPatients.length || 0}
             </div>
             <div className="dp-kpi-label">Total Patients</div>
             <div className="dp-kpi-sub">Assigned to your care</div>
@@ -2216,7 +2231,9 @@ function DashboardView({
         <article
           className="dp-kpi-card dp-kpi-earnings"
           onClick={() => navigate("/earnings")}
-          title="View revenue analytics"
+          title="View revenue and billing analytics"
+          role="button"
+          tabIndex={0}
         >
           <div className="dp-kpi-header">
             <div className="dp-kpi-icon">
@@ -2225,270 +2242,123 @@ function DashboardView({
             <FaArrowRight className="dp-kpi-arrow" />
           </div>
           <div>
-            <div className="dp-kpi-value">₹{totals.todayEarnings || 0}</div>
+            <div className="dp-kpi-value">₹{totals.todayEarnings || dashboard.earnings?.today || 0}</div>
             <div className="dp-kpi-label">Today's Earnings</div>
             <div className="dp-kpi-sub">
-              Total Revenue: ₹{totals.earnings || 0}
+              Total Revenue: ₹{totals.revenue || totals.earnings || dashboard.earnings?.total || 0}
             </div>
           </div>
         </article>
       </section>
 
-      {/* Quick Actions Strip */}
-      <div className="dp-quick-actions-strip">
-        <Link
-          to="/queue"
-          className="dp-quick-action-btn dp-quick-action-highlight"
-        >
-          <FaUserCheck /> OPD Patient Queue
-        </Link>
-        <Link to="/today" className="dp-quick-action-btn">
-          <FaCalendarAlt /> View Today's Appointments
-        </Link>
-        <Link to="/appointments" className="dp-quick-action-btn">
-          <FaCalendarDay /> All Appointments
-        </Link>
-        <Link to="/patients" className="dp-quick-action-btn">
-          <FaUserInjured /> Patient Directory
-        </Link>
-        <Link to="/availability" className="dp-quick-action-btn">
-          <FaClock /> Manage Availability
-        </Link>
-        <Link to="/prescriptions" className="dp-quick-action-btn">
-          <FaNotesMedical /> Medical Prescriptions
-        </Link>
-        <Link to="/upload-reports" className="dp-quick-action-btn">
-          <FaUpload /> Upload Patient Reports
-        </Link>
-      </div>
-
-      {/* Today's Appointments Command Center */}
-      <Panel
-        title={`Today's Appointment Command Center (${todayAppts.length})`}
-        action={
-          <Link
-            to="/today"
-            className="dp-btn-view"
-            style={{ textDecoration: "none" }}
-          >
-            View Full List
-          </Link>
-        }
-      >
-        {todayAppts.length === 0 ? (
-          <EmptyState
-            title="No appointments scheduled for today."
-            text="You are all caught up. Any new patient bookings or walk-ins for today will show up here immediately."
-          />
-        ) : (
-          <div className="dp-today-list">
-            {todayAppts.map((item, idx) => {
-              const patient = item.patient || item.userId || {};
-              const patientAvatar = imageSource(patient.image);
-              const isVideo = item.consultationType === "video";
-              const isPaid = item.paymentStatus === "paid" || item.payment;
-              return (
-                <article className="dp-today-card" key={item._id}>
-                  <div className="dp-today-time-badge">
-                    <span>{item.slotTime}</span>
-                    <small>Slot #{idx + 1}</small>
-                  </div>
-
-                  {patientAvatar ? (
-                    <img
-                      src={patientAvatar}
-                      alt=""
-                      className="dp-patient-avatar-sm"
-                    />
-                  ) : (
-                    <div className="dp-patient-avatar-sm">
-                      {(patient.name || "P").slice(0, 1).toUpperCase()}
-                    </div>
-                  )}
-
-                  <div className="dp-today-card-info">
-                    <strong>{patient.name || "Patient"}</strong>
-                    <div className="dp-today-card-meta">
-                      <span>{patient.phone || "No phone"}</span>
-                      {patient.gender && <span>• {patient.gender}</span>}
-                      <span>
-                        • Appt ID: {item.appointmentId || item._id.slice(-6)}
-                      </span>
-                    </div>
-                    <div className="dp-today-badges" style={{ marginTop: 6 }}>
-                      <span
-                        className={`dp-pill ${
-                          isVideo ? "dp-pill-video" : "dp-pill-clinic"
-                        }`}
-                      >
-                        {isVideo ? <FaVideo /> : <FaHospital />}
-                        {isVideo ? "Video Consult" : "Clinic Visit"}
-                      </span>
-                      <span
-                        className={`dp-pill ${
-                          isPaid ? "dp-pill-paid" : "dp-pill-cash-pending"
-                        }`}
-                      >
-                        {isPaid ? "Paid" : "Payment Pending"} · ₹
-                        {item.amount || 0}
-                      </span>
-                      <span className={`dp-pill dp-pill-${item.status}`}>
-                        {statusLabel[item.status] || item.status}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="dp-today-actions">
-                    {isVideo &&
-                      item.meetingUrl &&
-                      item.status !== "completed" &&
-                      item.status !== "cancel" && (
-                        <a
-                          href={item.meetingUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="dp-btn-video-join"
-                        >
-                          <FaVideo /> Join Video
-                        </a>
-                      )}
-                    {item.status === "pending" && (
-                      <>
-                        <button
-                          type="button"
-                          className="dp-btn-accept"
-                          disabled={saving}
-                          onClick={() =>
-                            onStatus(
-                              item._id,
-                              "confirmed",
-                              "Confirm Appointment",
-                            )
-                          }
-                        >
-                          Accept
-                        </button>
-                        <button
-                          type="button"
-                          className="dp-filter-clear-all"
-                          disabled={saving}
-                          onClick={() =>
-                            onStatus(item._id, "cancel", "Reject Appointment")
-                          }
-                        >
-                          Reject
-                        </button>
-                      </>
-                    )}
-                    {item.status === "confirmed" && (
-                      <>
-                        <button
-                          type="button"
-                          className="dp-btn-complete"
-                          disabled={saving}
-                          onClick={() =>
-                            onStatus(
-                              item._id,
-                              "completed",
-                              "Complete Appointment",
-                            )
-                          }
-                        >
-                          Complete
-                        </button>
-                        <button
-                          type="button"
-                          className="dp-btn-reschedule"
-                          disabled={saving}
-                          onClick={() => onReschedule(item)}
-                        >
-                          Reschedule
-                        </button>
-                      </>
-                    )}
-                    <Link
-                      to={`/appointments/${item._id}`}
-                      className="dp-btn-view"
-                    >
-                      Details
-                    </Link>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </Panel>
-
-      {/* Main Grid: Upcoming, Schedule Snapshot, Patients, Notifications, Charts */}
-      <section className="dp-grid two">
-        {/* Upcoming Appointments Snapshot */}
-        <Panel
-          title="Upcoming Appointments"
-          action={
-            <Link
-              to="/upcoming"
-              className="dp-btn-view"
-              style={{ textDecoration: "none" }}
-            >
-              View All ({upcomingAppts.length})
-            </Link>
-          }
-        >
-          {upcomingAppts.length === 0 ? (
-            <EmptyState
-              title="No upcoming appointments"
-              text="You do not have any pending or confirmed bookings for future dates."
-            />
-          ) : (
-            <div className="dp-list">
-              {upcomingAppts.slice(0, 5).map((item) => {
-                const p = item.patient || item.userId || {};
-                return (
-                  <article className="dp-appointment-row" key={item._id}>
-                    <div className="dp-patient-avatar-sm">
-                      {(p.name || "P").slice(0, 1).toUpperCase()}
-                    </div>
-                    <div>
-                      <strong>{p.name || "Patient"}</strong>
-                      <span>
-                        {item.slotDate} at {item.slotTime} ·{" "}
-                        {item.consultationType === "video" ? "Video" : "Clinic"}
-                      </span>
-                      <small>
-                        Payment: {item.paymentStatus || "cash_pending"} · ₹
-                        {item.amount || 0}
-                      </small>
-                    </div>
-                    <span className={`dp-pill dp-pill-${item.status}`}>
-                      {statusLabel[item.status] || item.status}
-                    </span>
-                    <div className="dp-actions">
-                      <Link to={`/appointments/${item._id}`}>Details</Link>
-                      <button
-                        type="button"
-                        disabled={saving}
-                        onClick={() => onReschedule(item)}
-                      >
-                        Reschedule
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
+      {/* 2. Middle Section: Quick Action Command Center (8 Enterprise Action Cards) */}
+      <section className="dp-command-hub">
+        <div className="dp-command-hub-header">
+          <h3>
+            <FaStethoscope color="#2563EB" /> Doctor Quick Action Command Hub
+          </h3>
+          <span style={{ fontSize: "0.82rem", color: "#64748b", fontWeight: 600 }}>
+            Quick clinical shortcuts & workspace navigation
+          </span>
+        </div>
+        <div className="dp-command-grid">
+          <Link to="/today" className="dp-command-card blue" title="View Today's Appointments Lineup">
+            <div className="dp-command-card-icon">
+              <FaCalendarAlt />
             </div>
-          )}
-        </Panel>
+            <div className="dp-command-card-info">
+              <strong className="dp-command-card-title">Today's Visits</strong>
+              <span className="dp-command-card-sub">Check arrivals & today's schedule</span>
+            </div>
+            <FaArrowRight className="dp-command-card-arrow" />
+          </Link>
 
-        {/* Schedule Snapshot */}
+          <Link to="/queue" className="dp-command-card sky" title="Open Live OPD Queue">
+            <div className="dp-command-card-icon">
+              <FaUserCheck />
+            </div>
+            <div className="dp-command-card-info">
+              <strong className="dp-command-card-title">OPD Patient Queue</strong>
+              <span className="dp-command-card-sub">Call in-clinic patients to room</span>
+            </div>
+            <FaArrowRight className="dp-command-card-arrow" />
+          </Link>
+
+          <Link to="/appointments" className="dp-command-card amber" title="Browse All Appointment Bookings">
+            <div className="dp-command-card-icon">
+              <FaCalendarDay />
+            </div>
+            <div className="dp-command-card-info">
+              <strong className="dp-command-card-title">All Appointments</strong>
+              <span className="dp-command-card-sub">Full booking roster & filter tools</span>
+            </div>
+            <FaArrowRight className="dp-command-card-arrow" />
+          </Link>
+
+          <Link to="/patients" className="dp-command-card indigo" title="Access Patient Directory">
+            <div className="dp-command-card-icon">
+              <FaUserInjured />
+            </div>
+            <div className="dp-command-card-info">
+              <strong className="dp-command-card-title">Patient Directory</strong>
+              <span className="dp-command-card-sub">Clinical profiles & visit records</span>
+            </div>
+            <FaArrowRight className="dp-command-card-arrow" />
+          </Link>
+
+          <Link to="/prescriptions" className="dp-command-card blue" title="Draft & Manage Medical Prescriptions">
+            <div className="dp-command-card-icon">
+              <FaNotesMedical />
+            </div>
+            <div className="dp-command-card-info">
+              <strong className="dp-command-card-title">Prescriptions Studio</strong>
+              <span className="dp-command-card-sub">Write, export & print digital Rx</span>
+            </div>
+            <FaArrowRight className="dp-command-card-arrow" />
+          </Link>
+
+          <Link to="/upload-reports" className="dp-command-card sky" title="Inspect Attached Medical Reports">
+            <div className="dp-command-card-icon">
+              <FaUpload />
+            </div>
+            <div className="dp-command-card-info">
+              <strong className="dp-command-card-title">Medical Reports</strong>
+              <span className="dp-command-card-sub">Lab diagnostics & attached PDFs</span>
+            </div>
+            <FaArrowRight className="dp-command-card-arrow" />
+          </Link>
+
+          <Link to="/online-consultations" className="dp-command-card amber" title="Start Online Video Consultations">
+            <div className="dp-command-card-icon">
+              <FaVideo />
+            </div>
+            <div className="dp-command-card-info">
+              <strong className="dp-command-card-title">Video Consultations</strong>
+              <span className="dp-command-card-sub">Launch secure teleconsult rooms</span>
+            </div>
+            <FaArrowRight className="dp-command-card-arrow" />
+          </Link>
+
+          <Link to="/availability" className="dp-command-card indigo" title="Configure Working Hours & Slots">
+            <div className="dp-command-card-icon">
+              <FaClock />
+            </div>
+            <div className="dp-command-card-info">
+              <strong className="dp-command-card-title">Manage Availability</strong>
+              <span className="dp-command-card-sub">Set weekly timetable & OPD hours</span>
+            </div>
+            <FaArrowRight className="dp-command-card-arrow" />
+          </Link>
+        </div>
+      </section>
+
+      {/* 3. Operational Grid: Left Column (Schedule & Upcoming) + Right Column (Analytics & Patients) */}
+      <section className="dp-grid two">
+        {/* Left Column: Today's Clinical Schedule */}
         <Panel
           title="Today's Schedule & Availability"
           action={
-            <Link
-              to="/availability"
-              className="dp-btn-view"
-              style={{ textDecoration: "none" }}
-            >
+            <Link to="/availability" className="dp-btn dp-btn-outline dp-btn-sm" style={{ textDecoration: "none" }}>
               Manage Schedule
             </Link>
           }
@@ -2506,47 +2376,156 @@ function DashboardView({
             </div>
             <div className="dp-schedule-row">
               <span>Consultation Mode</span>
-              <strong>Clinic & Online Video</strong>
+              <strong>In-Clinic & Online Video</strong>
+            </div>
+            <div className="dp-schedule-row">
+              <span>Hospital Department</span>
+              <strong>{doctor.speciality || doctor.department || "Specialist Clinical Practice"}</strong>
             </div>
             <div className="dp-schedule-row">
               <span>Booked Visits Today</span>
               <strong style={{ color: "#2563eb" }}>
-                {todayAppts.length} appointments
+                {todayAppts.length} {todayAppts.length === 1 ? "appointment" : "appointments"}
               </strong>
             </div>
             <div className="dp-schedule-row">
-              <span>Online Consultation Status</span>
-              <strong
-                style={{
-                  color:
-                    doctor.onlineStatus === "online" ? "#16a34a" : "#64748b",
-                }}
-              >
-                {doctor.onlineStatus === "online"
-                  ? "Active (Accepting calls)"
-                  : "Offline"}
+              <span>Consultation Status</span>
+              <strong style={{ color: doctor.onlineStatus === "online" ? "#16a34a" : "#64748b" }}>
+                {doctor.onlineStatus === "online" ? "Active (Accepting Consultations)" : "Offline (Schedule Only)"}
               </strong>
             </div>
           </div>
+
+          {todayAppts.length > 0 && (
+            <div style={{ marginTop: 18 }}>
+              <h4 style={{ fontSize: "0.92rem", color: "#0f172a", marginBottom: 10, fontWeight: 750 }}>
+                Today's Patient Lineup ({todayAppts.length})
+              </h4>
+              {todayAppts.map((item) => {
+                const patient = item.patient || item.userId || {};
+                return (
+                  <div className="dp-lineup-card" key={item._id}>
+                    <div className="dp-lineup-time">{item.slotTime}</div>
+                    <div className="dp-lineup-patient">
+                      <div className="dp-patient-avatar-sm">
+                        {(patient.name || "P").slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className="dp-lineup-details">
+                        <strong>{patient.name || "Patient"}</strong>
+                        <small>
+                          {item.consultationType === "video" ? "Online Video" : "Clinic Visit"} · {item.slotDate}
+                        </small>
+                      </div>
+                    </div>
+                    <Link to={`/appointments/${item._id}`} className="dp-btn dp-btn-outline dp-btn-sm">
+                      Details
+                    </Link>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </Panel>
 
-        {/* Recent Patients Preview */}
+        {/* Right Column: Clinical Analytics & Breakdown */}
         <Panel
-          title="Recent Patients"
+          title="Clinical Performance & Analytics"
           action={
-            <Link
-              to="/patients"
-              className="dp-btn-view"
-              style={{ textDecoration: "none" }}
-            >
-              View Patients ({patientCount})
+            <Link to="/analytics" className="dp-btn dp-btn-outline dp-btn-sm" style={{ textDecoration: "none" }}>
+              Full Analytics
+            </Link>
+          }
+        >
+          <div className="dp-analytics-grid">
+            <div className="dp-analytics-stat-card">
+              <small>Completion Rate</small>
+              <strong style={{ color: "#16a34a" }}>{completionRate}%</strong>
+            </div>
+            <div className="dp-analytics-stat-card">
+              <small>Total Appointments</small>
+              <strong>{appointments.length}</strong>
+            </div>
+            <div className="dp-analytics-stat-card">
+              <small>In-Clinic Visits</small>
+              <strong style={{ color: "#2563eb" }}>{inClinicConsults}</strong>
+            </div>
+            <div className="dp-analytics-stat-card">
+              <small>Video Teleconsults</small>
+              <strong style={{ color: "#6366f1" }}>{videoConsults}</strong>
+            </div>
+          </div>
+
+          <h4 style={{ fontSize: "0.92rem", color: "#0f172a", margin: "14px 0 8px", fontWeight: 750 }}>
+            Weekly Consultation Trajectory
+          </h4>
+          <MiniChart data={weekly} />
+
+          <h4 style={{ fontSize: "0.92rem", color: "#0f172a", margin: "18px 0 8px", fontWeight: 750 }}>
+            Monthly Revenue Analytics
+          </h4>
+          <MiniChart data={monthly} money />
+        </Panel>
+
+        {/* Left Column: Upcoming Appointments Snapshot */}
+        <Panel
+          title="Upcoming Appointments"
+          action={
+            <Link to="/appointments" className="dp-btn dp-btn-outline dp-btn-sm" style={{ textDecoration: "none" }}>
+              View All ({appointments.length})
+            </Link>
+          }
+        >
+          {appointments.length === 0 ? (
+            <EmptyState
+              title="No upcoming appointments"
+              text="You do not have any pending or confirmed bookings for future dates."
+            />
+          ) : (
+            <div className="dp-list">
+              {appointments.slice(0, 5).map((item) => {
+                const p = item.patient || item.userId || {};
+                return (
+                  <article className="dp-appointment-row" key={item._id}>
+                    <div className="dp-patient-avatar-sm">
+                      {(p.name || "P").slice(0, 1).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <strong style={{ display: "block", color: "#0f172a" }}>{p.name || "Patient"}</strong>
+                      <span style={{ display: "block", color: "#64748b", fontSize: "0.82rem" }}>
+                        {item.slotDate} at {item.slotTime} · {item.consultationType === "video" ? "Video" : "Clinic"}
+                      </span>
+                      <small style={{ color: "#94a3b8", fontSize: "0.76rem" }}>
+                        Payment: {item.paymentStatus || "cash_pending"} · ₹{item.amount || 0}
+                      </small>
+                    </div>
+                    <span className={`dp-pill dp-pill-${item.status}`}>
+                      {statusLabel[item.status] || item.status}
+                    </span>
+                    <div className="dp-actions">
+                      <Link to={`/appointments/${item._id}`} className="dp-btn dp-btn-outline dp-btn-sm">
+                        Details
+                      </Link>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </Panel>
+
+        {/* Right Column: Recent Patients Dossier */}
+        <Panel
+          title="Recent Patients & Clinical Dossier"
+          action={
+            <Link to="/patients" className="dp-btn dp-btn-outline dp-btn-sm" style={{ textDecoration: "none" }}>
+              Patient Directory ({totals.patients || patientCount || recentPatients.length})
             </Link>
           }
         >
           {recentPatients.length === 0 ? (
             <EmptyState
               title="No patient records yet"
-              text="Patient visits will be cataloged here automatically."
+              text="Patient visits will be cataloged here automatically as appointments are scheduled."
             />
           ) : (
             <div className="dp-list">
@@ -2556,18 +2535,15 @@ function DashboardView({
                     {(patient.name || "P").slice(0, 1).toUpperCase()}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <strong style={{ display: "block", color: "#0f172a" }}>
-                      {patient.name}
-                    </strong>
+                    <strong style={{ display: "block", color: "#0f172a" }}>{patient.name}</strong>
                     <small style={{ color: "#64748b" }}>
-                      {patient.phone || patient.email || "Contact unavailable"}{" "}
-                      · Last visit:{" "}
+                      {patient.phone || patient.email || "Contact on record"} · Last visit:{" "}
                       {patient.lastAppointment?.slotDate || "Recent"}
                     </small>
                   </div>
                   <Link
                     to={`/patients/${patient._id}`}
-                    className="dp-btn-view"
+                    className="dp-btn dp-btn-outline dp-btn-sm"
                     style={{ textDecoration: "none" }}
                   >
                     View History
@@ -2577,41 +2553,8 @@ function DashboardView({
             </div>
           )}
         </Panel>
-
-        {/* Notifications Preview */}
-        <Panel
-          title="Notifications Preview"
-          action={
-            <Link
-              to="/notifications"
-              className="dp-btn-view"
-              style={{ textDecoration: "none" }}
-            >
-              View All
-            </Link>
-          }
-        >
-          {notifications.length === 0 ? (
-            <EmptyState
-              title="No new notifications"
-              text="Appointment and patient notifications will appear here."
-            />
-          ) : (
-            <NotificationList notifications={notifications} />
-          )}
-        </Panel>
-
-        {/* Weekly Appointment Activity Chart */}
-        <Panel title="Weekly Appointment Activity">
-          <MiniChart data={weekly} />
-        </Panel>
-
-        {/* Monthly Revenue Chart */}
-        <Panel title="Monthly Revenue Analytics">
-          <MiniChart data={monthly} money />
-        </Panel>
       </section>
-    </>
+    </div>
   );
 }
 
@@ -2621,7 +2564,7 @@ function MiniChart({ data, money = false }) {
     return (
       <EmptyState
         title="No chart data yet"
-        text="Completed appointments will appear here."
+        text="Completed appointments will appear here automatically."
       />
     );
   return (
@@ -2630,7 +2573,7 @@ function MiniChart({ data, money = false }) {
         <div className="dp-chart-item" key={item.label}>
           <span
             style={{ height: `${Math.max(8, (item.value / max) * 100)}%` }}
-            title={`${money ? "Rs " : ""}${item.value}`}
+            title={`${money ? "₹" : ""}${item.value}`}
           />
           <small>{item.label}</small>
           <b>{money ? `₹${item.value}` : item.value}</b>
@@ -2656,86 +2599,33 @@ function AppointmentsView({
   const [search, setSearch] = useState(initialSearch);
 
   useEffect(() => {
+    setActiveTab(view);
+  }, [view]);
+
+  useEffect(() => {
     if (initialSearch !== undefined) {
       setSearch(initialSearch);
     }
   }, [initialSearch]);
+
   const [consultationType, setConsultationType] = useState("all");
   const [paymentStatus, setPaymentStatus] = useState("all");
   const [selectedDate, setSelectedDate] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(10);
+  const pageSize = 10;
   const [loadingList, setLoadingList] = useState(false);
-  const [appointmentsList, setAppointmentsList] = useState([]);
-  const [pagination, setPagination] = useState({
-    total: 0,
-    page: 1,
-    limit: 10,
-    totalPages: 1,
-  });
-  const [tabCounts, setTabCounts] = useState({
-    all: 0,
-    today: 0,
-    upcoming: 0,
-    pending: 0,
-    completed: 0,
-    cancelled: 0,
-  });
+  const [masterAppointments, setMasterAppointments] = useState([]);
 
   const fetchAppointments = async () => {
     if (!doctorId) return;
     setLoadingList(true);
     try {
-      const params = new URLSearchParams();
-      params.set("page", page);
-      params.set("limit", pageSize);
-      if (activeTab !== "all") params.set("view", activeTab);
-      if (search.trim()) params.set("search", search.trim());
-      if (consultationType !== "all")
-        params.set("consultationType", consultationType);
-      if (paymentStatus !== "all") params.set("paymentStatus", paymentStatus);
-      if (selectedDate) {
-        const [y, m, d] = selectedDate.split("-");
-        params.set("date", `${d}-${m}-${y}`);
-      }
-
-      const res = await api.get(
-        `/api/v1/doctor/panel/${doctorId}/appointments?${params.toString()}`,
-      );
-      setAppointmentsList(res.data.appointments || []);
-      setPagination(
-        res.data.pagination || { total: 0, page: 1, limit: 10, totalPages: 1 },
-      );
-      if (res.data.counts) setTabCounts(res.data.counts);
+      const res = await api.get(`/api/v1/doctor/panel/${doctorId}/appointments`);
+      const list = res.data.appointments || [];
+      setMasterAppointments(list.length > 0 ? list : fallbackAppointments);
     } catch (err) {
       console.warn("Appointments list API error, using fallback dataset", err);
-      let filtered = [...fallbackAppointments];
-      if (activeTab === "pending")
-        filtered = filtered.filter((a) => a.status === "pending");
-      if (activeTab === "completed")
-        filtered = filtered.filter((a) => a.status === "completed");
-      if (activeTab === "cancelled")
-        filtered = filtered.filter((a) => a.status === "cancel");
-      if (search.trim()) {
-        const q = search.trim().toLowerCase();
-        filtered = filtered.filter(
-          (a) =>
-            (a.patient?.name || a.userId?.name || "")
-              .toLowerCase()
-              .includes(q) ||
-            (a.patientPhone || "").includes(q) ||
-            (a.appointmentId || "").toLowerCase().includes(q),
-        );
-      }
-      setAppointmentsList(
-        filtered.slice((page - 1) * pageSize, page * pageSize),
-      );
-      setPagination({
-        total: filtered.length,
-        page,
-        limit: pageSize,
-        totalPages: Math.ceil(filtered.length / pageSize) || 1,
-      });
+      setMasterAppointments(fallbackAppointments);
     } finally {
       setLoadingList(false);
     }
@@ -2743,15 +2633,86 @@ function AppointmentsView({
 
   useEffect(() => {
     fetchAppointments();
-  }, [
-    doctorId,
-    activeTab,
-    search,
-    consultationType,
-    paymentStatus,
-    selectedDate,
-    page,
-  ]);
+  }, [doctorId]);
+
+  // Compute dynamic tab counts based on all loaded appointments
+  const tabCounts = useMemo(() => {
+    const list = masterAppointments.length > 0 ? masterAppointments : fallbackAppointments;
+    const now = new Date();
+    const todayStr = `${String(now.getDate()).padStart(2, "0")}-${String(now.getMonth() + 1).padStart(2, "0")}-${now.getFullYear()}`;
+    
+    return {
+      all: list.length,
+      today: list.filter((a) => a.isToday || a.slotDate === todayStr || (a.slotDate && a.slotDate.includes(String(now.getFullYear())))).length,
+      upcoming: list.filter((a) => ["confirmed", "pending"].includes((a.status || "").toLowerCase())).length,
+      pending: list.filter((a) => (a.status || "").toLowerCase() === "pending").length,
+      completed: list.filter((a) => (a.status || "").toLowerCase() === "completed").length,
+      cancelled: list.filter((a) => ["cancel", "cancelled", "missed"].includes((a.status || "").toLowerCase())).length,
+    };
+  }, [masterAppointments, fallbackAppointments]);
+
+  // Filter visible list based on active tab and filter controls
+  const filteredAppointments = useMemo(() => {
+    let list = masterAppointments.length > 0 ? masterAppointments : fallbackAppointments;
+    const now = new Date();
+    const todayStr = `${String(now.getDate()).padStart(2, "0")}-${String(now.getMonth() + 1).padStart(2, "0")}-${now.getFullYear()}`;
+
+    // Filter by Active Tab
+    if (activeTab === "today") {
+      list = list.filter((a) => a.isToday || a.slotDate === todayStr || (a.slotDate && a.slotDate.includes(String(now.getFullYear()))));
+    } else if (activeTab === "upcoming") {
+      list = list.filter((a) => ["confirmed", "pending"].includes((a.status || "").toLowerCase()));
+    } else if (activeTab === "pending") {
+      list = list.filter((a) => (a.status || "").toLowerCase() === "pending");
+    } else if (activeTab === "completed") {
+      list = list.filter((a) => (a.status || "").toLowerCase() === "completed");
+    } else if (activeTab === "cancelled") {
+      list = list.filter((a) => ["cancel", "cancelled", "missed"].includes((a.status || "").toLowerCase()));
+    }
+
+    // Filter by Search
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((a) => {
+        const pName = (a.patient?.name || a.userId?.name || a.patientName || "").toLowerCase();
+        const pPhone = (a.patient?.phone || a.userId?.phone || a.patientPhone || "").toLowerCase();
+        const pEmail = (a.patient?.email || a.userId?.email || "").toLowerCase();
+        const aptId = (a.appointmentId || a._id || "").toLowerCase();
+        return pName.includes(q) || pPhone.includes(q) || pEmail.includes(q) || aptId.includes(q);
+      });
+    }
+
+    // Filter by Consultation Mode
+    if (consultationType !== "all") {
+      list = list.filter((a) => a.consultationType === consultationType);
+    }
+
+    // Filter by Payment Status
+    if (paymentStatus !== "all") {
+      list = list.filter((a) => {
+        const s = (a.paymentStatus || "").toLowerCase();
+        if (paymentStatus === "paid") return s === "paid" || s === "success" || a.payment === true;
+        if (paymentStatus === "cash_pending") return s.includes("cash") || s.includes("pending") || !s;
+        return s === paymentStatus;
+      });
+    }
+
+    // Filter by Date
+    if (selectedDate) {
+      const [y, m, d] = selectedDate.split("-");
+      const targetDate = `${d}-${m}-${y}`;
+      list = list.filter((a) => a.slotDate === targetDate || a.slotDate === selectedDate);
+    }
+
+    return list;
+  }, [masterAppointments, fallbackAppointments, activeTab, search, consultationType, paymentStatus, selectedDate]);
+
+  // Paginated slice
+  const totalPages = Math.ceil(filteredAppointments.length / pageSize) || 1;
+  const paginatedList = useMemo(() => {
+    const startIndex = (page - 1) * pageSize;
+    return filteredAppointments.slice(startIndex, startIndex + pageSize);
+  }, [filteredAppointments, page, pageSize]);
 
   const handleClearFilters = () => {
     setSearch("");
@@ -2765,7 +2726,7 @@ function AppointmentsView({
     search.trim() ||
     consultationType !== "all" ||
     paymentStatus !== "all" ||
-    selectedDate,
+    selectedDate
   );
 
   const reportTitle = appointmentReportTitle(title);
@@ -2792,7 +2753,7 @@ function AppointmentsView({
             type="button"
             className="dp-report-btn"
             onClick={() =>
-              openPrintWindow(reportTitle, appointmentLines(appointmentsList))
+              openPrintWindow(reportTitle, appointmentLines(filteredAppointments))
             }
           >
             <FaPrint /> Print
@@ -2803,12 +2764,8 @@ function AppointmentsView({
             onClick={() =>
               buildPdf(
                 reportTitle,
-                appointmentLines(appointmentsList),
-                `${
-                  String(title || "appointments")
-                    .toLowerCase()
-                    .replace(/\W+/g, "-") || "appointments"
-                }-${Date.now()}.pdf`,
+                appointmentLines(filteredAppointments),
+                `${String(title || "appointments").toLowerCase().replace(/\W+/g, "-") || "appointments"}-${Date.now()}.pdf`
               )
             }
           >
@@ -2822,12 +2779,12 @@ function AppointmentsView({
         {/* Quick Filter Tabs */}
         <div className="dp-filter-tabs">
           {[
-            { id: "all", label: "All Appointments", count: tabCounts.all || fallbackAppointments.length || appointmentsList.length },
-            { id: "today", label: "Today", count: tabCounts.today || fallbackAppointments.filter((a) => a.isToday || a.slotDate?.includes("2026")).length },
-            { id: "upcoming", label: "Upcoming", count: tabCounts.upcoming || fallbackAppointments.filter((a) => a.status === "confirmed").length },
-            { id: "pending", label: "Pending", count: tabCounts.pending || fallbackAppointments.filter((a) => a.status === "pending").length },
-            { id: "completed", label: "Completed", count: tabCounts.completed || fallbackAppointments.filter((a) => a.status === "completed").length },
-            { id: "cancelled", label: "Cancelled", count: tabCounts.cancelled || fallbackAppointments.filter((a) => a.status === "cancel").length },
+            { id: "all", label: "All Appointments", count: tabCounts.all },
+            { id: "today", label: "Today", count: tabCounts.today },
+            { id: "upcoming", label: "Upcoming", count: tabCounts.upcoming },
+            { id: "pending", label: "Pending", count: tabCounts.pending },
+            { id: "completed", label: "Completed", count: tabCounts.completed },
+            { id: "cancelled", label: "Cancelled", count: tabCounts.cancelled },
           ].map((tab) => (
             <button
               type="button"
@@ -2839,7 +2796,7 @@ function AppointmentsView({
               }}
             >
               <span>{tab.label}</span>
-              <span className="dp-tab-count">{tab.count || 0}</span>
+              <span className="dp-tab-count">{tab.count}</span>
             </button>
           ))}
         </div>
@@ -2913,8 +2870,9 @@ function AppointmentsView({
           {hasActiveFilters && (
             <button
               type="button"
-              className="dp-filter-clear-all"
+              className="dp-btn dp-btn-outline dp-btn-sm"
               onClick={handleClearFilters}
+              style={{ height: "38px" }}
             >
               <FaTimesCircle style={{ marginRight: 4 }} /> Clear Filters
             </button>
@@ -2925,34 +2883,22 @@ function AppointmentsView({
       {/* Appointments List / Table Container */}
       <div className="dp-table-wrapper">
         {loadingList ? (
-          <div
-            style={{
-              padding: "40px 20px",
-              textAlign: "center",
-              color: "#64748b",
-            }}
-          >
-            <FaSyncAlt style={{ fontSize: "1.5rem", marginBottom: 8 }} />
-            <p style={{ margin: 0, fontWeight: 700 }}>
-              Loading appointments...
-            </p>
+          <div style={{ padding: "40px 20px", textAlign: "center", color: "#64748b" }}>
+            <FaSyncAlt className="dp-spin" style={{ fontSize: "1.5rem", marginBottom: 8, color: "#2563EB" }} />
+            <p style={{ margin: 0, fontWeight: 700 }}>Loading appointments...</p>
           </div>
-        ) : appointmentsList.length === 0 ? (
+        ) : filteredAppointments.length === 0 ? (
           <EmptyState
-            title={
-              hasActiveFilters
-                ? "No matching appointments"
-                : "No appointments found"
-            }
+            title={hasActiveFilters ? "No matching appointments" : "No appointments found"}
             text={
               hasActiveFilters
                 ? "No appointments match your active search or filters. Try adjusting your filters or search terms."
-                : "There are no appointments in this category."
+                : "There are no appointments cataloged in this category."
             }
           />
         ) : (
           <>
-            {/* Desktop Table */}
+            {/* Desktop Table View */}
             <table className="dp-data-table">
               <thead>
                 <tr>
@@ -2965,78 +2911,58 @@ function AppointmentsView({
                 </tr>
               </thead>
               <tbody>
-                {appointmentsList.map((item) => {
+                {paginatedList.map((item) => {
                   const patient = item.patient || item.userId || {};
                   const patientAvatar = imageSource(patient.image);
                   const isVideo = item.consultationType === "video";
-                  const isPaid = item.paymentStatus === "paid" || item.payment;
+                  const isPaid = item.paymentStatus === "paid" || item.paymentStatus === "SUCCESS" || item.payment === true;
+                  const isCompleted = (item.status || "").toLowerCase() === "completed";
+                  const isConfirmed = (item.status || "").toLowerCase() === "confirmed";
+                  const isPending = (item.status || "").toLowerCase() === "pending";
+                  const isCancelled = ["cancel", "cancelled", "missed"].includes((item.status || "").toLowerCase());
+
                   return (
                     <tr key={item._id}>
                       <td>
-                        <div className="dp-table-patient">
+                        <div className="dp-table-patient-cell">
                           {patientAvatar ? (
-                            <img
-                              src={patientAvatar}
-                              alt=""
-                              className="dp-patient-avatar-sm"
-                            />
+                            <img src={patientAvatar} alt="" className="dp-patient-avatar-sm" />
                           ) : (
                             <div className="dp-patient-avatar-sm">
                               {(patient.name || "P").slice(0, 1).toUpperCase()}
                             </div>
                           )}
-                          <div className="dp-table-patient-details">
-                            <strong>{patient.name || "Patient"}</strong>
-                            <span>{patient.phone || "No phone"}</span>
-                            {patient.gender && <span>{patient.gender}</span>}
+                          <div>
+                            <strong>
+                              <Link to={`/appointments/${item._id}`}>{patient.name || "Patient"}</Link>
+                            </strong>
+                            <div className="dp-id-sub">
+                              {patient.phone || "No phone"} {patient.gender ? `· ${patient.gender}` : ""}
+                            </div>
                           </div>
                         </div>
                       </td>
 
                       <td>
-                        <strong style={{ color: "#0f172a", display: "block" }}>
-                          {item.slotDate}
-                        </strong>
-                        <span style={{ color: "#2563eb", fontWeight: 750 }}>
-                          {item.slotTime}
-                        </span>
-                        <span
-                          style={{
-                            display: "block",
-                            color: "#94a3b8",
-                            fontSize: "0.7rem",
-                          }}
-                        >
-                          ID: {item.appointmentId || item._id.slice(-6)}
+                        <strong style={{ color: "#0f172a", display: "block" }}>{item.slotDate}</strong>
+                        <span style={{ color: "#2563eb", fontWeight: 750 }}>{item.slotTime}</span>
+                        <span style={{ display: "block", color: "#94a3b8", fontSize: "0.72rem" }}>
+                          ID: {(item.appointmentId || item._id).slice(-6).toUpperCase()}
                         </span>
                       </td>
 
                       <td>
-                        <span
-                          className={`dp-pill ${
-                            isVideo ? "dp-pill-video" : "dp-pill-clinic"
-                          }`}
-                        >
+                        <span className={`dp-pill ${isVideo ? "dp-pill-video" : "dp-pill-clinic"}`}>
                           {isVideo ? <FaVideo /> : <FaHospital />}
                           {isVideo ? "Video Consult" : "Clinic Visit"}
                         </span>
                       </td>
 
                       <td>
-                        <span
-                          className={`dp-pill ${
-                            isPaid ? "dp-pill-paid" : "dp-pill-cash-pending"
-                          }`}
-                        >
+                        <span className={`dp-pill ${isPaid ? "dp-pill-paid" : "dp-pill-cash-pending"}`}>
                           {isPaid ? "Paid" : "Pending"}
                         </span>
-                        <strong
-                          style={{
-                            display: "block",
-                            marginTop: 3,
-                            color: "#0f172a",
-                          }}
-                        >
+                        <strong style={{ display: "block", marginTop: 3, color: "#0f172a" }}>
                           ₹{item.amount || 0}
                         </strong>
                       </td>
@@ -3048,140 +2974,86 @@ function AppointmentsView({
                       </td>
 
                       <td style={{ textAlign: "right" }}>
-                        <div
-                          className="dp-table-actions"
-                          style={{ justifyContent: "flex-end" }}
-                        >
-                          <Link
-                            to={`/appointments/${item._id}`}
-                            className="dp-btn-view"
-                          >
+                        <div className="dp-table-actions" style={{ justifyContent: "flex-end" }}>
+                          <Link to={`/appointments/${item._id}`} className="dp-btn dp-btn-outline dp-btn-sm" title="View Full Appointment Record">
                             <FaEye /> View
                           </Link>
 
-                          {isVideo &&
-                            item.meetingUrl &&
-                            item.status !== "completed" &&
-                            item.status !== "cancel" && (
-                              <a
-                                href={item.meetingUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="dp-btn-video-join"
-                              >
-                                <FaVideo /> Join
-                              </a>
-                            )}
+                          {(isCompleted || isConfirmed) && (
+                            <Link
+                              to={`/prescriptions?appointmentId=${item._id}&patientId=${patient._id || ""}`}
+                              className="dp-btn dp-btn-primary dp-btn-sm"
+                              title="Issue / Edit Prescription in Studio"
+                            >
+                              <FaNotesMedical /> Prescription
+                            </Link>
+                          )}
 
-                          {item.status === "pending" && (
+                          {isVideo && item.meetingUrl && !isCompleted && !isCancelled && (
+                            <a
+                              href={item.meetingUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="dp-btn dp-btn-emerald dp-btn-sm"
+                              title="Join Live Video Room"
+                            >
+                              <FaVideo /> Join
+                            </a>
+                          )}
+
+                          {isPending && (
                             <>
                               <button
                                 type="button"
-                                className="dp-btn-accept"
+                                className="dp-btn dp-btn-emerald dp-btn-sm"
                                 disabled={saving}
-                                onClick={() =>
-                                  onStatus(
-                                    item._id,
-                                    "confirmed",
-                                    "Confirm Appointment",
-                                  )
-                                }
+                                onClick={() => onStatus(item._id, "confirmed", "Confirm Appointment")}
+                                title="Confirm this booking"
                               >
                                 <FaCheck /> Accept
                               </button>
                               <button
                                 type="button"
-                                className="dp-filter-clear-all"
+                                className="dp-btn dp-btn-danger dp-btn-sm"
                                 disabled={saving}
-                                onClick={() =>
-                                  onStatus(
-                                    item._id,
-                                    "cancel",
-                                    "Reject Appointment",
-                                  )
-                                }
+                                onClick={() => onStatus(item._id, "cancel", "Reject Appointment")}
+                                title="Reject this booking"
                               >
                                 <FaTimes /> Reject
                               </button>
                             </>
                           )}
 
-                          {item.status === "confirmed" && (
+                          {isConfirmed && (
                             <>
                               <button
                                 type="button"
-                                className="dp-btn-complete"
+                                className="dp-btn dp-btn-emerald dp-btn-sm"
                                 disabled={saving}
-                                onClick={() =>
-                                  onStatus(
-                                    item._id,
-                                    "completed",
-                                    "Complete Appointment",
-                                  )
-                                }
+                                onClick={() => onStatus(item._id, "completed", "Complete Appointment")}
+                                title="Mark consultation completed"
                               >
                                 <FaCheckDouble /> Complete
                               </button>
                               <button
                                 type="button"
-                                className="dp-btn-reschedule"
+                                className="dp-btn dp-btn-secondary dp-btn-sm"
                                 disabled={saving}
                                 onClick={() => onReschedule(item)}
+                                title="Reschedule date / time"
                               >
                                 <FaExchangeAlt /> Reschedule
                               </button>
                               <button
                                 type="button"
-                                className="dp-filter-clear-all"
+                                className="dp-btn dp-btn-danger dp-btn-sm"
                                 disabled={saving}
-                                onClick={() =>
-                                  onStatus(
-                                    item._id,
-                                    "cancel",
-                                    "Cancel Appointment",
-                                  )
-                                }
+                                onClick={() => onStatus(item._id, "cancel", "Cancel Appointment")}
+                                title="Cancel this appointment"
                               >
                                 Cancel
                               </button>
                             </>
-                          )}
-
-                          {item.status === "rescheduled" && (
-                            <>
-                              <button
-                                type="button"
-                                className="dp-btn-accept"
-                                disabled={saving}
-                                onClick={() =>
-                                  onStatus(
-                                    item._id,
-                                    "confirmed",
-                                    "Confirm Appointment",
-                                  )
-                                }
-                              >
-                                <FaCheck /> Accept
-                              </button>
-                              <button
-                                type="button"
-                                className="dp-btn-reschedule"
-                                disabled={saving}
-                                onClick={() => onReschedule(item)}
-                              >
-                                Reschedule
-                              </button>
-                            </>
-                          )}
-
-                          {item.status === "completed" && (
-                            <Link
-                              to={`/appointments/${item._id}`}
-                              className="dp-btn-complete"
-                              style={{ textDecoration: "none" }}
-                            >
-                              Prescription
-                            </Link>
                           )}
                         </div>
                       </td>
@@ -3191,127 +3063,90 @@ function AppointmentsView({
               </tbody>
             </table>
 
-            {/* Mobile Responsive Cards (visible <= 820px) */}
+            {/* Mobile Cards (<= 820px) */}
             <div className="dp-mobile-appointment-cards">
-              {appointmentsList.map((item) => {
+              {paginatedList.map((item) => {
                 const patient = item.patient || item.userId || {};
                 const patientAvatar = imageSource(patient.image);
                 const isVideo = item.consultationType === "video";
-                const isPaid = item.paymentStatus === "paid" || item.payment;
+                const isPaid = item.paymentStatus === "paid" || item.paymentStatus === "SUCCESS" || item.payment === true;
+                const isCompleted = (item.status || "").toLowerCase() === "completed";
+                const isConfirmed = (item.status || "").toLowerCase() === "confirmed";
+                const isPending = (item.status || "").toLowerCase() === "pending";
+
                 return (
                   <article className="dp-mobile-card" key={item._id}>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 12,
-                      }}
-                    >
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       {patientAvatar ? (
-                        <img
-                          src={patientAvatar}
-                          alt=""
-                          className="dp-patient-avatar-sm"
-                        />
+                        <img src={patientAvatar} alt="" className="dp-patient-avatar-sm" />
                       ) : (
                         <div className="dp-patient-avatar-sm">
                           {(patient.name || "P").slice(0, 1).toUpperCase()}
                         </div>
                       )}
                       <div style={{ flex: 1 }}>
-                        <strong style={{ color: "#0f172a", display: "block" }}>
-                          {patient.name || "Patient"}
-                        </strong>
-                        <small style={{ color: "#64748b" }}>
-                          {patient.phone || "No phone"}
-                        </small>
+                        <strong style={{ color: "#0f172a", display: "block" }}>{patient.name || "Patient"}</strong>
+                        <small style={{ color: "#64748b" }}>{patient.phone || "No phone"}</small>
                       </div>
                       <span className={`dp-pill dp-pill-${item.status}`}>
                         {statusLabel[item.status] || item.status}
                       </span>
                     </div>
 
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        fontSize: "0.8rem",
-                        color: "#475569",
-                      }}
-                    >
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem", color: "#475569" }}>
                       <div>
-                        <strong>Date: </strong>
-                        {item.slotDate} at {item.slotTime}
+                        <strong>Date: </strong>{item.slotDate} at {item.slotTime}
                       </div>
                       <div>
-                        <strong>Fee: </strong>₹{item.amount || 0} (
-                        {isPaid ? "Paid" : "Pending"})
+                        <strong>Fee: </strong>₹{item.amount || 0} ({isPaid ? "Paid" : "Pending"})
                       </div>
                     </div>
 
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        flexWrap: "wrap",
-                        paddingTop: 8,
-                        borderTop: "1px solid #f1f5f9",
-                      }}
-                    >
-                      <Link
-                        to={`/appointments/${item._id}`}
-                        className="dp-btn-view"
-                      >
-                        Details
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", paddingTop: 8, borderTop: "1px solid #f1f5f9" }}>
+                      <Link to={`/appointments/${item._id}`} className="dp-btn dp-btn-outline dp-btn-sm">
+                        <FaEye /> Details
                       </Link>
-                      {item.status === "pending" && (
+                      {(isCompleted || isConfirmed) && (
+                        <Link
+                          to={`/prescriptions?appointmentId=${item._id}&patientId=${patient._id || ""}`}
+                          className="dp-btn dp-btn-primary dp-btn-sm"
+                        >
+                          <FaNotesMedical /> Prescription
+                        </Link>
+                      )}
+                      {isPending && (
                         <>
                           <button
                             type="button"
-                            className="dp-btn-accept"
+                            className="dp-btn dp-btn-emerald dp-btn-sm"
                             disabled={saving}
-                            onClick={() =>
-                              onStatus(
-                                item._id,
-                                "confirmed",
-                                "Confirm Appointment",
-                              )
-                            }
+                            onClick={() => onStatus(item._id, "confirmed", "Confirm Appointment")}
                           >
                             Accept
                           </button>
                           <button
                             type="button"
-                            className="dp-filter-clear-all"
+                            className="dp-btn dp-btn-danger dp-btn-sm"
                             disabled={saving}
-                            onClick={() =>
-                              onStatus(item._id, "cancel", "Reject Appointment")
-                            }
+                            onClick={() => onStatus(item._id, "cancel", "Reject Appointment")}
                           >
                             Reject
                           </button>
                         </>
                       )}
-                      {item.status === "confirmed" && (
+                      {isConfirmed && (
                         <>
                           <button
                             type="button"
-                            className="dp-btn-complete"
+                            className="dp-btn dp-btn-emerald dp-btn-sm"
                             disabled={saving}
-                            onClick={() =>
-                              onStatus(
-                                item._id,
-                                "completed",
-                                "Complete Appointment",
-                              )
-                            }
+                            onClick={() => onStatus(item._id, "completed", "Complete Appointment")}
                           >
                             Complete
                           </button>
                           <button
                             type="button"
-                            className="dp-btn-reschedule"
+                            className="dp-btn dp-btn-secondary dp-btn-sm"
                             disabled={saving}
                             onClick={() => onReschedule(item)}
                           >
@@ -3327,30 +3162,27 @@ function AppointmentsView({
 
             {/* Pagination Controls */}
             <div className="dp-pagination">
-              <div>
-                Showing {(pagination.page - 1) * pagination.limit + 1}–
-                {Math.min(pagination.page * pagination.limit, pagination.total)}{" "}
-                of {pagination.total} appointments
+              <div style={{ fontWeight: 600, color: "#475569", fontSize: "0.88rem" }}>
+                Showing {Math.min((page - 1) * pageSize + 1, filteredAppointments.length)}–
+                {Math.min(page * pageSize, filteredAppointments.length)} of {filteredAppointments.length} appointments
               </div>
               <div className="dp-pagination-buttons">
                 <button
                   type="button"
                   className="dp-page-btn"
-                  disabled={pagination.page <= 1 || loadingList}
+                  disabled={page <= 1 || loadingList}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                 >
                   <FaChevronLeft /> Previous
                 </button>
                 <span style={{ fontWeight: 750, color: "#0f172a" }}>
-                  Page {pagination.page} of {pagination.totalPages}
+                  Page {page} of {totalPages}
                 </span>
                 <button
                   type="button"
                   className="dp-page-btn"
-                  disabled={
-                    pagination.page >= pagination.totalPages || loadingList
-                  }
-                  onClick={() => setPage((p) => p + 1)}
+                  disabled={page >= totalPages || loadingList}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 >
                   Next <FaChevronRight />
                 </button>
@@ -3360,92 +3192,6 @@ function AppointmentsView({
         )}
       </div>
     </Panel>
-  );
-}
-
-function AppointmentList({
-  appointments,
-  compact = false,
-  onStatus,
-  onReschedule,
-  saving,
-}) {
-  if (!appointments?.length)
-    return (
-      <EmptyState
-        title="No appointments"
-        text="There are no appointments in this section."
-      />
-    );
-  return (
-    <div className="dp-list">
-      {appointments.map((item) => (
-        <article className="dp-appointment-row" key={item._id}>
-          {item.patient?.image || item.userId?.image ? (
-            <img
-              className="dp-avatar"
-              src={imageSource(item.patient?.image || item.userId?.image)}
-              alt="Patient"
-            />
-          ) : (
-            <div className="dp-avatar dp-avatar-fallback">
-              {(item.patient?.name || item.userId?.name || "P").slice(0, 1)}
-            </div>
-          )}
-          <div>
-            <strong>
-              {item.patient?.name || item.userId?.name || "Patient"}
-            </strong>
-            <span>
-              {item.slotDate} at {item.slotTime} |{" "}
-              {item.consultationType || "clinic"} |{" "}
-              {item.patient?.gender ||
-                item.userId?.gender ||
-                "Gender unavailable"}
-            </span>
-            <small>
-              Payment: {item.paymentStatus || "cash_pending"} | Rs{" "}
-              {item.amount || 0}
-            </small>
-          </div>
-          <em className={`dp-status ${item.status}`}>
-            {statusLabel[item.status] || item.status}
-          </em>
-          {!compact && (
-            <div className="dp-actions">
-              <Link to={`/appointments/${item._id}`}>Details</Link>
-              {item.status !== "confirmed" && (
-                <button
-                  disabled={saving}
-                  onClick={() => onStatus(item._id, "confirmed")}
-                >
-                  Accept
-                </button>
-              )}
-              {item.status !== "cancel" && (
-                <button
-                  disabled={saving}
-                  onClick={() => onStatus(item._id, "cancel")}
-                >
-                  Reject
-                </button>
-              )}
-              {item.status !== "completed" && (
-                <button
-                  disabled={saving}
-                  onClick={() => onStatus(item._id, "completed")}
-                >
-                  Complete
-                </button>
-              )}
-              <button disabled={saving} onClick={() => onReschedule(item)}>
-                Reschedule
-              </button>
-            </div>
-          )}
-        </article>
-      ))}
-    </div>
   );
 }
 
@@ -15876,7 +15622,22 @@ function MedicalForm({ form, setForm, onSubmit, saving }) {
           onChange={(e) => setForm({ ...form, medicalNotes: e.target.value })}
         />
       </label>
-      <button disabled={saving}>Save Medical Record</button>
+      <button
+        type="submit"
+        className="dp-btn dp-btn-primary"
+        disabled={saving}
+        style={{ padding: "12px 28px", fontSize: "0.95rem", fontWeight: 700 }}
+      >
+        {saving ? (
+          <>
+            <FaSyncAlt className="dp-spin" /> Saving Medical Record...
+          </>
+        ) : (
+          <>
+            <FaNotesMedical /> Save Medical Record & Clinical Notes
+          </>
+        )}
+      </button>
     </form>
   );
 }

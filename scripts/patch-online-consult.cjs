@@ -56,3 +56,4 @@ if (content.includes(oldButton)) {
 if (isCrlf) content = content.replace(/\n/g, '\r\n');
 fs.writeFileSync(filePath, content, 'utf8');
 console.log("OnlineConsultations patch done.");
+

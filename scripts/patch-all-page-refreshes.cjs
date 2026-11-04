@@ -57,3 +57,4 @@ content = content.replace(
 if (isCrlf) content = content.replace(/\n/g, '\r\n');
 fs.writeFileSync(doctorPortalPath, content, 'utf8');
 console.log("All page refresh toasts and async feedback wired successfully.");
+
