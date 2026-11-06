@@ -14,6 +14,7 @@ import {
   getHourlyBookingCount,
   MAX_HOURLY_CAPACITY,
   normalizeDateDDMMYYYY,
+  parseDateString,
   getSmartSlotSuggestionsHelper,
 } from "../helpers/slotHelper.js";
 
