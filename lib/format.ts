@@ -23,6 +23,10 @@ export function normalizeToDate(value: any): Date | null {
   if (value instanceof Date) {
     return Number.isNaN(value.getTime()) ? null : value;
   }
+  if (typeof value === "number") {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (!trimmed) return null;
@@ -47,29 +51,52 @@ export function normalizeToDate(value: any): Date | null {
     const parsed = new Date(trimmed);
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
-  if (typeof value === "number") {
-    const d = new Date(value);
-    return Number.isNaN(d.getTime()) ? null : d;
+  if (typeof value === "object") {
+    if (value.date) return normalizeToDate(value.date);
+    if (value.slotDate) return normalizeToDate(value.slotDate);
+    if (value.bookingDate) return normalizeToDate(value.bookingDate);
   }
   return null;
 }
 
 /** Format a JS Date (or valid date string/number) as the backend's `DD-MM-YYYY` slot format. */
-export function toDDMMYYYY(date?: Date | string | number | null): string {
+export function toDDMMYYYY(date?: any): string {
+  if (!date) return "";
   const dObj = normalizeToDate(date);
-  if (!dObj) return "";
+  if (!dObj) {
+    if (typeof date === "string") {
+      const s = date.trim();
+      if (/^\d{2}-\d{2}-\d{4}$/.test(s)) return s;
+    }
+    return "";
+  }
   const d = String(dObj.getDate()).padStart(2, "0");
   const m = String(dObj.getMonth() + 1).padStart(2, "0");
   return `${d}-${m}-${dObj.getFullYear()}`;
 }
 
-/** Human-friendly display from a `DD-MM-YYYY` string or ISO timestamp -> e.g. `19 Aug 2026`. */
-export function formatDDMMYYYY(value?: string, fallback = "-"): string {
+/** Human-friendly display from a `DD-MM-YYYY` string, Date object or ISO timestamp -> e.g. `19 Aug 2026`. */
+export function formatDDMMYYYY(value?: any, fallback = "-"): string {
   if (!value) return fallback;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return fallback;
+    const d = value.getDate();
+    const m = MONTHS_SHORT[value.getMonth()] || String(value.getMonth() + 1);
+    const y = value.getFullYear();
+    return `${d} ${m} ${y}`;
+  }
+  if (typeof value !== "string") {
+    const dObj = normalizeToDate(value);
+    if (dObj) {
+      return `${dObj.getDate()} ${MONTHS_SHORT[dObj.getMonth()]} ${dObj.getFullYear()}`;
+    }
+    return fallback;
+  }
   const trimmed = value.trim();
+  if (!trimmed) return fallback;
 
   // 1. DD-MM-YYYY match
-  const match = /^(\d{2})-(\d{2})-(\d{4})$/.exec(trimmed);
+  const match = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(trimmed);
   if (match) {
     const [, dd, mm, yyyy] = match;
     const monthIndex = Number(mm) - 1;
@@ -87,12 +114,91 @@ export function formatDDMMYYYY(value?: string, fallback = "-"): string {
   }
 
   // 3. Fallback to JS Date if valid
-  const parsed = new Date(trimmed);
-  if (!Number.isNaN(parsed.getTime())) {
+  const parsed = normalizeToDate(trimmed);
+  if (parsed && !Number.isNaN(parsed.getTime())) {
     return `${parsed.getDate()} ${MONTHS_SHORT[parsed.getMonth()]} ${parsed.getFullYear()}`;
   }
 
   return trimmed;
+}
+
+/**
+ * Parse an appointment slot string like "09:30 AM", "02:00 PM", "14:30" into total minutes from midnight.
+ */
+export function parseSlotToMinutes(slot?: string | null): number {
+  if (!slot) return 0;
+  const match = String(slot).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (!match) return 0;
+  let hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const meridiem = (match[3] || "").toUpperCase();
+  if (meridiem === "PM" && hour !== 12) hour += 12;
+  if (meridiem === "AM" && hour === 12) hour = 0;
+  return hour * 60 + minute;
+}
+
+/**
+ * Returns current minutes in Asia/Kolkata (Indian Standard Time) from midnight.
+ */
+export function getNowMinutesIST(mockNow?: Date): number {
+  const date = mockNow || new Date();
+  const timeStr = date.toLocaleTimeString("en-GB", {
+    timeZone: "Asia/Kolkata",
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const [hh, mm] = timeStr.split(":").map(Number);
+  return hh * 60 + mm;
+}
+
+/**
+ * Checks if a date matches today in Asia/Kolkata (IST).
+ */
+export function isDateTodayIST(dateInput: any, mockNow?: Date): boolean {
+  const dObj = normalizeToDate(dateInput);
+  if (!dObj) return false;
+  const targetStr = toDDMMYYYY(dObj);
+
+  const now = mockNow || new Date();
+  const istDateStr = now.toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata" });
+  const [dd, mm, yyyy] = istDateStr.split("/").map(Number);
+  const todayIST = `${String(dd).padStart(2, "0")}-${String(mm).padStart(2, "0")}-${yyyy}`;
+
+  return targetStr === todayIST;
+}
+
+/**
+ * Checks if a date is strictly before today in Asia/Kolkata (IST).
+ */
+export function isDatePastIST(dateInput: any, mockNow?: Date): boolean {
+  const dObj = normalizeToDate(dateInput);
+  if (!dObj) return false;
+
+  const now = mockNow || new Date();
+  const istDateStr = now.toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata" });
+  const [dd, mm, yyyy] = istDateStr.split("/").map(Number);
+  const todayMid = new Date(yyyy, mm - 1, dd, 0, 0, 0, 0);
+  const targetMid = new Date(dObj.getFullYear(), dObj.getMonth(), dObj.getDate(), 0, 0, 0, 0);
+
+  return targetMid.getTime() < todayMid.getTime();
+}
+
+/**
+ * Checks if a slot time on a given slot date has already passed in Asia/Kolkata (IST).
+ */
+export function isSlotPassedIST(
+  slotDate: any,
+  slotTime: string,
+  mockNow?: Date,
+): boolean {
+  if (isDatePastIST(slotDate, mockNow)) return true;
+  if (isDateTodayIST(slotDate, mockNow)) {
+    const currentMin = getNowMinutesIST(mockNow);
+    const slotMin = parseSlotToMinutes(slotTime);
+    return slotMin <= currentMin;
+  }
+  return false;
 }
 
 /**
@@ -104,12 +210,9 @@ export function formatSmartDateTime(
   fallback = "-",
 ): string {
   if (!value) return fallback;
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return formatDDMMYYYY(
-      typeof value === "string" ? value : undefined,
-      fallback,
-    );
+  const date = normalizeToDate(value);
+  if (!date || Number.isNaN(date.getTime())) {
+    return formatDDMMYYYY(value, fallback);
   }
   const datePart = `${date.getDate()} ${MONTHS_SHORT[date.getMonth()]} ${date.getFullYear()}`;
 
@@ -189,15 +292,6 @@ export function cleanPatientFirstName(name?: string, isDoctor = false): string {
 
 /**
  * Normalizes any doctor's display name to ensure exactly one "Dr." prefix.
- *
- * Rules:
- *  - "Krishan Desai"        → "Dr. Krishan Desai"
- *  - "Dr. Krishan Desai"    → "Dr. Krishan Desai"
- *  - "Dr. Dr. Ketul Parmar" → "Dr. Ketul Parmar"
- *  - "Dr. Dr.Ketul Parmar"  → "Dr. Ketul Parmar"
- *  - "DR. Devid Miller"     → "Dr. Devid Miller"
- *  - "dr mehul"             → "Dr. Mehul"
- *  - "Doctor" / "" / null   → fallback (default: "Doctor")
  */
 export function formatDoctorName(
   rawName?: string | null,
@@ -207,7 +301,6 @@ export function formatDoctorName(
   const trimmed = rawName.trim();
   if (!trimmed) return fallback;
 
-  // Repeatedly strip any leading variants of "dr", "dr.", "dr ", case-insensitively
   let cleanName = trimmed;
   while (/^(dr\.?|dr\b)\s*/i.test(cleanName)) {
     cleanName = cleanName.replace(/^(dr\.?|dr\b)\s*/i, "").trim();
@@ -221,7 +314,6 @@ export function formatDoctorName(
 
 /**
  * Strips all "Dr." / "Dr" / "DR." prefixes from a doctor's name.
- * e.g. "Dr. Dr. Ketul Parmar" → "Ketul Parmar"
  */
 export function stripDoctorTitle(rawName?: string | null): string {
   if (!rawName || typeof rawName !== "string") return "";
