@@ -43,6 +43,10 @@ import {
   formatDDMMYYYY,
   formatDoctorName,
   formatINR,
+  isDatePastIST,
+  isDateTodayIST,
+  isSlotPassedIST,
+  parseSlotToMinutes,
   stripDoctorTitle,
   toDDMMYYYY,
   weekdayLabel,
@@ -690,8 +694,11 @@ export default function BookingScreen() {
         if (!active) return;
         const slots = res.availableSlots || [];
         setAvailableSlots(slots);
-        if (slots.length > 0) {
-          setSelectedSlot(slots[0]);
+        const futureSlots = isDateTodayIST(selectedDate)
+          ? slots.filter((s: string) => !isSlotPassedIST(selectedDate, s))
+          : slots;
+        if (futureSlots.length > 0) {
+          setSelectedSlot(futureSlots[0]);
           setSmartSuggestions([]);
         } else {
           // Fetch Part 18 Smart Slot Suggestions
@@ -740,9 +747,20 @@ export default function BookingScreen() {
 
   const selectedDateStr = toDDMMYYYY(selectedDate);
   const isLeaveDate = Boolean(doctor?.leaveDates?.includes(selectedDateStr));
+  const isPastDate = isDatePastIST(selectedDate);
+  const isTodayDate = isDateTodayIST(selectedDate);
+
+  const visibleSlots = useMemo(() => {
+    if (isPastDate) return [];
+    if (isTodayDate) {
+      return availableSlots.filter((slot) => !isSlotPassedIST(selectedDate, slot));
+    }
+    return availableSlots;
+  }, [availableSlots, selectedDate, isPastDate, isTodayDate]);
+
   const { morning, afternoon, evening } = useMemo(
-    () => categorizeSlots(availableSlots),
-    [availableSlots],
+    () => categorizeSlots(visibleSlots),
+    [visibleSlots],
   );
 
   const confirmBooking = async () => {
@@ -756,6 +774,18 @@ export default function BookingScreen() {
     if (isLeaveDate) {
       setBookingError(
         "The doctor is on leave on this date. Please choose another date.",
+      );
+      return;
+    }
+    if (isPastDate) {
+      setBookingError(
+        "Cannot book appointments for past dates. Please select today or a future date.",
+      );
+      return;
+    }
+    if (isTodayDate && isSlotPassedIST(selectedDate, selectedSlot)) {
+      setBookingError(
+        "Selected time slot has already passed for today. Please select a future slot.",
       );
       return;
     }
@@ -1429,14 +1459,14 @@ export default function BookingScreen() {
             <View style={styles.stepHeadingTextWrap}>
               <Text style={styles.stepTitle}>Select Time Slot</Text>
               <Text style={styles.stepSubtitle}>
-                {availableSlots.length > 0
-                  ? `${availableSlots.length} available slots for ${formatDDMMYYYY(selectedDateStr)}`
-                  : "Real-time doctor schedule"}
+                {visibleSlots.length > 0
+                  ? `${visibleSlots.length} available slots for ${formatDDMMYYYY(selectedDateStr)}`
+                  : isTodayDate
+                    ? "No more appointment slots are available for today"
+                    : isPastDate
+                      ? "Past date selected"
+                      : "Real-time doctor schedule"}
               </Text>
-            </View>
-            <View style={styles.stepLive}>
-              <Ionicons name="pulse" size={13} color={Palette.success} />
-              <Text style={styles.stepLiveText}>Live Sync</Text>
             </View>
           </View>
 
@@ -1451,16 +1481,26 @@ export default function BookingScreen() {
             </View>
           ) : slotsError ? (
             <Text style={styles.slotsStateText}>{slotsError}</Text>
-          ) : availableSlots.length === 0 ? (
+          ) : visibleSlots.length === 0 ? (
             <View style={styles.emptySlotsBox}>
               <Ionicons
                 name="calendar-outline"
                 size={36}
                 color={Palette.textMuted}
               />
-              <Text style={styles.emptySlotsTitle}>No Available Slots for this Date</Text>
+              <Text style={styles.emptySlotsTitle}>
+                {isPastDate
+                  ? "Past Date Selected"
+                  : isTodayDate
+                    ? "No More Slots Available Today"
+                    : "No Available Slots for this Date"}
+              </Text>
               <Text style={styles.emptySlotsText}>
-                All appointment slots are fully booked. Choose an alternative suggested date or join the waitlist.
+                {isPastDate
+                  ? "Cannot book appointments for past dates. Please select today or a future date."
+                  : isTodayDate
+                    ? "No more appointment slots are available for today. Please select another date."
+                    : "All appointment slots are fully booked. Choose an alternative suggested date or join the waitlist."}
               </Text>
 
               {smartSuggestions.length > 0 && (
@@ -2136,7 +2176,7 @@ export default function BookingScreen() {
             icon="calendar"
             onPress={confirmBooking}
             loading={submitting}
-            disabled={!selectedSlot || !doctor.available || isLeaveDate}
+            disabled={!selectedSlot || !doctor.available || isLeaveDate || isPastDate || visibleSlots.length === 0 || submitting}
             style={styles.confirmButton}
           />
 

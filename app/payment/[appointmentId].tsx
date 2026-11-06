@@ -369,7 +369,7 @@ export default function PaymentScreen() {
 
           <Card padded style={styles.stateCard}>
             {detailRow("Doctor", appointment?.doctorName || "Doctor")}
-            {detailRow("Date", formatDDMMYYYY(appointment?.bookingDate))}
+            {detailRow("Date", formatDDMMYYYY(appointment?.slotDate || appointment?.bookingDate || appointment?.date))}
             {detailRow("Time", appointment?.bookingTime || "-")}
             {detailRow("Patient", appointment?.patientName || "Patient")}
             {appointment?.billing?.consultationFee
@@ -488,7 +488,7 @@ export default function PaymentScreen() {
           </View>
           <View style={styles.divider} />
           {detailRow("Patient", appointment?.patientName || "Patient")}
-          {detailRow("Date", formatDDMMYYYY(appointment?.bookingDate))}
+          {detailRow("Date", formatDDMMYYYY(appointment?.slotDate || appointment?.bookingDate || appointment?.date))}
           {detailRow("Time", appointment?.bookingTime || "-")}
         </Card>
 

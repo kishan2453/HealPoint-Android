@@ -218,13 +218,33 @@ export const generateDoctorSlotsForDate = async (doctor, targetDate) => {
     }
   });
 
-  // If booking for today, exclude slots that have already passed
-  const now = new Date();
+  // If booking for today, exclude slots that have already passed in Asia/Kolkata (IST)
+  const nowIST = new Date();
+  const istDateStr = nowIST.toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata" });
+  const [nowD, nowM, nowY] = istDateStr.split("/").map(Number);
+  const istTimeStr = nowIST.toLocaleTimeString("en-GB", {
+    timeZone: "Asia/Kolkata",
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const [istH, istMin] = istTimeStr.split(":").map(Number);
+  const currentTotalMinutes = istH * 60 + istMin;
+
   const isToday =
-    parsedDate.getDate() === now.getDate() &&
-    parsedDate.getMonth() === now.getMonth() &&
-    parsedDate.getFullYear() === now.getFullYear();
-  const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
+    parsedDate.getDate() === nowD &&
+    parsedDate.getMonth() + 1 === nowM &&
+    parsedDate.getFullYear() === nowY;
+
+  const targetDateMid = new Date(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate(), 0, 0, 0);
+  const todayMid = new Date(nowY, nowM - 1, nowD, 0, 0, 0);
+  if (targetDateMid.getTime() < todayMid.getTime()) {
+    return {
+      availableSlots: [],
+      reason: "Cannot book appointments for past dates",
+      hourlyCapacity: {},
+    };
+  }
 
   // Parse doctor break times
   const breaksList = [];
